@@ -1,0 +1,50 @@
+{
+    "steps": [
+        {
+            "step": "transform",
+            "duration": 21.422312700073235,
+            "result": "```json\n{\n  \"jobspec\": \"#!/bin/bash\\n#SBATCH --account=xe2\\n#SBATCH --partition=expressbw\\n#SBATCH --ntasks=28\\n#SBATCH --time=24:00:00\\n#SBATCH --constraint=gdata1\\n#SBATCH --mem=126G\\n#SBATCH --tmp=100G\\n\\nlogdir=raijin/log\\nif [ -d $logdir ]\\nthen\\n  pushd $logdir >/dev/null\\n  if [ -n \\\"$(ls *.ER *.OU 2>/dev/null)\\\" ]\\n  then\\n    tar cf `date +%y%m%d_%H%M%S`.tar *.OU *.ER 2>/dev/null\\n    rm *.OU *.ER\\n  fi\\n  popd >/dev/null\\nelse\\n  mkdir -p $logdir\\nfi\\n\\n. raijin/modules.sh\\n\\nSNAKEMAKE_CLUSTER_CMD=\\\"sbatch --partition={cluster.queue} --ntasks={threads} --tmp={cluster.jobfs}\\\"\\nSNAKEMAKE_CLUSTER_CMD=\\\"$SNAKEMAKE_CLUSTER_CMD --time={cluster.time} --mem={cluster.mem}\\\"\\nSNAKEMAKE_CLUSTER_CMD=\\\"$SNAKEMAKE_CLUSTER_CMD --output=$logdir/slurm-%j.out --error=$logdir/slurm-%j.err --account=xe2\\\"\\n\\nsnakemake                                \\\\\\n    -j 500                               \\\\\\n    --cluster-config raijin/cluster.yaml \\\\\\n    --js raijin/jobscript.sh             \\\\\\n    --local-cores 16                     \\\\\\n    --rerun-incomplete                   \\\\\\n    --keep-going                         \\\\\\n    --cluster \\\"$SNAKEMAKE_CLUSTER_CMD\\\"   \\\\\\n   all                                   \\\\\\n   >raijin/log/snakemake.log\"\n}\n```\nWORKFLOW COMPLETE",
+            "error": null
+        },
+        {
+            "step": "validate",
+            "duration": 28.086867423029616,
+            "result": "```json\n{\n  \"valid\": false,\n  \"reasons\": [\n    \"The '--tmp' directive is not a valid Slurm directive. Slurm uses other mechanisms like Generic Resource (GRES) scheduling (e.g., '--gres=tmpfs:<size>') for temporary disk space, which is site-specific.\"\n  ],\n  \"issues\": [\n    \"The script appears to be a conversion from a PBS/Torque scheduler, indicated by the logic to handle '.OU' and '.ER' files, which are default extensions for PBS output and error logs.\",\n    \"The use of backticks for command substitution (e.g., `date ...`) is outdated and less safe than the modern '$(...)' syntax.\",\n    \"The script contains hardcoded paths (e.g., 'raijin/log', 'raijin/modules.sh') which may not be portable to other systems.\",\n    \"The use of 'ls' to check for the existence of files can be unreliable, especially with a large number of files. A 'find' command or a loop would be more robust.\"\n  ]\n}\n```\nWORKFLOW COMPLETE",
+            "error": null
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "agent",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": true,
+                "inputs": {
+                    "from_manager": "pbs",
+                    "to_manager": "slurm",
+                    "script": "#!/bin/bash\n#PBS -P xe2\n#PBS -q expressbw\n#PBS -l ncpus=28\n#PBS -l walltime=24:00:00\n#PBS -l other=gdata1\n#PBS -l mem=126G\n#PBS -l jobfs=100G\n#PBS -l wd\n\nlogdir=raijin/log\nif [ -d $logdir ]\nthen\n  pushd $logdir >/dev/null\n  if [ -n \"$(ls *.ER *.OU 2>/dev/null)\" ]\n  then\n    tar cf `date +%y%m%d_%H%M%S`.tar *.OU *.ER 2>/dev/null\n    rm *.OU *.ER\n  fi\n  popd >/dev/null\nelse\n  mkdir -p $logdir\nfi\n\n. raijin/modules.sh\n\nQSUB=\"qsub -q {cluster.queue} -l ncpus={threads} -l jobfs={cluster.jobfs}\"\nQSUB=\"$QSUB -l walltime={cluster.time} -l mem={cluster.mem}\"\nQSUB=\"$QSUB -l wd -o $logdir -e $logdir -P xe2\"\n\nsnakemake                                \\\n    -j 500                               \\\n    --cluster-config raijin/cluster.yaml \\\n    --js raijin/jobscript.sh             \\\n    --local-cores 16                     \\\n    --rerun-incomplete                   \\\n    --keep-going                         \\\n    --cluster \"$QSUB\"                    \\\n   all                                   \\\n   >raijin/log/snakemake.log\n"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "agent",
+                "prompt": "validate_jobspec_expert",
+                "inputs": {
+                    "script": "{{ result.jobspec }}"
+                },
+                "transitions": {
+                    "success": "success",
+                    "failure": "failed"
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

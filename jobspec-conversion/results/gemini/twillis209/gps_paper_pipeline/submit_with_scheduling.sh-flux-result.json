@@ -1,0 +1,50 @@
+{
+    "steps": [
+        {
+            "step": "transform",
+            "duration": 14.963462662068196,
+            "result": "```json\n{\n \"jobspec\": \"#!/bin/bash\\n#FLUX -J gps_paper_pipeline_scheduler\\n#FLUX -A MRC-BSU-SL2-CPU\\n#FLUX --nodes=1\\n#FLUX --ntasks=1\\n#FLUX --cpus-per-task=4\\n#FLUX --time=6h\\n#FLUX --mail-type=FAIL\\n#FLUX -q cclake\\n#FLUX -o logs/gps_paper_pipeline_scheduler/%j.out\\n\\n#! Number of nodes and tasks per node allocated by Flux (do not change):\\nnumnodes=$FLUX_JOB_NNODES\\nnumtasks=$FLUX_NTASKS\\n# Assuming one task per node as per the resource request\\nmpi_tasks_per_node=1\\n\\n#! Optionally modify the environment seen by the application\\n. /etc/profile.d/modules.sh                # Leave this line (enables the module command)\\nmodule purge                               # Removes all modules still loaded\\nmodule load rhel7/default-peta4            # REQUIRED - loads the basic environment\\n\\nworkdir=\\\"$FLUX_SUBMIT_DIR\\\"\\n\\n#! Are you using OpenMP? If so increase this\\n#! safe value to no more than the number of cpus-per-task:\\nexport OMP_NUM_THREADS=5\\n\\n#! Number of MPI tasks to be started by the application per node and in total (do not change):\\nnp=$((numnodes * mpi_tasks_per_node))\\n\\n#! The following variables define a sensible pinning strategy for Intel MPI tasks -\\n#! this should be suitable for both pure MPI and hybrid MPI/OpenMP jobs:\\nexport I_MPI_PIN_DOMAIN=omp:compact # Domains are $OMP_NUM_THREADS cores in size\\nexport I_MPI_PIN_ORDER=scatter # Adjacent domains have minimal sharing of caches/sockets\\n\\n###############################################################\\n### You should not have to change anything below this line ####\\n###############################################################\\n\\ncd $workdir\\necho -e \\\"Changed directory to `pwd`.\\\\n\\\"\\n\\nJOBID=$FLUX_JOB_ID\\n\\necho -e \\\"JobID: $JOBID\\\\n======\\\"\\necho \\\"Time: `date`\\\"\\necho \\\"Running on node: `hostname`\\\"\\necho \\\"Current directory: `pwd`\\\"\\n\\nif [ \\\"$FLUX_JOB_NODELIST\\\" ]; then\\n        #! Create a machine file:\\n        NODEFILE=logs/machine.file.$JOBID\\n        echo \\\"$FLUX_JOB_NODELIST\\\" | tr ' ' '\\\\n' | uniq > $NODEFILE\\n        echo -e \\\"\\\\nNodes allocated:\\\\n================\\\"\\n        cat $NODEFILE\\nfi\\n\\necho -e \\\"\\\\nnumtasks=$numtasks, numnodes=$numnodes, mpi_tasks_per_node=$mpi_tasks_per_node (OMP_NUM_THREADS=$OMP_NUM_THREADS)\\\"\\n\\necho -e \\\"\\\\nExecuting command:\\\\n==================\\\\n\\\\n\\\"\\n\\n__conda_setup=\\\"$('/rds/project/rds-csoP2nj6Y6Y/tw395/mambaforge/bin/conda' 'shell.bash' 'hook' 2> /dev/null)\\\"\\nif [ $? -eq 0 ]; then\\n    eval \\\"$__conda_setup\\\"\\nelse\\n    if [ -f \\\"/rds/project/rds-csoP2nj6Y6Y/tw395/mambaforge/etc/profile.d/conda.sh\\\" ]; then\\n        . \\\"/rds/project/rds-csoP2nj6Y6Y/tw395/mambaforge/etc/profile.d/conda.sh\\\"\\n    else\\n        export PATH=\\\"/rds/project/rds-csoP2nj6Y6Y/tw395/mambaforge/bin:$PATH\\\"\\n    fi\\nfi\\nunset __conda_setup\\n\\nunset R_LIBS\\n\\nconda activate snakemake_env\\n\\nsnakemake --profile profile \\\"${@}\\\"\\n\"\n}\n```\nWORKFLOW COMPLETE",
+            "error": null
+        },
+        {
+            "step": "validate",
+            "duration": 19.233078605961055,
+            "result": "{\"jobspec\":null,\"errors\":[],\"valid\":true}",
+            "error": null
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "agent",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": true,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n#SBATCH -J gps_paper_pipeline_scheduler\n#SBATCH -A MRC-BSU-SL2-CPU\n#SBATCH --nodes=1\n#SBATCH --ntasks=1\n#SBATCH --cpus-per-task=4\n#SBATCH --time=6:00:00\n#SBATCH --mail-type=FAIL\n#SBATCH -p cclake\n#SBATCH -o logs/gps_paper_pipeline_scheduler/%j.out\n\n#! Number of nodes and tasks per node allocated by SLURM (do not change):\nnumnodes=$SLURM_JOB_NUM_NODES\nnumtasks=$SLURM_NTASKS\nmpi_tasks_per_node=$(echo \"$SLURM_TASKS_PER_NODE\" | sed -e  's/^\\([0-9][0-9]*\\).*$/\\1/')\n\n#! Optionally modify the environment seen by the application\n#! (note that SLURM reproduces the environment at submission irrespective of ~/.bashrc):\n. /etc/profile.d/modules.sh                # Leave this line (enables the module command)\nmodule purge                               # Removes all modules still loaded\nmodule load rhel7/default-peta4            # REQUIRED - loads the basic environment\n\nworkdir=\"$SLURM_SUBMIT_DIR\"\n\n#! Are you using OpenMP (NB this is unrelated to OpenMPI)? If so increase this\n#! safe value to no more than 32:\nexport OMP_NUM_THREADS=5\n\n#! Number of MPI tasks to be started by the application per node and in total (do not change):\nnp=$[${numnodes}*${mpi_tasks_per_node}]\n\n#! The following variables define a sensible pinning strategy for Intel MPI tasks -\n#! this should be suitable for both pure MPI and hybrid MPI/OpenMP jobs:\nexport I_MPI_PIN_DOMAIN=omp:compact # Domains are $OMP_NUM_THREADS cores in size\nexport I_MPI_PIN_ORDER=scatter # Adjacent domains have minimal sharing of caches/sockets\n\n###############################################################\n### You should not have to change anything below this line ####\n###############################################################\n\ncd $workdir\necho -e \"Changed directory to `pwd`.\\n\"\n\nJOBID=$SLURM_JOB_ID\n\necho -e \"JobID: $JOBID\\n======\"\necho \"Time: `date`\"\necho \"Running on mcadr node: `hostname`\"\necho \"Current directory: `pwd`\"\n\nif [ \"$SLURM_JOB_NODELIST\" ]; then\n        #! Create a machine file:\n        export NODEFILE=`generate_pbs_nodefile`\n        cat $NODEFILE | uniq > logs/machine.file.$JOBID\n        echo -e \"\\nNodes allocated:\\n================\"\n        echo `cat logs/machine.file.$JOBID | sed -e 's/\\..*$//g'`\nfi\n\necho -e \"\\nnumtasks=$numtasks, numnodes=$numnodes, mpi_tasks_per_node=$mpi_tasks_per_node (OMP_NUM_THREADS=$OMP_NUM_THREADS)\"\n\necho -e \"\\nExecuting command:\\n==================\\n\\n\"\n\n__conda_setup=\"$('/rds/project/rds-csoP2nj6Y6Y/tw395/mambaforge/bin/conda' 'shell.bash' 'hook' 2> /dev/null)\"\nif [ $? -eq 0 ]; then\n    eval \"$__conda_setup\"\nelse\n    if [ -f \"/rds/project/rds-csoP2nj6Y6Y/tw395/mambaforge/etc/profile.d/conda.sh\" ]; then\n        . \"/rds/project/rds-csoP2nj6Y6Y/tw395/mambaforge/etc/profile.d/conda.sh\"\n    else\n        export PATH=\"/rds/project/rds-csoP2nj6Y6Y/tw395/mambaforge/bin:$PATH\"\n    fi\nfi\nunset __conda_setup\n\nunset R_LIBS\n\nconda activate snakemake_env\n\nsnakemake --profile profile \"${@}\"\n"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "agent",
+                "prompt": "validate_jobspec_expert",
+                "inputs": {
+                    "script": "{{ result.jobspec }}"
+                },
+                "transitions": {
+                    "success": "success",
+                    "failure": "failed"
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

@@ -1,0 +1,50 @@
+{
+    "steps": [
+        {
+            "step": "transform",
+            "duration": 9.912829287932254,
+            "result": "```json\n{\n  \"jobspec\": \"#!/bin/bash\\n#SBATCH --account=xe2\\n#SBATCH --partition=hugemem\\n#SBATCH --ntasks=1\\n#SBATCH --cpus-per-task=28\\n#SBATCH --time=24:00:00\\n#SBATCH --mem=800G\\n#SBATCH --chdir=$(pwd)\\n#SBATCH --mail-type=ALL\\n#SBATCH --mail-user=kevin.murray@anu.edu.au\\n\\n# Note: The PBS directive '#PBS -l other=gdata1' could not be directly translated.\\n# It may correspond to a feature or generic resource in Slurm.\\n# You might need to use a directive like '#SBATCH --constraint=gdata1' or '#SBATCH --gres=gdata1:1'.\\n\\n. raijin/modules.sh\\n\\nmkdir -p data/log\\n\\nsnakemake --unlock\\n\\nsnakemake                         \\\\\\n    -j ${SLURM_CPUS_PER_TASK}     \\\\\\n    --rerun-incomplete            \\\\\\n    --keep-going                  \\\\\\n    ${target:-all}                \\\\\\n    |& tee data/log/snakemake.log \\\\\\n\\n\"\n}\n```\nWORKFLOW COMPLETE",
+            "error": null
+        },
+        {
+            "step": "validate",
+            "duration": 12.990723408991471,
+            "result": "```json\n{\n  \"valid\": false,\n  \"reasons\": [\n    \"The --chdir=$(pwd) directive is problematic. It is evaluated on the submission host and may not be the intended directory on the compute node. It is recommended to remove this line and rely on the default Slurm behavior, which is to use the submission directory as the working directory.\"\n  ],\n  \"issues\": [\n    \". raijin/modules.sh uses a relative path, which depends on the job's working directory. Using an absolute path is more robust.\"\n  ]\n}\n```\nWORKFLOW COMPLETE",
+            "error": null
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "agent",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": true,
+                "inputs": {
+                    "from_manager": "pbs",
+                    "to_manager": "slurm",
+                    "script": "#!/bin/bash\n#PBS -P xe2\n#PBS -q hugemem\n#PBS -l ncpus=28\n#PBS -l walltime=24:00:00\n#PBS -l other=gdata1\n#PBS -l mem=800G\n#PBS -l wd\n#PBS -m abe\n#PBS -M kevin.murray@anu.edu.au\n\n. raijin/modules.sh\n\nmkdir -p data/log\n\nsnakemake --unlock\n\nsnakemake                         \\\n    -j ${PBS_NCPUS}               \\\n    --rerun-incomplete            \\\n    --keep-going                  \\\n    ${target:-all}                \\\n    |& tee data/log/snakemake.log \\\n\n"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "agent",
+                "prompt": "validate_jobspec_expert",
+                "inputs": {
+                    "script": "{{ result.jobspec }}"
+                },
+                "transitions": {
+                    "success": "success",
+                    "failure": "failed"
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

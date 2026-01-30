@@ -1,0 +1,50 @@
+{
+    "steps": [
+        {
+            "step": "transform",
+            "duration": 47.52272033004556,
+            "result": "{\"jobspec\":null,\"errors\":[],\"valid\":true}",
+            "error": null
+        },
+        {
+            "step": "validate",
+            "duration": 16.177996171056293,
+            "result": "```json\n{\n \"valid\": false,\n \"reasons\": [\n  \"Job specification is empty and is missing a resource specification.\"\n ]\n}\n```\nWORKFLOW COMPLETE",
+            "error": null
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "agent",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": true,
+                "inputs": {
+                    "from_manager": "pbs",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n#PBS -P xe2\n#PBS -q expressbw\n#PBS -l ncpus=28\n#PBS -l walltime=24:00:00\n#PBS -l other=gdata1\n#PBS -l mem=126G\n#PBS -l jobfs=100G\n#PBS -l wd\n\nlogdir=raijin/log\nif [ -d $logdir ]\nthen\n  pushd $logdir >/dev/null\n  if [ -n \"$(ls *.ER *.OU 2>/dev/null)\" ]\n  then\n    tar cf `date +%y%m%d_%H%M%S`.tar *.OU *.ER 2>/dev/null\n    rm *.OU *.ER\n  fi\n  popd >/dev/null\nelse\n  mkdir -p $logdir\nfi\n\n. raijin/modules.sh\n\nQSUB=\"qsub -q {cluster.queue} -l ncpus={threads} -l jobfs={cluster.jobfs}\"\nQSUB=\"$QSUB -l walltime={cluster.time} -l mem={cluster.mem}\"\nQSUB=\"$QSUB -l wd -o $logdir -e $logdir -P xe2\"\n\nsnakemake                                \\\n    -j 500                               \\\n    --cluster-config raijin/cluster.yaml \\\n    --js raijin/jobscript.sh             \\\n    --local-cores 16                     \\\n    --rerun-incomplete                   \\\n    --keep-going                         \\\n    --cluster \"$QSUB\"                    \\\n   all                                   \\\n   >raijin/log/snakemake.log\n"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "agent",
+                "prompt": "validate_jobspec_expert",
+                "inputs": {
+                    "script": "{{ result.jobspec }}"
+                },
+                "transitions": {
+                    "success": "success",
+                    "failure": "failed"
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}
