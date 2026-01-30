@@ -78,7 +78,7 @@ Here is my small sample (still testing)
 Found 21 result files to analyze.
 Saved processed data to: analysis/processed_results.csv
 
---- Summary Metrics (for transformations TO FLUX) ---
+Summary Metrics (for transformations to Flux)
 Overall Flux Validation Success Rate: 6 / 9 (66.67%)
 
 Success Rate by Transformation Type (to Flux):
@@ -93,12 +93,12 @@ Directive Syntax/Format Error    2
 Other                            1
 Name: count, dtype: int64
 
---- Generating Plots ---
+Generating Plots
 Saved plot: analysis/1_valid_vs_invalid_flux_breakdown.png
 Saved plot: analysis/2_error_category_flux_distribution.png
 Saved plot: analysis/3_average_duration.png
 
-Analysis complete.
+Analysis complete
 ```
 
 I am currently looking at a sample of testing data to debug / work on the setup before running an initial experiment.
