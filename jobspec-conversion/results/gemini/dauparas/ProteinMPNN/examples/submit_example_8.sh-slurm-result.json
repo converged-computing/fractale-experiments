@@ -1,0 +1,50 @@
+{
+    "steps": [
+        {
+            "step": "transform",
+            "duration": 9.810307160951197,
+            "result": "```json\n{\n  \"jobspec\": \"#!/bin/bash\\n#SBATCH -p gpu\\n#SBATCH --mem=32g\\n#SBATCH --gres=gpu:rtx2080:1\\n#SBATCH -c 2\\n#SBATCH --output=example_8.out\\n\\nsource activate mlfold\\n\\nfolder_with_pdbs=\\\"../inputs/PDB_monomers/pdbs/\\\"\\n\\noutput_dir=\\\"../outputs/example_8_outputs\\\"\\nif [ ! -d $output_dir ]\\nthen\\n    mkdir -p $output_dir\\nfi\\n\\npath_for_bias=$output_dir\\\"/bias_pdbs.jsonl\\\"\\n#Adding global polar amino acid bias (Doug Tischer)\\nAA_list=\\\"D E H K N Q R S T W Y\\\"\\nbias_list=\\\"1.39 1.39 1.39 1.39 1.39 1.39 1.39 1.39 1.39 1.39 1.39\\\"\\npython ../helper_scripts/make_bias_AA.py --output_path=$path_for_bias --AA_list=\\\"$AA_list\\\" --bias_list=\\\"$bias_list\\\"\\n\\npath_for_parsed_chains=$output_dir\\\"/parsed_pdbs.jsonl\\\"\\npython ../helper_scripts/parse_multiple_chains.py --input_path=$folder_with_pdbs --output_path=$path_for_parsed_chains\\n\\npython ../protein_mpnn_run.py \\\\\\n        --jsonl_path $path_for_parsed_chains \\\\\\n        --out_folder $output_dir \\\\\\n        --bias_AA_jsonl $path_for_bias \\\\\\n        --num_seq_per_target 2 \\\\\\n        --sampling_temp \\\"0.1\\\" \\\\\\n        --seed 37 \\\\\\n        --batch_size 1\\n\"\n}\n```\nWORKFLOW COMPLETE",
+            "error": null
+        },
+        {
+            "step": "validate",
+            "duration": 14.975724639953114,
+            "result": "```json\n{\n  \"valid\": true,\n  \"reasons\": [],\n  \"issues\": [\n    \"The script uses relative paths like `../inputs` and `../helper_scripts`. This makes the script dependent on the location from where it is submitted. It's often more robust to use absolute paths or paths relative to the script's own location.\",\n    \"The use of `source activate mlfold` is common but depends on the user's shell configuration. For newer conda versions, `conda activate mlfold` is preferred and more reliable, though it might require `conda init` to have been run previously.\"\n  ]\n}\n```\nWORKFLOW COMPLETE",
+            "error": null
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "agent",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": true,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "slurm",
+                    "script": "#!/bin/bash\n#SBATCH -p gpu\n#SBATCH --mem=32g\n#SBATCH --gres=gpu:rtx2080:1\n#SBATCH -c 2\n#SBATCH --output=example_8.out\n\nsource activate mlfold\n\nfolder_with_pdbs=\"../inputs/PDB_monomers/pdbs/\"\n\noutput_dir=\"../outputs/example_8_outputs\"\nif [ ! -d $output_dir ]\nthen\n    mkdir -p $output_dir\nfi\n\npath_for_bias=$output_dir\"/bias_pdbs.jsonl\"\n#Adding global polar amino acid bias (Doug Tischer)\nAA_list=\"D E H K N Q R S T W Y\"\nbias_list=\"1.39 1.39 1.39 1.39 1.39 1.39 1.39 1.39 1.39 1.39 1.39\"\npython ../helper_scripts/make_bias_AA.py --output_path=$path_for_bias --AA_list=\"$AA_list\" --bias_list=\"$bias_list\"\n\npath_for_parsed_chains=$output_dir\"/parsed_pdbs.jsonl\"\npython ../helper_scripts/parse_multiple_chains.py --input_path=$folder_with_pdbs --output_path=$path_for_parsed_chains\n\npython ../protein_mpnn_run.py \\\n        --jsonl_path $path_for_parsed_chains \\\n        --out_folder $output_dir \\\n        --bias_AA_jsonl $path_for_bias \\\n        --num_seq_per_target 2 \\\n        --sampling_temp \"0.1\" \\\n        --seed 37 \\\n        --batch_size 1\n"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "agent",
+                "prompt": "validate_jobspec_expert",
+                "inputs": {
+                    "script": "{{ result.jobspec }}"
+                },
+                "transitions": {
+                    "success": "success",
+                    "failure": "failed"
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

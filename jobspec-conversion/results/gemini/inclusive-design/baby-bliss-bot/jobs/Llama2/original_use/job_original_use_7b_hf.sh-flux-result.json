@@ -1,0 +1,50 @@
+{
+    "steps": [
+        {
+            "step": "transform",
+            "duration": 21.187704802956432,
+            "result": "```json\n{\n  \"jobspec\": \"#!/bin/bash\\n\\n# Copyright (c) 2023-2024, Inclusive Design Institute\\n#\\n# Licensed under the BSD 3-Clause License. You may not use this file except\\n# in compliance with this License.\\n#\\n# You may obtain a copy of the BSD 3-Clause License at\\n# https://github.com/inclusive-design/baby-bliss-bot/blob/main/LICENSE\\n\\n#FLUX --job-name=llama2-orig-use-7b-hf\\n#FLUX --time=10-00:00\\n#FLUX --nodes=1\\n#FLUX --gpus-per-node=1\\n# The specific GPU type 'v100l' from the original '--gpus-per-node=v100l:1' is a constraint.\\n# In Flux, you might need to specify this with a different option, for example:\\n# #FLUX --requires=gpu:v100l\\n# Omitting this may have performance implications if a different GPU type is allocated.\\n#FLUX --mem-per-node=128G\\n#FLUX --ntasks-per-node=4\\n#FLUX --cpus-per-task=4\\n#FLUX --account=def-whkchun\\n#FLUX --output=%x.o%j\\n\\npip install --upgrade pip\\nmodule load python/3.11.5\\npython -V\\n\\n# SLURM_TMPDIR is not available in Flux. Using a temporary directory.\\nTMPDIR=$(mktemp -d)\\nvirtualenv --no-download $TMPDIR/env\\nsource $TMPDIR/env/bin/activate\\n\\npip install --upgrade pip\\n\\nmodule load StdEnv/2023\\nmodule load rust/1.70.0\\npip install --no-index transformers==4.36.2\\npip install -r ~/llama2/requirements-llama2.txt\\n\\npython -V\\npip list\\n\\necho \\\"Llama2 original use from job $FLUX_JOB_ID on nodes $(flux resource list).\\\"\\npython ~/llama2/original_use/original_use_7b_hf.py\\n\\n# Clean up the temporary directory\\nrm -rf $TMPDIR\\n\"\n}\n```\nWORKFLOW COMPLETE",
+            "error": null
+        },
+        {
+            "step": "validate",
+            "duration": 16.546276698005386,
+            "result": "{\"jobspec\":null,\"errors\":[],\"valid\":true}",
+            "error": null
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "agent",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": true,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n\n# Copyright (c) 2023-2024, Inclusive Design Institute\n#\n# Licensed under the BSD 3-Clause License. You may not use this file except\n# in compliance with this License.\n#\n# You may obtain a copy of the BSD 3-Clause License at\n# https://github.com/inclusive-design/baby-bliss-bot/blob/main/LICENSE\n\n#SBATCH --job-name=llama2-orig-use-7b-hf\n#SBATCH --time 10-00:00\n#SBATCH --nodes=1\n#SBATCH --gpus-per-node=v100l:1\n#SBATCH --mem=128G\n#SBATCH --ntasks-per-node=4\n#SBATCH --cpus-per-task=4\n#SBATCH --account=def-whkchun\n#SBATCH --output=%x.o%j\n\npip install --upgrade pip\nmodule load python/3.11.5\npython -V\n\nvirtualenv --no-download $SLURM_TMPDIR/env\nsource $SLURM_TMPDIR/env/bin/activate\n\npip install --upgrade pip\n\nmodule load StdEnv/2023\nmodule load rust/1.70.0\npip install --no-index transformers==4.36.2\npip install -r ~/llama2/requirements-llama2.txt\n\npython -V\npip list\n\necho \"Llama2 original use from job $SLURM_JOB_ID on nodes $SLURM_JOB_NODELIST.\"\npython ~/llama2/original_use/original_use_7b_hf.py\n"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "agent",
+                "prompt": "validate_jobspec_expert",
+                "inputs": {
+                    "script": "{{ result.jobspec }}"
+                },
+                "transitions": {
+                    "success": "success",
+                    "failure": "failed"
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

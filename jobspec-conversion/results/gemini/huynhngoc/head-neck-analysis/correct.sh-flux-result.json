@@ -1,0 +1,50 @@
+{
+    "steps": [
+        {
+            "step": "transform",
+            "duration": 17.90610284206923,
+            "result": "```json\n{\n  \"jobspec\": \"#!/bin/bash\\n#FLUX --ntasks=1               # 1 core(CPU)\\n#FLUX --nodes=1                # Use 1 node\\n#FLUX --job-name=hn_test   # sensible name for the job\\n# FLUX does not have a direct equivalent for --mem. Assuming 1 GPU per task based on the partition.\\n#FLUX --gpus-per-task=1\\n#FLUX --queue=gpu # Use the verysmallmem-partition for jobs requiring < 10 GB RAM.\\n#FLUX --mail-user=ngochuyn@nmbu.no # Email me when job is done.\\n# FLUX does not have a direct equivalent for --mail-type.\\n#FLUX --output=outputs/unet-correct-%A.out\\n#FLUX --error=outputs/unet-correct-%A.out\\n\\n\\n# If you would like to use more please adjust this.\\n\\n## Below you can put your scripts\\n# If you want to load module\\nmodule load singularity\\n\\n## Code\\n# If data files aren't copied, do so\\n#!/bin/bash\\nif [ $# -lt 1 ];\\n    then\\n    printf \\\"Not enough arguments - %d\\\\n\\\" $#\\n    exit 0\\n    fi\\n\\nif [ ! -d \\\"$TMPDIR/$USER/hn_delin\\\" ]\\n    then\\n    echo \\\"Didn't find dataset folder. Copying files...\\\"\\n    mkdir --parents $TMPDIR/$USER/hn_delin\\n    fi\\n\\nfor f in $(ls $HOME/datasets/headneck/*)\\n    do\\n    FILENAME=`echo $f | awk -F/ '{print $NF}'`\\n    echo $FILENAME\\n    if [ ! -f \\\"$TMPDIR/$USER/hn_delin/$FILENAME\\\" ]\\n        then\\n        echo \\\"copying $f\\\"\\n        cp -r $HOME/datasets/headneck/$FILENAME $TMPDIR/$USER/hn_delin/\\n        fi\\n    done\\n\\n\\necho \\\"Finished seting up files.\\\"\\n\\n# Run experiment\\n# singularity exec --nv deoxys.sif python test_experiment.py $1 /net/fs-1/Ngoc/hnperf/$2\\nsingularity exec --nv deoxys-ray_2.sif python -u correct_dice.py $1\\n\"\n}\n```\nWORKFLOW COMPLETE",
+            "error": null
+        },
+        {
+            "step": "validate",
+            "duration": 17.901983138057403,
+            "result": "{\"jobspec\":null,\"errors\":[],\"valid\":true}",
+            "error": null
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "agent",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": true,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n#SBATCH --ntasks=1               # 1 core(CPU)\n#SBATCH --nodes=1                # Use 1 node\n#SBATCH --job-name=hn_test   # sensible name for the job\n#SBATCH --mem=32G                 # Default memory per CPU is 3GB.\n#SBATCH --partition=gpu # Use the verysmallmem-partition for jobs requiring < 10 GB RAM.\n#SBATCH --mail-user=ngochuyn@nmbu.no # Email me when job is done.\n#SBATCH --mail-type=ALL\n#SBATCH --output=outputs/unet-correct-%A.out\n#SBATCH --error=outputs/unet-correct-%A.out\n\n\n# If you would like to use more please adjust this.\n\n## Below you can put your scripts\n# If you want to load module\nmodule load singularity\n\n## Code\n# If data files aren't copied, do so\n#!/bin/bash\nif [ $# -lt 1 ];\n    then\n    printf \"Not enough arguments - %d\\n\" $#\n    exit 0\n    fi\n\nif [ ! -d \"$TMPDIR/$USER/hn_delin\" ]\n    then\n    echo \"Didn't find dataset folder. Copying files...\"\n    mkdir --parents $TMPDIR/$USER/hn_delin\n    fi\n\nfor f in $(ls $HOME/datasets/headneck/*)\n    do\n    FILENAME=`echo $f | awk -F/ '{print $NF}'`\n    echo $FILENAME\n    if [ ! -f \"$TMPDIR/$USER/hn_delin/$FILENAME\" ]\n        then\n        echo \"copying $f\"\n        cp -r $HOME/datasets/headneck/$FILENAME $TMPDIR/$USER/hn_delin/\n        fi\n    done\n\n\necho \"Finished seting up files.\"\n\n# Run experiment\n# singularity exec --nv deoxys.sif python test_experiment.py $1 /net/fs-1/Ngoc/hnperf/$2\nsingularity exec --nv deoxys-ray_2.sif python -u correct_dice.py $1\n"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "agent",
+                "prompt": "validate_jobspec_expert",
+                "inputs": {
+                    "script": "{{ result.jobspec }}"
+                },
+                "transitions": {
+                    "success": "success",
+                    "failure": "failed"
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

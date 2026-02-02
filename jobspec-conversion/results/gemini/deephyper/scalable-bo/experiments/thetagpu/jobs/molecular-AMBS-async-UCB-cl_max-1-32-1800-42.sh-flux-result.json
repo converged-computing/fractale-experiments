@@ -1,0 +1,50 @@
+{
+    "steps": [
+        {
+            "step": "transform",
+            "duration": 24.170756662962958,
+            "result": "```json\n{\n  \"jobspec\": \"#!/bin/bash\\n#flux: -N 1\\n#flux: -t 45m\\n#flux: --queue=full-node\\n#flux: --account=datascience\\n\\n#!!! CONFIGURATION - START\\nexport RANKS_PER_NODE=32\\n# COBALT_JOBSIZE is replaced by FLUX_JOB_NNODES provided by Flux\\nexport acq_func=\\\"UCB\\\"\\nexport strategy=\\\"cl_max\\\"\\nexport timeout=1800\\nexport random_state=42 \\nexport problem=\\\"molecular\\\"\\nexport sync_val=0\\nexport search=\\\"DBO\\\"\\n#!!! CONFIGURATION - END\\n\\n# activate Python environment\\nsource ../../../build/activate-dhenv.sh\\nexport PYTHONPATH=../../../build/dhenv/lib/python3.8/site-packages/:$PYTHONPATH\\n\\n# start MPS daemon on each node\\n./launch-mps-service.sh\\n\\n# For MPS Client Application\\nexport CUDA_MPS_PIPE_DIRECTORY=/tmp/nvidia-mps \\nexport CUDA_MPS_LOG_DIRECTORY=/tmp/nvidia-log\\n\\nif [[ \\\"$sync_val\\\" -eq 0 ]];\\nthen\\n  export sync_str=\\\"async\\\"\\nelse\\n  export sync_str=\\\"sync\\\"\\nfi\\n\\n# CBO\\n# The --hostfile option is not needed with Flux's MPI integration.\\n# COBALT_NODEFILE is omitted. Performance should be equivalent.\\nexport log_dir=\\\"output/$problem-$search-$sync_str-$acq_func-$strategy-$FLUX_JOB_NNODES-$RANKS_PER_NODE-$timeout-$random_state\\\";\\n\\necho \\\"mpirun -n $(( $FLUX_JOB_NNODES * $RANKS_PER_NODE )) -N $RANKS_PER_NODE python -m scalbo.exp --problem $problem \\\\\\n--search $search \\\\\\n--sync $sync_val \\\\\\n--timeout $timeout \\\\\\n--acq-func $acq_func \\\\\\n--strategy $strategy \\\\\\n--random-state $random_state \\\\\\n--log-dir $log_dir \\\\\\n--verbose 1\\\";\\n\\nmpirun -n $(( $FLUX_JOB_NNODES * $RANKS_PER_NODE )) -N $RANKS_PER_NODE python -m scalbo.exp --problem $problem \\\\\\n    --search $search \\\\\\n    --sync $sync_val \\\\\\n    --timeout $timeout \\\\\\n    --acq-func $acq_func \\\\\\n    --strategy $strategy \\\\\\n    --random-state $random_state \\\\\\n    --log-dir $log_dir \\\\\\n    --verbose 1 \\n\"\n}\n```\nWORKFLOW COMPLETE",
+            "error": null
+        },
+        {
+            "step": "validate",
+            "duration": 18.12434071302414,
+            "result": "{\"jobspec\":null,\"errors\":[\"Validation failed at directives:\\n--account=datascience: 2\"],\"valid\":false}",
+            "error": null
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "agent",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": true,
+                "inputs": {
+                    "from_manager": "cobalt",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n#COBALT -n 1\n#COBALT -t 45\n#COBALT -q full-node\n#COBALT -A datascience\n\n#!!! CONFIGURATION - START\nexport RANKS_PER_NODE=32\nexport COBALT_JOBSIZE=1\nexport acq_func=\"UCB\"\nexport strategy=\"cl_max\"\nexport timeout=1800\nexport random_state=42 \nexport problem=\"molecular\"\nexport sync_val=0\nexport search=\"DBO\"\n#!!! CONFIGURATION - END\n\n# activate Python environment\nsource ../../../build/activate-dhenv.sh\nexport PYTHONPATH=../../../build/dhenv/lib/python3.8/site-packages/:$PYTHONPATH\n\n# start MPS daemon on each node\n./launch-mps-service.sh\n\n# For MPS Client Application\nexport CUDA_MPS_PIPE_DIRECTORY=/tmp/nvidia-mps \nexport CUDA_MPS_LOG_DIRECTORY=/tmp/nvidia-log\n\nif [[ \"$sync_val\" -eq 0 ]];\nthen\n  export sync_str=\"async\"\nelse\n  export sync_str=\"sync\"\nfi\n\n# CBO\nexport log_dir=\"output/$problem-$search-$sync_str-$acq_func-$strategy-$COBALT_JOBSIZE-$RANKS_PER_NODE-$timeout-$random_state\";\n\necho \"mpirun -x LD_LIBRARY_PATH -x PYTHONPATH -x PATH -n $(( $COBALT_JOBSIZE * $RANKS_PER_NODE )) -N $RANKS_PER_NODE --hostfile $COBALT_NODEFILE python -m scalbo.exp --problem $problem \\\n--search $search \\\n--sync $sync_val \\\n--timeout $timeout \\\n--acq-func $acq_func \\\n--strategy $strategy \\\n--random-state $random_state \\\n--log-dir $log_dir \\\n--verbose 1\";\n\nmpirun -x LD_LIBRARY_PATH -x PYTHONPATH -x PATH -n $(( $COBALT_JOBSIZE * $RANKS_PER_NODE )) -N $RANKS_PER_NODE --hostfile $COBALT_NODEFILE python -m scalbo.exp --problem $problem \\\n    --search $search \\\n    --sync $sync_val \\\n    --timeout $timeout \\\n    --acq-func $acq_func \\\n    --strategy $strategy \\\n    --random-state $random_state \\\n    --log-dir $log_dir \\\n    --verbose 1 \n"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "agent",
+                "prompt": "validate_jobspec_expert",
+                "inputs": {
+                    "script": "{{ result.jobspec }}"
+                },
+                "transitions": {
+                    "success": "success",
+                    "failure": "failed"
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

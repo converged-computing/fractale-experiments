@@ -1,0 +1,50 @@
+{
+    "steps": [
+        {
+            "step": "transform",
+            "duration": 12.538001097040251,
+            "result": "```json\n{\n  \"jobspec\": \"#!/bin/bash\\n#FLUX -q gpu\\n#FLUX --requires=mem=32g\\n#FLUX -g 1\\n# The specific gpu type 'rtx2080' cannot be directly translated. Flux will request a generic GPU resource.\\n#FLUX -c 2\\n#FLUX -o example_8.out\\n\\nsource activate mlfold\\n\\nfolder_with_pdbs=\\\"../inputs/PDB_monomers/pdbs/\\\"\\n\\noutput_dir=\\\"../outputs/example_8_outputs\\\"\\nif [ ! -d $output_dir ]\\nthen\\n    mkdir -p $output_dir\\nfi\\n\\npath_for_bias=$output_dir\\\"/bias_pdbs.jsonl\\\"\\n#Adding global polar amino acid bias (Doug Tischer)\\nAA_list=\\\"D E H K N Q R S T W Y\\\"\\nbias_list=\\\"1.39 1.39 1.39 1.39 1.39 1.39 1.39 1.39 1.39 1.39 1.39\\\"\\npython ../helper_scripts/make_bias_AA.py --output_path=$path_for_bias --AA_list=\\\"$AA_list\\\" --bias_list=\\\"$bias_list\\\"\\n\\npath_for_parsed_chains=$output_dir\\\"/parsed_pdbs.jsonl\\\"\\npython ../helper_scripts/parse_multiple_chains.py --input_path=$folder_with_pdbs --output_path=$path_for_parsed_chains\\n\\npython ../protein_mpnn_run.py \\\\\\n        --jsonl_path $path_for_parsed_chains \\\\\\n        --out_folder $output_dir \\\\\\n        --bias_AA_jsonl $path_for_bias \\\\\\n        --num_seq_per_target 2 \\\\\\n        --sampling_temp \\\"0.1\\\" \\\\\\n        --seed 37 \\\\\\n        --batch_size 1\\n\"\n}\n```\nWORKFLOW COMPLETE",
+            "error": null
+        },
+        {
+            "step": "validate",
+            "duration": 30.057908840011805,
+            "result": "{\"jobspec\":null,\"errors\":[],\"valid\":true}",
+            "error": null
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "agent",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": true,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n#SBATCH -p gpu\n#SBATCH --mem=32g\n#SBATCH --gres=gpu:rtx2080:1\n#SBATCH -c 2\n#SBATCH --output=example_8.out\n\nsource activate mlfold\n\nfolder_with_pdbs=\"../inputs/PDB_monomers/pdbs/\"\n\noutput_dir=\"../outputs/example_8_outputs\"\nif [ ! -d $output_dir ]\nthen\n    mkdir -p $output_dir\nfi\n\npath_for_bias=$output_dir\"/bias_pdbs.jsonl\"\n#Adding global polar amino acid bias (Doug Tischer)\nAA_list=\"D E H K N Q R S T W Y\"\nbias_list=\"1.39 1.39 1.39 1.39 1.39 1.39 1.39 1.39 1.39 1.39 1.39\"\npython ../helper_scripts/make_bias_AA.py --output_path=$path_for_bias --AA_list=\"$AA_list\" --bias_list=\"$bias_list\"\n\npath_for_parsed_chains=$output_dir\"/parsed_pdbs.jsonl\"\npython ../helper_scripts/parse_multiple_chains.py --input_path=$folder_with_pdbs --output_path=$path_for_parsed_chains\n\npython ../protein_mpnn_run.py \\\n        --jsonl_path $path_for_parsed_chains \\\n        --out_folder $output_dir \\\n        --bias_AA_jsonl $path_for_bias \\\n        --num_seq_per_target 2 \\\n        --sampling_temp \"0.1\" \\\n        --seed 37 \\\n        --batch_size 1\n"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "agent",
+                "prompt": "validate_jobspec_expert",
+                "inputs": {
+                    "script": "{{ result.jobspec }}"
+                },
+                "transitions": {
+                    "success": "success",
+                    "failure": "failed"
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

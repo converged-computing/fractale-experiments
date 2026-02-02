@@ -1,0 +1,50 @@
+{
+    "steps": [
+        {
+            "step": "transform",
+            "duration": 9.132461830973625,
+            "result": "```json\n{\n  \"jobspec\": \"#! /bin/bash\\n#\\n# ===== SLURM OPTIONS =====\\n#\\n#SBATCH --job-name=\\\"classifier_jlaivins\\\"\\n#SBATCH --partition=copperhead\\n#SBATCH --time=400:00:00\\n#SBATCH --nodes=1\\n#SBATCH --ntasks-per-node=1\\n#SBATCH --gpus-per-node=1\\n#SBATCH --mem=16GB\\n#SBATCH --export=ALL\\n#\\n# ===== END SLURM OPTIONS =====\\n#\\n# ==== Main ======\\ncd $SLURM_SUBMIT_DIR\\nmkdir log\\n{\\nmodule load cuda/9.2 cudnn/7.2.1-cuda9.2 tensorflow/1.10.0-anaconda3-cuda9.2\\npython ./Driver.py\\n} > log/output_\\\"$SLURM_JOB_NAME\\\"_$SLURM_JOB_ID 2>log/errorLog_\\\"$SLURM_JOB_NAME\\\"_$SLURM_JOB_ID\\n\"\n}\n```\nWORKFLOW COMPLETE",
+            "error": null
+        },
+        {
+            "step": "validate",
+            "duration": 9.29493613296654,
+            "result": "```json\n{\n  \"valid\": false,\n  \"reasons\": [\n    \"The requested time '400:00:00' (over 16 days) is likely to exceed the maximum walltime allowed for the 'copperhead' partition.\"\n  ],\n  \"issues\": [\n    \"The command 'mkdir log' will fail if the directory 'log' already exists. It is better to use 'mkdir -p log' to avoid this issue.\"\n  ]\n}\n```\nWORKFLOW COMPLETE",
+            "error": null
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "agent",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": true,
+                "inputs": {
+                    "from_manager": "pbs",
+                    "to_manager": "slurm",
+                    "script": "#! /bin/bash\n# exec 1>$PBS_O_WORKDIR/out 2>$PBS_O_WORKDIR/err\n#\n# ===== PBS OPTIONS =====\n#\n#PBS -N \"classifier_jlaivins\"\n#PBS -q copperhead\n#PBS -l walltime=400:00:00\n#PBS -l nodes=1:ppn=1:gpus=1,mem=16GB\n#PBS -V\n#\n# ===== END PBS OPTIONS =====\n#\n# ==== Main ======\ncd $PBS_O_WORKDIR\nmkdir log\n{\nmodule load cuda/9.2 cudnn/7.2.1-cuda9.2 tensorflow/1.10.0-anaconda3-cuda9.2\npython ./Driver.py\n} > log/output_\"$PBS_JOBNAME\"_$PBS_JOBID 2>log/errorLog_\"$PBS_JOBNAME\"_$PBS_JOBID\n"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "agent",
+                "prompt": "validate_jobspec_expert",
+                "inputs": {
+                    "script": "{{ result.jobspec }}"
+                },
+                "transitions": {
+                    "success": "success",
+                    "failure": "failed"
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

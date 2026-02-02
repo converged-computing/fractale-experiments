@@ -1,0 +1,50 @@
+{
+    "steps": [
+        {
+            "step": "transform",
+            "duration": 22.052663282956928,
+            "result": "```json\n{\n  \"jobspec\": \"#!/bin/bash\\n#SBATCH --nodes=1\\n#SBATCH --ntasks-per-node=10\\n#SBATCH --cpus-per-node=2\\n#SBATCH --mem=64GB\\n# The original pbs script requested 10 mpiprocs on 2 cpus, which could lead to oversubscription.\\n#SBATCH --partition=common_cpuQ\\n#SBATCH --job-name=quarter_sdf\\n#SBATCH --output=beegenn.stdout.txt\\n#SBATCH --error=beegenn.stderr.txt\\n#SBATCH --mail-type=ALL\\n#SBATCH --mail-user=giacomo.fantoni@studenti.unitn.it\\n\\nmodule load cuda-11.1\\nmodule load singularity-3.4.0\\n\\ncd $SLURM_SUBMIT_DIR\\n\\nrm beegenn_sleep.sif\\n\\n# NOTE: you need to install squashfs-tools from source, or singularity will fail!\\n# https://github.com/plougher/squashfs-tools/blob/master/INSTALL\\n# Make sure to install mksquashfs inside ~/.local so that it can be found in the PATH\\n\\nsingularity pull docker://giacthephantom/beegenn:sleep\\n# TODO: genn-network-model/data can/should be replaced with anything we want\\n# singularity run --bind $SLURM_SUBMIT_DIR/genn-network-model/data:/data,$SLURM_SUBMIT_DIR/outputs:/home/genn docker://giacthephantom/beegenn:sleep sim_docker\\n\\nsingularity exec \\\\\\n  --bind $SLURM_SUBMIT_DIR/genn-network-model/t_30_quarter_synapses:/t_30_quarter_synapses,$SLURM_SUBMIT_DIR/outputs:/home/genn \\\\\\n  --nv \\\\\\n  docker://giacthephantom/beegenn:sleep \\\\\\n  python3 -m beegenn.plots.sdf /t_30_quarter_synapses t30noinputquartersynapsespoissoncluster\\n\"\n}\n```\nWORKFLOW COMPLETE",
+            "error": null
+        },
+        {
+            "step": "validate",
+            "duration": 15.103817626019008,
+            "result": "```json\n{\n  \"valid\": false,\n  \"tool_call\": false,\n  \"reasons\": [\n    \"The directive '--cpus-per-node=2' is not a valid SLURM resource request. The most likely intended directive is '--cpus-per-task=2'.\",\n    \"The job requests GPU resources by loading the 'cuda-11.1' module and using the '--nv' flag with Singularity, but it is submitted to a CPU-only partition 'common_cpuQ'.\"\n  ],\n  \"issues\": [\n    \"The script as written would cause significant oversubscription by requesting 10 tasks (--ntasks-per-node=10) to run on only 2 CPUs.\",\n    \"The command `rm beegenn_sleep.sif` will produce an error if the file does not exist. It is safer to use `rm -f beegenn_sleep.sif`.\"\n  ]\n}\n```\nWORKFLOW COMPLETE",
+            "error": null
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "agent",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": true,
+                "inputs": {
+                    "from_manager": "pbs",
+                    "to_manager": "slurm",
+                    "script": "#!/bin/bash\n#PBS -l select=1:ncpus=2:mpiprocs=10:mem=64GB\n#PBS -q common_cpuQ\n#PBS -N quarter_sdf\n#PBS -o beegenn.stdout.txt\n#PBS -e beegenn.stderr.txt\n#PBS -m abe\n#PBS -M giacomo.fantoni@studenti.unitn.it\n\nmodule load cuda-11.1\nmodule load singularity-3.4.0\n\ncd $PBS_O_WORKDIR\n\nrm beegenn_sleep.sif\n\n# NOTE: you need to install squashfs-tools from source, or singularity will fail!\n# https://github.com/plougher/squashfs-tools/blob/master/INSTALL\n# Make sure to install mksquashfs inside ~/.local so that it can be found in the PATH\n\nsingularity pull docker://giacthephantom/beegenn:sleep\n# TODO: genn-network-model/data can/should be replaced with anything we want\n# singularity run --bind $PBS_O_WORKDIR/genn-network-model/data:/data,$PBS_O_WORKDIR/outputs:/home/genn docker://giacthephantom/beegenn:sleep sim_docker\n\nsingularity exec \\\n  --bind $PBS_O_WORKDIR/genn-network-model/t_30_quarter_synapses:/t_30_quarter_synapses,$PBS_O_WORKDIR/outputs:/home/genn \\\n  --nv \\\n  docker://giacthephantom/beegenn:sleep \\\n  python3 -m beegenn.plots.sdf /t_30_quarter_synapses t30noinputquartersynapsespoissoncluster\n"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "agent",
+                "prompt": "validate_jobspec_expert",
+                "inputs": {
+                    "script": "{{ result.jobspec }}"
+                },
+                "transitions": {
+                    "success": "success",
+                    "failure": "failed"
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

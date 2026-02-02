@@ -1,0 +1,50 @@
+{
+    "steps": [
+        {
+            "step": "transform",
+            "duration": 26.968150579021312,
+            "result": "```json\n{\n  \"jobspec\": \"#!/bin/bash\\n#\\n# Converted from PBS to Flux\\n#\\n\\n## Submit job to \\\"Open\\\" allocation if the next line begins with #FLUX rather than ##FLUX\\n##FLUX: --account=open\\n\\n## Alternatively uncomment (i.e., 1 #) next two lines to submit job to CyberLAMP\\n#FLUX: --account=cyberlamp_class\\n#FLUX: --qos=cl_class\\n\\n## TODO: Check if students have access to cl_debug\\n##FLUX: --qos=cl_debug\\n\\n## Time requested: 0 hours, 15 minutes, 0 seconds\\n#FLUX: -t 00:15:00\\n\\n## Ask for 4 nodes, each with one core (you may be assigned multiple cores on the same node)\\n#FLUX: -N 4\\n#FLUX: --tasks-per-node=1\\n\\n## Each processor will use no more than 1GB of RAM\\n#FLUX: --mem-per-cpu=1gb\\n\\n## combine STDOUT and STDERR into one file\\n# In Flux, stdout and stderr are combined by default.\\n\\n## Specifices job name, so easy to find in qstat\\n#FLUX: -J Ast528Lab6Ex2\\n\\n## Uncomment next two FLUX commands (by removing one # on each line) and replace with your email if you want to be notified when jobs start and stop\\n##FLUX: --mail-user=nobody@psu.edu\\n\\n## Ask for emails when jobs begins, ends or aborts\\n##FLUX: --mail-type=BEGIN,END,FAIL\\n\\n# Create a machine file for julia since Flux does not provide one by default\\nNODEFILE=\\\"machine_file.$FLUX_JOB_ID\\\"\\nflux exec -r all hostname > $NODEFILE\\n\\necho \\\"Starting job $FLUX_JOB_NAME\\\"\\ndate\\necho \\\"Job id: $FLUX_JOB_ID\\\"\\necho \\\"Was assigned the following nodes\\\"\\ncat $NODEFILE\\n\\necho \\\"About to change into $FLUX_SUBMIT_DIR\\\"\\ncd $FLUX_SUBMIT_DIR            # Change into directory where job was submitted from\\necho \\\"About to start Julia specifying list of assigned nodes\\\"\\n#julia --machine-file $NODEFILE -e 'import Pkg; using Distributed; @everywhere Pkg.activate(\\\".\\\"); using NBInclude; @nbinclude(\\\"ex2.ipynb\\\")'\\njulia --machine-file $NODEFILE ex2_run_nb.jl\\necho \\\"Julia exited\\\"\\ndate\\n\\nrm $NODEFILE\\n\"\n}\n```\nWORKFLOW COMPLETE",
+            "error": null
+        },
+        {
+            "step": "validate",
+            "duration": 26.020077032968402,
+            "result": "{\"jobspec\":null,\"errors\":[\"sequence item 0: expected str instance, dict found\"],\"valid\":false}",
+            "error": null
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "agent",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": true,
+                "inputs": {
+                    "from_manager": "pbs",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n## Submit job to \"Open\" allocation if the next line begins with #PBS rather than ##PBS\n##PBS -A open                 \n## Alternatively uncomment (i.e., 1 #) next two lines to submit job to CyberLAMP\n#PBS -A cyberlamp_class     \n#PBS -l qos=cl_class        \n## TODO: Check if students have access to cl_debug\n##PBS -l qos=cl_debug        \n## Time requested: 0 hours, 15 minutes, 0 seconds\n#PBS -l walltime=00:15:00    \n## Ask for 4 nodes, each with one core (you may be assigned multiple cores on the same node)\n#PBS -l nodes=4:ppn=1        \n## Each processor will use no more than 1GB of RAM\n#PBS -l pmem=1gb             \n## combine STDOUT and STDERR into one file\n#PBS -j oe                   \n## Specifices job name, so easy to find in qstat\n#PBS -N Ast528Lab6Ex2        \n## Uncomment next two PBS commands (by removing one # on each line) and replace with your email if you want to be notified when jobs start and stop\n##PBS -M nobody@psu.edu       \n## Ask for emails when jobs begins, ends or aborts\n##PBS -m abe                  \n\necho \"Starting job $PBS_JOBNAME\"\ndate\necho \"Job id: $PBS_JOBID\"\necho \"Was assigned the following nodes\"\ncat $PBS_NODEFILE\n\necho \"About to change into $PBS_O_WORKDIR\"\ncd $PBS_O_WORKDIR            # Change into directory where job was submitted from\necho \"About to start Julia specifying list of assigned nodes\"\n#julia --machine-file $PBS_NODEFILE -e 'import Pkg; using Distributed; @everywhere Pkg.activate(\".\"); using NBInclude; @nbinclude(\"ex2.ipynb\")'\njulia --machine-file $PBS_NODEFILE ex2_run_nb.jl\necho \"Julia exited\"\ndate\n\n"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "agent",
+                "prompt": "validate_jobspec_expert",
+                "inputs": {
+                    "script": "{{ result.jobspec }}"
+                },
+                "transitions": {
+                    "success": "success",
+                    "failure": "failed"
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

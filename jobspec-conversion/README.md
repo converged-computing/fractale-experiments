@@ -29,7 +29,7 @@ git clone -b experiment-tweaks https://github.com/converged-computing/flux-mcp /
 pip install /tmp/flux-mcp --break-system-packages
 ```
 
-Then start a flux instance.
+It would be good if someone could review my changes to the flux validate command there. Then start a flux instance.
 
 ```bash
 flux start
@@ -57,6 +57,25 @@ python3 scripts/run-experiment.py --output ./results/gemini --limit 10
 python scripts/run-experiment.py --output ./results/gemini
 ```
 
+That will generate conversions of jobspecs to and from a log of managers, and having the agents do some aspect of validation. Since we want a definitive answer, let's filter down to the "to flux" results and validate with our validator. With the server still running, we can use the call tool endpoint to do that.
+
+```bash
+# still running...
+mcpserver start --config ./servers/flux-gemini.yaml
+
+# More dependencies
+pip install seaborn pandas matplotlib --break-system-packages
+
+# This calls a tool endpoint and generates plots
+python3 scripts/validate-flux.py
+```
+
+
+
+## Notes
+
+- Need a differ to look at same manager translations and figure out if anything changed.
+
 ## Results
 
 We have a script to visualize:
@@ -75,22 +94,25 @@ python3 ./scripts/process-results.py
 Here is my small sample (still testing)
 
 ```console
-Found 21 result files to analyze.
+Found 401 result files to analyze.
 Saved processed data to: analysis/processed_results.csv
 
 Summary Metrics (for transformations to Flux)
-Overall Flux Validation Success Rate: 6 / 9 (66.67%)
+Overall Flux Validation Success Rate: 100 / 161 (62.11%)
 
 Success Rate by Transformation Type (to Flux):
 is_valid                False     True 
 transformation_type                    
-pbs -> flux          0.500000  0.500000
-slurm -> flux        0.285714  0.714286
+cobalt -> flux       0.500000  0.500000
+lsf -> flux          0.583333  0.416667
+pbs -> flux          0.687500  0.312500
+slurm -> flux        0.265487  0.734513
 
 Failure Reason Counts (for Flux jobs):
 error_category
-Directive Syntax/Format Error    2
-Other                            1
+Directive Syntax/Format Error    41
+Parsing/Structural Error         12
+Other                             8
 Name: count, dtype: int64
 
 Generating Plots
@@ -98,7 +120,5 @@ Saved plot: analysis/1_valid_vs_invalid_flux_breakdown.png
 Saved plot: analysis/2_error_category_flux_distribution.png
 Saved plot: analysis/3_average_duration.png
 
-Analysis complete
+Analysis complete.
 ```
-
-I am currently looking at a sample of testing data to debug / work on the setup before running an initial experiment.

@@ -1,0 +1,50 @@
+{
+    "steps": [
+        {
+            "step": "transform",
+            "duration": 10.256815766915679,
+            "result": "```json\n{\n  \"jobspec\": \"#!/bin/bash\\n#FLUX -t 6h\\n#FLUX -c 12\\n#FLUX --mem=24G\\n# The -C intel constraint is not directly translatable to a generic Flux option.\\n#FLUX -n 3\\nsleep $((FLUX_TASK_ID*60))\\n\\nset -e\\n\\nexport AGALMA_DB=\\\"/gpfs/data/cdunn/analyses/agalma-siphonophora-20170501_reduced.sqlite\\\"\\nexport BIOLITE_RESOURCES=\\\"threads=${FLUX_JOB_NCORES},memory=24000M\\\"\\n\\nIDS=(\\n\\tdbEST_CLYHEM\\n\\tNCBI_HYDMAG\\n\\tJGI_NEMVEC\\n)\\n\\nID=${IDS[$FLUX_TASK_ID]}\\necho $ID\\n\\nagalma import --id $ID\\nagalma translate --id $ID\\n\"\n}\n```\nWORKFLOW COMPLETE",
+            "error": null
+        },
+        {
+            "step": "validate",
+            "duration": 17.09133948397357,
+            "result": "{\"jobspec\":null,\"errors\":[],\"valid\":true}",
+            "error": null
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "agent",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": true,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n#SBATCH -t 6:00:00\n#SBATCH -c 12\n#SBATCH --mem=24G\n#SBATCH -C intel\n#SBATCH --array=1-3\nsleep $((SLURM_ARRAY_TASK_ID*60))\n\nset -e\n\nexport AGALMA_DB=\"/gpfs/data/cdunn/analyses/agalma-siphonophora-20170501_reduced.sqlite\"\nexport BIOLITE_RESOURCES=\"threads=${SLURM_CPUS_ON_NODE},memory=${SLURM_MEM_PER_NODE}M\"\n\nIDS=(\n\tdbEST_CLYHEM\n\tNCBI_HYDMAG\n\tJGI_NEMVEC\n)\n\nID=${IDS[$SLURM_ARRAY_TASK_ID-1]}\necho $ID\n\nagalma import --id $ID\nagalma translate --id $ID\n"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "agent",
+                "prompt": "validate_jobspec_expert",
+                "inputs": {
+                    "script": "{{ result.jobspec }}"
+                },
+                "transitions": {
+                    "success": "success",
+                    "failure": "failed"
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

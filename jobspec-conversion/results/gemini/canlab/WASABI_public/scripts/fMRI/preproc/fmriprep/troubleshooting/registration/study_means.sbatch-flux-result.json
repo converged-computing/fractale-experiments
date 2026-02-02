@@ -1,0 +1,50 @@
+{
+    "steps": [
+        {
+            "step": "transform",
+            "duration": 18.259681916912086,
+            "result": "```json\n{\n  \"jobspec\": \"#!/bin/bash -l\\n# FLUX --job-name=WASABI_boldmeans\\n# FLUX --nodes=1\\n# FLUX --cpus-per-task=4\\n# FLUX --mem-per-cpu=100gb\\n# FLUX --time=24:00:00\\n# FLUX -o boldmeans_%J_%t.o\\n# FLUX -e boldmeans_%J_%t.e\\n# The --account directive is not supported in Flux.\\n# FLUX --queue=standard\\n# FLUX --tasks-per-job=781\\n# The --mail-type directive is not supported in Flux.\\n\\nhostname\\nmodule load matlab/r2022a\\n# Set the path to the fmriprep directory\\nfmriprep_dir=\\\"/dartfs-hpc/rc/lab/C/CANlab/labdata/data/WASABI/derivatives/fmriprep\\\"\\nfiles=(\\\"$fmriprep_dir\\\"/sub-*/ses-*/func/*task-*_acq-mb8_run-*_space-MNI152*preproc_bold.nii.gz)\\n\\n# Extract subject\\nsubject=$(basename \\\"${files[$FLUX_TASK_ID]}\\\" | cut -d'-' -f2 | cut -d'_' -f1)\\n# Extract session\\nses=$(basename \\\"${files[$FLUX_TASK_ID]}\\\" | cut -d'-' -f3 | cut -d'_' -f1)\\n# Extract task\\ntask=$(basename \\\"${files[$FLUX_TASK_ID]}\\\" | cut -d'-' -f4 | cut -d'_' -f1)\\n# Extract run\\nrun=$(basename \\\"${files[$FLUX_TASK_ID]}\\\" |  grep -oP \\\"(?<=_run-)\\\\d+(?=_)\\\" | head -n1)\\n\\necho \\\"Running $((FLUX_TASK_ID+1)) of ${#files[@]} files\\\"\\necho \\\"Subject: $subject, Session: $ses, Task: $task, Run: $run\\\"\\n\\n# Define file to process\\ninput_file=${files[$FLUX_TASK_ID]}\\n# Define output path for Tmean\\nmean_output=\\\"/dartfs-hpc/rc/lab/C/CANlab/labdata/data/WASABI/derivatives/means/fmriprep/sub-$subject/$(basename \\\"${files[$FLUX_TASK_ID]%.nii.gz}\\\")_mean.nii\\\"\\nmkdir -p \\\"$(dirname \\\"$mean_output\\\")\\\"\\n\\nexport MATLAB_NUM_THREADS=1\\n\\nmatlab -nodisplay -r \\\"addpath(genpath('//dartfs-hpc/rc/lab/C/CANlab/modules/spm12')); addpath(genpath('//dartfs-hpc/rc/lab/C/CANlab/labdata/projects/WASABI/software')); mean_fmridata('$input_file', '$mean_output'); exit;\\\"\\n\\nmodule unload matlab\\n\"\n}\n```\nWORKFLOW COMPLETE",
+            "error": null
+        },
+        {
+            "step": "validate",
+            "duration": 27.644532458041795,
+            "result": "{\"jobspec\":null,\"errors\":[],\"valid\":true}",
+            "error": null
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "agent",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": true,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash -l\n#SBATCH --job-name=WASABI_boldmeans\n#SBATCH --nodes=1\n#SBATCH --cpus-per-task=4\n#SBATCH --mem-per-cpu=100gb\n#SBATCH --time=24:00:00\n#SBATCH -o boldmeans_%A_%a.o\n#SBATCH -e boldmeans_%A_%a.e\n#SBATCH --account=DBIC\n#SBATCH --partition=standard\n# Find out how many files are needed to process by running files= and examine the size with echo ${#files[@]}\n#SBATCH --array=0-780\n# Email notifications (comma-separated options: BEGIN,END,FAIL)\n#SBATCH --mail-type=FAIL\n#SBATCH --mail-type=END\n\nhostname\nmodule load matlab/r2022a\n# Set the path to the fmriprep directory\nfmriprep_dir=\"/dartfs-hpc/rc/lab/C/CANlab/labdata/data/WASABI/derivatives/fmriprep\"\nfiles=(\"$fmriprep_dir\"/sub-*/ses-*/func/*task-*_acq-mb8_run-*_space-MNI152*preproc_bold.nii.gz)\n\n# Extract subject\nsubject=$(basename \"${files[$SLURM_ARRAY_TASK_ID]}\" | cut -d'-' -f2 | cut -d'_' -f1)\n# Extract session\nses=$(basename \"${files[$SLURM_ARRAY_TASK_ID]}\" | cut -d'-' -f3 | cut -d'_' -f1)\n# Extract task\ntask=$(basename \"${files[$SLURM_ARRAY_TASK_ID]}\" | cut -d'-' -f4 | cut -d'_' -f1)\n# Extract run\nrun=$(basename \"${files[$SLURM_ARRAY_TASK_ID]}\" |  grep -oP \"(?<=_run-)\\d+(?=_)\" | head -n1)\n\necho \"Running $((SLURM_ARRAY_TASK_ID+1)) of ${#files[@]} files\"\necho \"Subject: $subject, Session: $ses, Task: $task, Run: $run\"\n\n# Define file to process\ninput_file=${files[$SLURM_ARRAY_TASK_ID]}\n# Define output path for Tmean\nmean_output=\"/dartfs-hpc/rc/lab/C/CANlab/labdata/data/WASABI/derivatives/means/fmriprep/sub-$subject/$(basename \"${files[$SLURM_ARRAY_TASK_ID]%.nii.gz}\")_mean.nii\"\nmkdir -p \"$(dirname \"$mean_output\")\"\n\nexport MATLAB_NUM_THREADS=1\n\nmatlab -nodisplay -r \"addpath(genpath('//dartfs-hpc/rc/lab/C/CANlab/modules/spm12')); addpath(genpath('//dartfs-hpc/rc/lab/C/CANlab/labdata/projects/WASABI/software')); mean_fmridata('$input_file', '$mean_output'); exit;\"\n\nmodule unload matlab"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "agent",
+                "prompt": "validate_jobspec_expert",
+                "inputs": {
+                    "script": "{{ result.jobspec }}"
+                },
+                "transitions": {
+                    "success": "success",
+                    "failure": "failed"
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

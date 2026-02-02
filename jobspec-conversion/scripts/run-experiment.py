@@ -3,6 +3,7 @@ import copy
 import time
 import os
 import json
+import random
 import sys
 import fnmatch
 import hashlib
@@ -162,10 +163,19 @@ def main():
     print(f"Will process {limit} files")
     time.sleep(2)
 
-    for i, filename in enumerate(files[:limit]):
+    # Random shuffle so we sample across jobs.
+    random.shuffle(files)
 
+    # Keep a count so we can skip of those we've done
+    count = 0
+
+    for _, filename in enumerate(files):
+
+        if count >= limit:
+            print(f"Reached limit {limit}, completing.")
+            break     
         print("-" * 50)
-        print(f"Processing file {i+1}/{limit}: {os.path.basename(filename)}")        
+        print(f"Processing file {count+1}/{limit}: {os.path.basename(filename)}")        
         original_script = utils.read_file(filename)
         
         try:
@@ -244,6 +254,8 @@ def main():
                     "error": str(e)
                 })
                 print(Fore.RED + f"  ❌ Failure: {e}" + Style.RESET_ALL)
+
+        count+=1
 
     # NOTE: here success means the functions worked, NOT that the result was valid.
     print("\n" + "=" * 50)

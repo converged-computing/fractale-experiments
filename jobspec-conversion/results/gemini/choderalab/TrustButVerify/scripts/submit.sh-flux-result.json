@@ -1,0 +1,50 @@
+{
+    "steps": [
+        {
+            "step": "transform",
+            "duration": 28.738636276917532,
+            "result": "```json\n{\n  \"jobspec\": \"#!/bin/sh\\n# walltime : maximum wall clock time (hh:mm:ss)\\n#FLUX -t 200:40:39\\n#\\n# join stdout and stderr\\n#FLUX --output=Trust_But_Verify.o%j\\n#\\n# spool output immediately\\n# NOTE: Spooling output immediately (-k oe) is the default behavior in Flux.\\n#\\n# specify GPU queue\\n#FLUX -q gpu\\n#\\n# nodes: number of nodes\\n#   ppn: number of processes per node\\n#  gpus: number of gpus per node\\n#  GPUs are in 'exclusive' mode by default, but 'shared' keyword sets them to shared mode.\\n#FLUX -N 1 --ntasks-per-node=1 --gpus-per-node=1 --exclusive\\n#\\n# export all my environment variables to the job\\n# NOTE: Exporting environment variables (-V) is the default behavior in Flux.\\n#\\n# job name (default = name of script file)\\n#FLUX -J \\\"Trust But Verify\\\"\\n#\\n# specify email for notifications\\n#\\n# mail settings (one or more characters)\\n# n: do not send mail\\n# a: send mail if job is aborted\\n# b: send mail when job begins execution\\n# e: send mail when job terminates\\n# NOTE: The PBS directive '-m n' (no mail) is the default in Flux, so mail directives are omitted.\\n#\\n# filename for standard output (default = <job_name>.o<job_id>)\\n# at end of job, it is in directory from which qsub was executed\\n# remove extra ## from the line below if you want to name your own file\\n##FLUX --output=myoutput\\n\\n# Change to working directory used for job submission\\ncd $FLUX_SUBMIT_DIR\\n\\n# start spark workers\\npython ${HOME}/src/kyleabeauchamp/TrustButVerify/scripts/run_grid.py $FLUX_TASK_ID\\n\"\n}\n```\nWORKFLOW COMPLETE",
+            "error": null
+        },
+        {
+            "step": "validate",
+            "duration": 14.010301782982424,
+            "result": "{\"jobspec\":null,\"errors\":[],\"valid\":true}",
+            "error": null
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "agent",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": true,
+                "inputs": {
+                    "from_manager": "pbs",
+                    "to_manager": "flux",
+                    "script": "#!/bin/sh\n# walltime : maximum wall clock time (hh:mm:ss)\n#PBS -l walltime=199:99:99\n#\n# join stdout and stderr\n#PBS -j oe\n#\n# spool output immediately\n#PBS -k oe\n#\n# specify GPU queue\n#PBS -q gpu\n#\n# nodes: number of nodes\n#   ppn: number of processes per node\n#  gpus: number of gpus per node\n#  GPUs are in 'exclusive' mode by default, but 'shared' keyword sets them to shared mode.\n#PBS -l nodes=1:ppn=1:gpus=1:exclusive\n#\n# export all my environment variables to the job\n#PBS -V\n#\n# job name (default = name of script file)\n#PBS -N Trust But Verify\n#\n# specify email for notifications\n#PBS -M kyleabeauchamp@gmail.com\n#\n# mail settings (one or more characters)\n# n: do not send mail\n# a: send mail if job is aborted\n# b: send mail when job begins execution\n# e: send mail when job terminates\n#PBS -m n\n#\n# filename for standard output (default = <job_name>.o<job_id>)\n# at end of job, it is in directory from which qsub was executed\n# remove extra ## from the line below if you want to name your own file\n##PBS -o myoutput\n\n# Change to working directory used for job submission\ncd $PBS_O_WORKDIR\n\n# start spark workers\npython ${HOME}/src/kyleabeauchamp/TrustButVerify/scripts/run_grid.py $PBS_ARRAYID\n"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "agent",
+                "prompt": "validate_jobspec_expert",
+                "inputs": {
+                    "script": "{{ result.jobspec }}"
+                },
+                "transitions": {
+                    "success": "success",
+                    "failure": "failed"
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

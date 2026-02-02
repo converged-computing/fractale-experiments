@@ -1,0 +1,50 @@
+{
+    "steps": [
+        {
+            "step": "transform",
+            "duration": 20.50647919101175,
+            "result": "```json\n{\n  \"jobspec\": \"#!/bin/bash\\n#flux: -t 20m\\n# The LSF directive '#BSUB -G ceed' for accounting has been omitted as there is no direct equivalent in Flux job directives.\\n# Accounting and project association are typically handled outside the job script in Flux.\\n\\ncheck_sierra_nodes\\n\\n#bin=/g/g19/smith516/develop/osu-micro-benchmarks-5.6.1/xl19-spectrum-install/libexec/osu-micro-benchmarks/mpi/pt2pt/\\nbin=/g/g19/smith516/develop/osu-micro-benchmarks-5.6.1/xl19-cuda101168-spectrum-install/libexec/osu-micro-benchmarks/mpi/pt2pt/\\n\\nmodule swap cuda cuda/10.1.168\\n\\nenv\\n\\nrsph=2\\n[[ ${CWS_NODES} = 2 ]] && echo foo && rsph=1\\n\\nset -x\\n# The jsrun arguments from LSF have been translated to flux run options.\\n# --tasks_per_rs 1 --nrs 2 translates to -n 2 -N 2 (2 tasks on 2 nodes).\\n# --gpu_per_rs 2 translates to --gpus-per-task=2.\\n# --cpu_per_rs 1 translates to --cpus-per-task=1.\\n# The jsrun-specific arguments '--smpiargs', '--latency_priority', and '--erf_output' have been omitted.\\n# Flux's process management interface (PMI) may handle GPU affinity automatically.\\n# The performance characteristics may differ.\\nfluxrunArgs=\\\"-N 2 -n 2 --gpus-per-task=2 --cpus-per-task=1\\\"\\nbinArgs=\\\"-d cuda\\\"\\nout=nodes${CWS_NODES}_DD_GPUGPU_$FLUX_JOB_ID\\nflux run $fluxrunArgs \\\\\\n  $bin/osu_latency $binArgs D D &> ${out}.out\\nout=nodes${CWS_NODES}_DD_GPUCPU_$FLUX_JOB_ID\\nflux run $fluxrunArgs \\\\\\n  $bin/osu_latency $binArgs D D &> ${out}.out\\n#jsrun $jsrArgs $mpiArgs $bin/osu_latency $binArgs H D &> nodes${CWS_NODES}_HD_$LSB_JOBID.out\\n#jsrun $jsrArgs $mpiArgs $bin/osu_latency $binArgs D H &> nodes${CWS_NODES}_DH_$LSB_JOBID.out\\n#jsrun $jsrArgs $mpiArgs $bin/osu_latency $binArgs H H &> nodes${CWS_NODES}_HH_$LSB_JOBID.out\\nset +x\"\n}\n```\nWORKFLOW COMPLETE",
+            "error": null
+        },
+        {
+            "step": "validate",
+            "duration": 19.565618879976682,
+            "result": "{\"jobspec\":null,\"errors\":[],\"valid\":true}",
+            "error": null
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "agent",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": true,
+                "inputs": {
+                    "from_manager": "lsf",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n#BSUB -W 20\n#BSUB -G ceed\n\ncheck_sierra_nodes\n\n#bin=/g/g19/smith516/develop/osu-micro-benchmarks-5.6.1/xl19-spectrum-install/libexec/osu-micro-benchmarks/mpi/pt2pt/\nbin=/g/g19/smith516/develop/osu-micro-benchmarks-5.6.1/xl19-cuda101168-spectrum-install/libexec/osu-micro-benchmarks/mpi/pt2pt/\n\nmodule swap cuda cuda/10.1.168\n\nenv\n\nrsph=2\n[[ ${CWS_NODES} = 2 ]] && echo foo && rsph=1\n\nset -x\njsrArgs=\"--tasks_per_rs 1 --nrs 2 --gpu_per_rs 2 --cpu_per_rs 1\"\nmpiArgs=\"--smpiargs='-gpu'\"\nbinArgs=\"-d cuda\"\nout=nodes${CWS_NODES}_DD_GPUGPU_$LSB_JOBID\njsrun $jsrArgs $mpiArgs --latency_priority gpu-gpu --erf_output ${out}.erf \\\n  $bin/osu_latency $binArgs D D &> ${out}.out\nout=nodes${CWS_NODES}_DD_GPUCPU_$LSB_JOBID\njsrun $jsrArgs $mpiArgs --latency_priority gpu-cpu --erf_output ${out}.erf \\\n  $bin/osu_latency $binArgs D D &> ${out}.out\n#jsrun $jsrArgs $mpiArgs $bin/osu_latency $binArgs H D &> nodes${CWS_NODES}_HD_$LSB_JOBID.out\n#jsrun $jsrArgs $mpiArgs $bin/osu_latency $binArgs D H &> nodes${CWS_NODES}_DH_$LSB_JOBID.out\n#jsrun $jsrArgs $mpiArgs $bin/osu_latency $binArgs H H &> nodes${CWS_NODES}_HH_$LSB_JOBID.out\nset +x\n"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "agent",
+                "prompt": "validate_jobspec_expert",
+                "inputs": {
+                    "script": "{{ result.jobspec }}"
+                },
+                "transitions": {
+                    "success": "success",
+                    "failure": "failed"
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

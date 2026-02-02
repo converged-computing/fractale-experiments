@@ -1,0 +1,50 @@
+{
+    "steps": [
+        {
+            "step": "transform",
+            "duration": 27.13307243795134,
+            "result": "```json\n{\n \"jobspec\": \"#!/bin/sh\\n#FLUX -N 1\\n#FLUX -n 6\\n#FLUX -g 2\\n# Omitted host=dgx02: Flux does not have a direct equivalent for specifying a host. This may have performance implications.\\n#FLUX --constraint=pytorch\\n#FLUX --job-name=run_dgx_image\\n#FLUX --time=12:00:00\\n#FLUX --mail-type=BEGIN,END,FAIL\\n#FLUX --mail-user=chuahmy@i2r.a-star.edu.sg\\n\\nRL_BASELINES_DIR=\\\"/home/i2r/$USER/DATA/rl-baselines3-zoo\\\"\\n\\nGIT_COMMIT_SHA=$(cd $RL_BASELINES_DIR && git rev-parse --short HEAD)\\necho \\\"INFO: Building container from commit ${GIT_COMMIT_SHA} in repository ${RL_BASELINES_DIR}...\\\"\\nCONTAINER_NAME=\\\"sbl3-${GIT_COMMIT_SHA}\\\"\\necho \\\"INFO: Using container name ${CONTAINER_NAME}...\\\" \\n\\n# Delete the previous container if it exists\\nCONTAINER_ID=$(docker ps -aqf \\\"name=${CONTAINER_NAME}\\\")\\nif [[ $CONTAINER_ID != \\\"\\\" ]]\\nthen\\n    echo \\\"INFO: Reusing existing container ${CONTAINER_ID}...\\\"\\n    nvidia-docker start $CONTAINER_ID\\n\\nelse\\n    echo \\\"INFO: No pre-existing container found; creating new container...\\\"\\n    # Create the container from the current image\\n    nvidia-docker run --privileged --net=host \\\\\\n        --name=$CONTAINER_NAME \\\\\\n        --env=\\\"DISPLAY=$DISPLAY\\\" \\\\\\n        --env=\\\"QT_X11_NO_MITSHM=1\\\" \\\\\\n        --runtime=nvidia \\\\\\n        --gpus all \\\\\\n        -dit \\\\\\n        dgx-sbl3:latest \\\\\\n        bash\\nfi\\n\\n# Now we can run training scripts as usual. \\n# PBS Pro scheduler automatically logs stderr and stdout so no need to manually do that\\nCONTAINER_ID=$(docker ps -aqf \\\"name=${CONTAINER_NAME}\\\")\\n\\necho \\\"Running nvidia-smi within dgx\\\"\\nnvidia-smi\\n\\necho \\\"Running nvidia-smi within Docker\\\"\\nnvidia-docker exec $CONTAINER_ID sh -c \\\"nvidia-smi\\\"\\n\\necho \\\"INFO: Running train.py in container ${CONTAINER_ID}...\\\"\\nnvidia-docker exec $CONTAINER_ID sh -c \\\"cd ~/rl-baselines3-zoo && python train.py --algo ppo --env A1GymEnv-v0 --save-freq 100000\\\"\\n\"\n}\n```\nWORKFLOW COMPLETE",
+            "error": null
+        },
+        {
+            "step": "validate",
+            "duration": 21.617847671033815,
+            "result": "{\"jobspec\":null,\"errors\":[],\"valid\":true}",
+            "error": null
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "agent",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": true,
+                "inputs": {
+                    "from_manager": "pbs",
+                    "to_manager": "flux",
+                    "script": "#!/bin/sh\n#PBS -l select=1:ncpus=6:ngpus=2:host=dgx02\n#PBS -l software=pytorch\n#PBS -N run_dgx_image\n#PBS -l walltime=12:00:00\n#PBS -m abe\n#PBS -M chuahmy@i2r.a-star.edu.sg\n\nRL_BASELINES_DIR=\"/home/i2r/$USER/DATA/rl-baselines3-zoo\"\n\nGIT_COMMIT_SHA=$(cd $RL_BASELINES_DIR && git rev-parse --short HEAD)\necho \"INFO: Building container from commit ${GIT_COMMIT_SHA} in repository ${RL_BASELINES_DIR}...\"\nCONTAINER_NAME=\"sbl3-${GIT_COMMIT_SHA}\"\necho \"INFO: Using container name ${CONTAINER_NAME}...\" \n\n# Delete the previous container if it exists\nCONTAINER_ID=$(docker ps -aqf \"name=${CONTAINER_NAME}\")\nif [[ $CONTAINER_ID != \"\" ]]\nthen\n    echo \"INFO: Reusing existing container ${CONTAINER_ID}...\"\n    nvidia-docker start $CONTAINER_ID\n\nelse\n    echo \"INFO: No pre-existing container found; creating new container...\"\n    # Create the container from the current image\n    nvidia-docker run --privileged --net=host \\\n        --name=$CONTAINER_NAME \\\n        --env=\"DISPLAY=$DISPLAY\" \\\n        --env=\"QT_X11_NO_MITSHM=1\" \\\n        --runtime=nvidia \\\n        --gpus all \\\n        -dit \\\n        dgx-sbl3:latest \\\n        bash\nfi\n\n# Now we can run training scripts as usual. \n# PBS Pro scheduler automatically logs stderr and stdout so no need to manually do that\nCONTAINER_ID=$(docker ps -aqf \"name=${CONTAINER_NAME}\")\n\necho \"Running nvidia-smi within dgx\"\nnvidia-smi\n\necho \"Running nvidia-smi within Docker\"\nnvidia-docker exec $CONTAINER_ID sh -c \"nvidia-smi\"\n\necho \"INFO: Running train.py in container ${CONTAINER_ID}...\"\nnvidia-docker exec $CONTAINER_ID sh -c \"cd ~/rl-baselines3-zoo && python train.py --algo ppo --env A1GymEnv-v0 --save-freq 100000\"\n"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "agent",
+                "prompt": "validate_jobspec_expert",
+                "inputs": {
+                    "script": "{{ result.jobspec }}"
+                },
+                "transitions": {
+                    "success": "success",
+                    "failure": "failed"
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

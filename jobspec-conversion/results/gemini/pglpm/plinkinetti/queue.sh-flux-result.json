@@ -1,0 +1,50 @@
+{
+    "steps": [
+        {
+            "step": "transform",
+            "duration": 14.269358761957847,
+            "result": "```json\n{\n  \"jobspec\": \"#!/bin/bash\\n# Set the name of the job\\n#FLUX --job-name=plinkinetti\\n# Launch an array of 100 jobs\\n## FLUX -t 1-10\\n# Specify a time limit\\n## FLUX --time=10:00:00\\n# Redirect stderr and stdout to the same file:\\n# {{id}} will be replaced by the job ID and {{task.id}} by the array index\\n#FLUX -o plinkinetti_{{id}}.out\\n#FLUX -e plinkinetti_{{id}}.out\\n# OMITTED: --mail-type=ALL\\n# Flux does not have a direct equivalent for mail notifications.\\n# We request an exclusive node for every job in the array\\n## FLUX --exclusive\\n# and reserve 10GB of memory\\n#FLUX --mem-per-task=10000\\n# Specify the number of tasks (processes)\\n#FLUX --ntasks=1\\n# Our job is multithreaded, so we ask 4 CPUs per process\\n#FLUX --cpus-per-task=12\\n# So, in total we will have 4x8 CPUs for us\\n## module load nest/2.10.0\\n##################################################################\\n# from here on we can run whatever command we want\\n# we use flux's environment variables to create unique output files and echo the name of the executing node in that file\\n##module load anaconda\\n##source activate r\\nflux mini run -n 1 -c 12 Rscript job.R\\n\"\n}\n```\nWORKFLOW COMPLETE",
+            "error": null
+        },
+        {
+            "step": "validate",
+            "duration": 27.01484850398265,
+            "result": "{\"jobspec\":null,\"errors\":[],\"valid\":true}",
+            "error": null
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "agent",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": true,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n# Set the name of the job\n#SBATCH --job-name plinkinetti\n# Launch an array of 100 jobs\n## SBATCH --array 1-10\n# Specify a time limit\n## SBATCH --time 10:00:00\n# Redirect stderr and stdout to the same file:\n# %A will be replaced by the job ID and %a by the array index\n#SBATCH -o plinkinetti_%A.out\n#SBATCH -e plinkinetti_%A.out\n# Send email notifications\n## SBATCH --mail-type=ALL\n# We request an exclusive node for every job in the array\n## SBATCH --exclusive\n# and reserve 10GB of memory\n#SBATCH --mem=10000\n# Specify the number of tasks (processes)\n#SBATCH --ntasks 1\n# Our job is multithreaded, so we ask 4 CPUs per process\n#SBATCH --cpus-per-task=12\n# So, in total we will have 4x8 CPUs for us\n## module load nest/2.10.0\n##################################################################\n# from here on we can run whatever command we want (e.g., srun python simulate.py $SLURM_ARRAY_JOB_ID)\n# we use slurm's environment variables to create unique output files and echo the name of the executing node in that file\n##module load anaconda\n##source activate r\nsrun Rscript job.R\n"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "agent",
+                "prompt": "validate_jobspec_expert",
+                "inputs": {
+                    "script": "{{ result.jobspec }}"
+                },
+                "transitions": {
+                    "success": "success",
+                    "failure": "failed"
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

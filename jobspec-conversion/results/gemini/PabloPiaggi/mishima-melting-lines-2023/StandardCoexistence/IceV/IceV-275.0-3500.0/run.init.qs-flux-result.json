@@ -1,0 +1,50 @@
+{
+    "steps": [
+        {
+            "step": "transform",
+            "duration": 22.25790788908489,
+            "result": "```json\n{\n  \"jobspec\": \"#!/bin/bash\\n#FLUX -N 1\\n#FLUX -n 4\\n#FLUX -c 7\\n#FLUX -t 96:00:00\\n#FLUX --gpus-per-task=1\\n# The following slurm directives did not have a direct translation:\\n# --ntasks-per-socket=2: Flux does not have a direct equivalent for this directive.\\n# --mem=32G: Memory requirements in Flux are often handled by the system configuration and not as a job directive.\\n# --mail-type=begin: Flux does not have a direct equivalent for this directive.\\n# --mail-type=end: Flux does not have a direct equivalent for this directive.\\n# --mail-user=tgartner@princeton.edu: Flux does not have a direct equivalent for this directive.\\n\\n# load environment\\nmodule load cudatoolkit/10.0\\nmodule load cudnn/cuda-10.0/7.6.3\\nmodule load openmpi/gcc/3.1.3/64\\n#module load fftw\\nsource /home/tgartner/Software-deepmd-kit-1.0/tensorflow-venv/bin/activate\\nmodule load /home/tgartner/modulefiles/plumed-tg\\n# export OMP_NUM_THREADS=1\\n\\n# run NPT sampling\\nmpirun /home/tgartner/Software-deepmd-kit-1.0/lammps-3Mar20/src/lmp_mpi -i in.lammps.init\\nrm in.boxdimensions\\npython BoxDimensions.py > in.boxdimensions\\nmpirun /home/tgartner/Software-deepmd-kit-1.0/lammps-3Mar20/src/lmp_mpi -i in.lammps.equil\\n\\n# Note: The output file name may differ from 'slurm*'. Adjust the grep pattern as needed.\\nif ! grep -q 'ERROR' slurm*; then\\n    echo \\\"Continuing equilibration\\\"\\n    flux submit --dependency=after:$FLUX_JOB_ID run.sample.qs\\nelse\\n    echo \\\"There is an error\\\"\\nfi\\n\"\n}\n```\nWORKFLOW COMPLETE",
+            "error": null
+        },
+        {
+            "step": "validate",
+            "duration": 30.53601153497584,
+            "result": "{\"jobspec\":null,\"errors\":[],\"valid\":true}",
+            "error": null
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "agent",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": true,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n#SBATCH -N 1   # node count\n#SBATCH --ntasks-per-node=4\n#SBATCH --ntasks-per-socket=2\n#SBATCH --cpus-per-task=7\n#SBATCH -t 96:00:00\n# SBATCH --mem=32G\n#SBATCH --gres=gpu:4\n#SBATCH --mail-type=begin\n#SBATCH --mail-type=end\n#SBATCH --mail-user=tgartner@princeton.edu\n\n# load environment\nmodule load cudatoolkit/10.0\nmodule load cudnn/cuda-10.0/7.6.3\nmodule load openmpi/gcc/3.1.3/64\n#module load fftw\nsource /home/tgartner/Software-deepmd-kit-1.0/tensorflow-venv/bin/activate\nmodule load /home/tgartner/modulefiles/plumed-tg\n# export OMP_NUM_THREADS=1\n\n# run NPT sampling\nmpirun /home/tgartner/Software-deepmd-kit-1.0/lammps-3Mar20/src/lmp_mpi -i in.lammps.init\nrm in.boxdimensions\npython BoxDimensions.py > in.boxdimensions\nmpirun /home/tgartner/Software-deepmd-kit-1.0/lammps-3Mar20/src/lmp_mpi -i in.lammps.equil\n\nif ! grep -q 'ERROR' slurm*; then\n    echo \"Continuing equilibration\"\n    sbatch --dependency=afterok:$SLURM_JOB_ID run.sample.qs\nelse\n    echo \"There is an error\"\nfi\n\n"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "agent",
+                "prompt": "validate_jobspec_expert",
+                "inputs": {
+                    "script": "{{ result.jobspec }}"
+                },
+                "transitions": {
+                    "success": "success",
+                    "failure": "failed"
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

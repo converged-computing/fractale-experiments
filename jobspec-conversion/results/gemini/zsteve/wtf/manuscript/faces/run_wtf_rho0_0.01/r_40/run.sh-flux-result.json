@@ -1,0 +1,50 @@
+{
+    "steps": [
+        {
+            "step": "transform",
+            "duration": 16.809461144031957,
+            "result": "```json\n{\n  \"jobspec\": \"#!/bin/bash\\n#flux: --time=0:30:00\\n#flux: -N 1\\n#flux: --ntasks-per-node=1\\n#flux: --cpus-per-task=1\\n#flux: --gpus-per-task=1\\n#flux: --mem=4gb\\n#flux: --job-name=faces\\n#flux: --account=st-schieb-1-gpu\\n#flux: --tasks=10\\n \\n################################################################################\\n\\n# The PBS_O_WORKDIR variable is replaced by FLUX_SUBMIT_DIR\\nexport NUMBA_CACHE_DIR=$FLUX_SUBMIT_DIR\\n\\nsource ~/.bashrc\\nmodule load gcc/9.1.0\\nconda activate sdecouplings\\n# The PBS_O_WORKDIR variable is replaced by FLUX_SUBMIT_DIR\\ncd $FLUX_SUBMIT_DIR\\n# PBS_ARRAY_INDEX is 1-based, while FLUX_TASK_ID is 0-based.\\n# We add 1 to FLUX_TASK_ID to preserve the original behavior.\\nSRAND=$((FLUX_TASK_ID + 1))\\npython faces.py --srcpath /scratch/st-schieb-1/zsteve/wtf/src --n_iter 25 --outfile \\\"output_$SRAND\\\" --r 40 --srand $SRAND --rho0 0.01\\n\"\n}\n```\nWORKFLOW COMPLETE",
+            "error": null
+        },
+        {
+            "step": "validate",
+            "duration": 16.690626212977804,
+            "result": "{\"jobspec\":null,\"errors\":[\"Validation failed at directives:\\n--ntasks-per-node=1: 2\\n--cpus-per-task=1: 2\\n--gpus-per-task=1: 2\\n--mem=4gb: 2\\n--account=st-schieb-1-gpu: 2\\n--tasks=10: 2\"],\"valid\":false}",
+            "error": null
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "agent",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": true,
+                "inputs": {
+                    "from_manager": "pbs",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n#PBS -l walltime=0:30:00,select=1:ncpus=1:ngpus=1:mem=4gb\n#PBS -N faces\n#PBS -A st-schieb-1-gpu\n#PBS -J 1-10\n \n################################################################################\n\nexport NUMBA_CACHE_DIR=$PBS_O_WORKDIR\n\nsource ~/.bashrc\nmodule load gcc/9.1.0\nconda activate sdecouplings\ncd $PBS_O_WORKDIR\nSRAND=$PBS_ARRAY_INDEX\npython faces.py --srcpath /scratch/st-schieb-1/zsteve/wtf/src --n_iter 25 --outfile \"output_$SRAND\" --r 40 --srand $SRAND --rho0 0.01\n"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "agent",
+                "prompt": "validate_jobspec_expert",
+                "inputs": {
+                    "script": "{{ result.jobspec }}"
+                },
+                "transitions": {
+                    "success": "success",
+                    "failure": "failed"
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

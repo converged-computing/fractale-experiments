@@ -1,0 +1,50 @@
+{
+    "steps": [
+        {
+            "step": "transform",
+            "duration": 10.549837864004076,
+            "result": "```json\n{\n \"jobspec\": \"#!/bin/bash --login\\n\\n#FLUX -N 64\\n#FLUX -t 1h\\n#FLUX -J ior_64\\n#FLUX -A z01-cse\\n\\nmodule swap PrgEnv-cray PrgEnv-intel\\nmodule swap intel intel/15.0.2.164\\n\\ncd $FLUX_SUBMIT_DIR\\n\\n# System and file system identifier\\nsystem=ARCHER\\nfs=fs3\\n\\n# Base directories\\nBASE_DIR=/work/z01/z01/aturner/CSE/parallel-io/benchmark/IOR/DiRAC-IOR\\nRESULT_DIR=${BASE_DIR}/results/${system}/${fs}\\nCONFIG_DIR=${BASE_DIR}/run\\nIOR=/work/z01/z01/aturner/CSE/parallel-io/benchmark/IOR/bin/ior\\n\\n# Make sure the results direcotry exists\\nif [ ! -d \\\"${RESULT_DIR}\\\" ];\\nthen\\n   mkdir ${RESULT_DIR}\\nfi\\n\\n# Basic test parameters\\nstriping=4\\nnodes=64\\n\\n# Array of tests and associated block sizes\\ntestsA=(\\\"NS.SHF\\\" \\\"NW.SHF\\\" \\\"NS.FPS\\\" \\\"NW.FPS\\\")\\nblockA=(       4        8        4        8)\\n\\n# Loop over all tests\\nfor i in \\\"${!testsA[@]}\\\"\\ndo\\n   # Set this test parameters\\n   iortest=${testsA[$i]}\\n   block=${blockA[$i]}\\n   timestamp=$(date '+%Y%m%d%H%M%S')\\n   TARGET=\\\"${RESULT_DIR}/${iortest}/data\\\"\\n   IOR_SCRIPT=\\\"${CONFIG_DIR}/${iortest}.config\\\"\\n   outfile=${RESULT_DIR}/${iortest}/ior_res_s${striping}_c${nodes}_b${block}_${timestamp}.dat\\n\\n   cd ${RESULT_DIR}/${iortest}\\n   if [ ! -d \\\"${TARGET}\\\" ]; then\\n      mkdir ${TARGET}\\n   fi\\n   lfs setstripe -c ${striping} ${TARGET}\\n   echo \\\"${timestamp} Running: Test=${iortest}, Stripe=${striping}, nodes=${nodes}, blocksize=${block}\\\"\\n   echo \\\"JobID = ${FLUX_JOB_ID}\\\" > ${outfile}\\n   echo \\\"Striping = ${striping}\\\" >> ${outfile}\\n   flux run -n ${nodes} -N 1 $IOR -vvv  -b ${block}g -f $IOR_SCRIPT >> ${outfile}\\ndone\\n\\ncd $FLUX_SUBMIT_DIR\\nflux batch run_32.pbs\\n\"\n}\n```\nWORKFLOW COMPLETE",
+            "error": null
+        },
+        {
+            "step": "validate",
+            "duration": 19.23717104201205,
+            "result": "{\"jobspec\":null,\"errors\":[],\"valid\":true}",
+            "error": null
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "agent",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": true,
+                "inputs": {
+                    "from_manager": "pbs",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash --login\n\n#PBS -l select=64\n#PBS -l walltime=1:0:0\n#PBS -N ior_64\n#PBS -A z01-cse\n\nmodule swap PrgEnv-cray PrgEnv-intel\nmodule swap intel intel/15.0.2.164\n\ncd $PBS_O_WORKDIR\n\n# System and file system identifier\nsystem=ARCHER\nfs=fs3\n\n# Base directories\nBASE_DIR=/work/z01/z01/aturner/CSE/parallel-io/benchmark/IOR/DiRAC-IOR\nRESULT_DIR=${BASE_DIR}/results/${system}/${fs}\nCONFIG_DIR=${BASE_DIR}/run\nIOR=/work/z01/z01/aturner/CSE/parallel-io/benchmark/IOR/bin/ior\n\n# Make sure the results direcotry exists\nif [ ! -d \"${RESULT_DIR}\" ];\nthen\n   mkdir ${RESULT_DIR}\nfi\n\n# Basic test parameters\nstriping=4\nnodes=64\n\n# Array of tests and associated block sizes\ntestsA=(\"NS.SHF\" \"NW.SHF\" \"NS.FPS\" \"NW.FPS\")\nblockA=(       4        8        4        8)\n\n# Loop over all tests\nfor i in \"${!testsA[@]}\"\ndo\n   # Set this test parameters\n   iortest=${testsA[$i]}\n   block=${blockA[$i]}\n   timestamp=$(date '+%Y%m%d%H%M%S')\n   TARGET=\"${RESULT_DIR}/${iortest}/data\"\n   IOR_SCRIPT=\"${CONFIG_DIR}/${iortest}.config\"\n   outfile=${RESULT_DIR}/${iortest}/ior_res_s${striping}_c${nodes}_b${block}_${timestamp}.dat\n\n   cd ${RESULT_DIR}/${iortest}\n   if [ ! -d \"${TARGET}\" ]; then\n      mkdir ${TARGET}\n   fi\n   lfs setstripe -c ${striping} ${TARGET}\n   echo \"${timestamp} Running: Test=${iortest}, Stripe=${striping}, nodes=${nodes}, blocksize=${block}\"\n   echo \"JobID = ${PBS_JOBID}\" > ${outfile}\n   echo \"Striping = ${striping}\" >> ${outfile}\n   aprun -n ${nodes} -N 1 $IOR -vvv  -b ${block}g -f $IOR_SCRIPT >> ${outfile}\ndone\n\ncd $PBS_O_WORKDIR\nqsub run_32.pbs\n"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "agent",
+                "prompt": "validate_jobspec_expert",
+                "inputs": {
+                    "script": "{{ result.jobspec }}"
+                },
+                "transitions": {
+                    "success": "success",
+                    "failure": "failed"
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

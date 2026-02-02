@@ -163,7 +163,7 @@ def plot_valid_invalid_breakdown(df: pd.DataFrame, output_dir: Path):
     # create a summary table for plotting
     summary = flux_target_df.groupby(['transformation_type', 'is_valid']).size().unstack(fill_value=0)
     summary.rename(columns={True: 'Valid', False: 'Invalid'}, inplace=True)    
-    summary.plot(kind='bar', stacked=True, color=['#4CAF50', '#F44336'], ax=ax, rot=45)
+    summary.plot(kind='bar', stacked=True, color=['#F44336','#4CAF50'], ax=ax, rot=45)
 
     ax.set_title('Flux Transformation Success vs. Failure by Type', fontsize=16, pad=20)
     ax.set_xlabel('Transformation Type', fontsize=12)

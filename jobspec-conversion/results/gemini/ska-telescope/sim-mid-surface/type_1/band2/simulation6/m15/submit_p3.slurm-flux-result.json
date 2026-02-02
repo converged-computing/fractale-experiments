@@ -1,0 +1,50 @@
+{
+    "steps": [
+        {
+            "step": "transform",
+            "duration": 21.820203689974733,
+            "result": "```json\n{\n  \"jobspec\": \"#!/bin/bash\\n#\\n# Dask job script for P3\\n# Tim Cornwell\\n#\\n\\n#############################################################\\n#### Modify the options in this section as appropriate ######\\n#############################################################\\n\\n# flux directives begin here ###############################\\n# Name of the job:\\n#FLUX -J TYPE1\\n# How many whole nodes should be allocated?\\n#FLUX -N 12\\n# How many (MPI) tasks will there be in total? (<= nodes*16)\\n#FLUX -n 29\\n# How much wallclock time will be required?\\n#FLUX -t 23:59:59\\n# What queue to use\\n#FLUX -q compute\\n\\n# The following sbatch options do not have direct flux equivalents\\n# and have been omitted:\\n# -A SKA-SDP: Flux does not have a project/account directive.\\n# --mail-type=FAIL,END: Flux does not have mail notification directives.\\n# --mail-user=realtimcornwell@gmail.com: Flux does not have mail notification directives.\\n\\n# Modify the settings below to specify the application's environment, location\\n# and launch method:\\n\\n# Optionally modify the environment seen by the application\\nmodule purge                               # Removes all modules still loaded\\n\\n# Set up python\\n# . $HOME/alaska-venv/bin/activate\\nexport PYTHONPATH=$PYTHONPATH:$ARL\\necho \\\"PYTHONPATH is ${PYTHONPATH}\\\"\\n\\necho -e \\\"Running python: `which python`\\\"\\necho -e \\\"Running dask-scheduler: `which dask-scheduler`\\\"\\n\\necho -e \\\"Running in directory `pwd`.\\\\n\\\"\\n\\nJOBID=${FLUX_JOB_ID}\\n\\n# Create a hostfile:\\nflux exec -r all hostname | uniq > hostfile.$JOBID\\n\\nscheduler=$(head -1 hostfile.$JOBID)\\nhostIndex=0\\nfor host in `cat hostfile.$JOBID`; do\\n    echo \\\"Working on $host ....\\\"\\n    if [ \\\"$hostIndex\\\" = \\\"0\\\" ]; then\\n        echo \\\"run dask-scheduler\\\"\\n        ssh $host dask-scheduler --port=8786 &\\n        sleep 5\\n    fi\\n    echo \\\"run dask-worker\\\"\\n    ssh $host dask-worker --interface ib0  --nprocs 2 --nthreads 4  \\\\\\n    --memory-limit 50GB    --local-directory /mnt/storage-ssd/tim/dask-workspace/${host} $scheduler:8786   &\\n        sleep 1\\n    hostIndex=\\\"1\\\"\\ndone\\necho \\\"Scheduler and workers now running\\\"\\n\\n# We need to tell dask Client (inside python) where the scheduler is running\\nexport ARL_DASK_SCHEDULER=${scheduler}:8786\\necho \\\"Scheduler is running at ${scheduler}\\\"\\n\\nCMD=\\\"python ../../../surface_simulation_elevation.py --context s3sky --rmax 1e5 --flux_limit 0.003 \\\\\\n --show True \\\\\\n--elevation_sampling 1.0 --declination -15 \\\\\\n--seed 18051955  --band B2 --pbtype MID_FEKO_B2 --memory 32  --integration_time 30 --use_agg True \\\\\\n--time_chunk 30 --time_range -6 6  --shared_directory /mnt/storage-ssd/tim/Code/sim-mid-surface/shared \\\\\\n--vp_directory /mnt/storage-ssd/tim/Code/sim-mid-surface/beams/interpolated/ \\\\\\n| tee surface_simulation.log\\\"\\necho \\\"About to execute $CMD\\\"\\n\\neval $CMD\\n\"\n}\n```\nWORKFLOW COMPLETE",
+            "error": null
+        },
+        {
+            "step": "validate",
+            "duration": 43.21539067500271,
+            "result": "{\"jobspec\":null,\"errors\":[],\"valid\":true}",
+            "error": null
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "agent",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": true,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n#!\n#! Dask job script for P3\n#! Tim Cornwell\n#!\n\n#!#############################################################\n#!#### Modify the options in this section as appropriate ######\n#!#############################################################\n\n#! sbatch directives begin here ###############################\n#! Name of the job:\n#SBATCH -J TYPE1\n#! Which project should be charged:\n#SBATCH -A SKA-SDP\n#! How many whole nodes should be allocated?\n#SBATCH --nodes=12\n#! How many (MPI) tasks will there be in total? (<= nodes*16)\n#SBATCH --ntasks=29\n#! Memory limit: P3 has roughly 107GB per node\n##SBATCH --mem 50000\n#! How much wallclock time will be required?\n#SBATCH --time=23:59:59\n#! What types of email messages do you wish to receive?\n#SBATCH --mail-type=FAIL,END\n#! Where to send email messages\n#SBATCH --mail-user=realtimcornwell@gmail.com\n#! Uncomment this to prevent the job from being requeued (e.g. if\n#! interrupted by node failure or system downtime):\n##SBATCH --no-requeue\n#! Do not change:\n#SBATCH -p compute\n#! Uncomment this to prevent the job from being requeued (e.g. if\n#! interrupted by node failure or system downtime):\n##SBATCH --no-requeue\n\n#! Modify the settings below to specify the application's environment, location\n#! and launch method:\n\n#! Optionally modify the environment seen by the application\n#! (note that SLURM reproduces the environment at submission irrespective of ~/.bashrc):\nmodule purge                               # Removes all modules still loaded\n\n#! Set up python\n# . $HOME/alaska-venv/bin/activate\nexport PYTHONPATH=$PYTHONPATH:$ARL\necho \"PYTHONPATH is ${PYTHONPATH}\"\n\necho -e \"Running python: `which python`\"\necho -e \"Running dask-scheduler: `which dask-scheduler`\"\n\ncd $SLURM_SUBMIT_DIR\necho -e \"Changed directory to `pwd`.\\n\"\n\nJOBID=${SLURM_JOB_ID}\necho ${SLURM_JOB_NODELIST}\n\n#! Create a hostfile:\nscontrol show hostnames $SLURM_JOB_NODELIST | uniq > hostfile.$JOBID\n\nscheduler=$(head -1 hostfile.$JOBID)\nhostIndex=0\nfor host in `cat hostfile.$JOBID`; do\n    echo \"Working on $host ....\"\n    if [ \"$hostIndex\" = \"0\" ]; then\n        echo \"run dask-scheduler\"\n        ssh $host dask-scheduler --port=8786 &\n        sleep 5\n    fi\n    echo \"run dask-worker\"\n    ssh $host dask-worker --interface ib0  --nprocs 2 --nthreads 4  \\\n    --memory-limit 50GB    --local-directory /mnt/storage-ssd/tim/dask-workspace/${host} $scheduler:8786   &\n        sleep 1\n    hostIndex=\"1\"\ndone\necho \"Scheduler and workers now running\"\n\n#! We need to tell dask Client (inside python) where the scheduler is running\nexport ARL_DASK_SCHEDULER=${scheduler}:8786\necho \"Scheduler is running at ${scheduler}\"\n\nCMD=\"python ../../../surface_simulation_elevation.py --context s3sky --rmax 1e5 --flux_limit 0.003 \\\n --show True \\\n--elevation_sampling 1.0 --declination -15 \\\n--seed 18051955  --band B2 --pbtype MID_FEKO_B2 --memory 32  --integration_time 30 --use_agg True \\\n--time_chunk 30 --time_range -6 6  --shared_directory /mnt/storage-ssd/tim/Code/sim-mid-surface/shared \\\n--vp_directory /mnt/storage-ssd/tim/Code/sim-mid-surface/beams/interpolated/ \\\n| tee surface_simulation.log\"\necho \"About to execute $CMD\"\n\neval $CMD\n\n"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "agent",
+                "prompt": "validate_jobspec_expert",
+                "inputs": {
+                    "script": "{{ result.jobspec }}"
+                },
+                "transitions": {
+                    "success": "success",
+                    "failure": "failed"
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

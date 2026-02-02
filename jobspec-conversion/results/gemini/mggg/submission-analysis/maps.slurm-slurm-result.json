@@ -1,0 +1,50 @@
+{
+    "steps": [
+        {
+            "step": "transform",
+            "duration": 8.126601482974365,
+            "result": "```json\n{\n  \"jobspec\": \"#!/bin/bash\\n#SBATCH --job-name=\\\"State_Report_Maps\\\" \\n#SBATCH --time=5-00:00:00 \\n#SBATCH --nodes=1 \\n#SBATCH --ntasks-per-node=1 \\n#SBATCH --mem=5000 \\n#SBATCH --output=\\\"/cluster/home/jdesch01/coi-maps/logs/log_%A.txt\\\" \\n#SBATCH --mail-type=BEGIN,END,FAIL,REQUEUE \\n#SBATCH --mail-user=john.deschler@tufts.edu \\n\\nsource ~/.bashrc  \\necho running on: `hostname` \\ncd $HOME\\ncd submission-analysis\\nconda activate coi-maps\\n\\npython maps_and_lookups.py \\n\"\n}\n```\nWORKFLOW COMPLETE",
+            "error": null
+        },
+        {
+            "step": "validate",
+            "duration": 12.047185537987389,
+            "result": "```json\n{\n  \"valid\": false,\n  \"reasons\": [\n    \"--mem=5000 is ambiguous. It is recommended to specify units for memory, e.g., --mem=5000M or --mem=5G.\"\n  ],\n  \"issues\": [\n    \"Sourcing ~/.bashrc in a batch script is not recommended as it can introduce unexpected behavior from interactive shell configurations.\",\n    \"The script uses relative paths for changing directories (cd submission-analysis), which can be fragile. It is more robust to use absolute paths.\",\n    \"The conda activate command depends on conda being initialized, which is often done in .bashrc. This creates a dependency on the critique of sourcing .bashrc.\"\n  ],\n  \"tool_call\": false\n}\n```\nWORKFLOW COMPLETE",
+            "error": null
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "agent",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": true,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "slurm",
+                    "script": "#!/bin/bash\n#SBATCH --job-name=\"State_Report_Maps\" # Job name\n#SBATCH --time=5-00:00:00 # days-hh:mm:ss\n#SBATCH --nodes=1 # how many computers do we need?\n#SBATCH --ntasks-per-node=1 # how many cores per node do we need?\n#SBATCH --mem=5000 # how many MB of memory do we need (5GB here)\n#SBATCH --output=\"/cluster/home/jdesch01/coi-maps/logs/log_%A.txt\" # where to save the output file.\n#SBATCH --mail-type=BEGIN,END,FAIL,REQUEUE # when to email you\n#SBATCH --mail-user=john.deschler@tufts.edu # the email to use\n\u200b\nsource ~/.bashrc  # need to set up the normal environment.\necho running on: `hostname` # print some info about where we are running\n# cd into the correct directory\ncd $HOME\ncd submission-analysis\nconda activate coi-maps\n\u200b\npython maps_and_lookups.py #$SLURM_ARRAY_TASK_ID # run the python code with the arguments. "
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "agent",
+                "prompt": "validate_jobspec_expert",
+                "inputs": {
+                    "script": "{{ result.jobspec }}"
+                },
+                "transitions": {
+                    "success": "success",
+                    "failure": "failed"
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

@@ -1,0 +1,50 @@
+{
+    "steps": [
+        {
+            "step": "transform",
+            "duration": 12.540532153914683,
+            "result": "```json\n{\n    \"jobspec\": \"#!/bin/bash\\n\\n# Default resources are 1 core with 2.8GB of memory per core.\\n\\n# job name:\\n#SBATCH -J pyro_sampler\\n\\n# priority\\n##SBATCH --account=carney-frankmj-condo\\n\\n# output file\\n#SBATCH --output slurm/pyro_sampler_%A_%a.out\\n\\n# Request runtime, memory, cores\\n#SBATCH --time=32:00:00\\n#SBATCH --mem=8G\\n##SBATCH -c 4\\n#SBATCH -N 1\\n##SBATCH -p gpu --gres=gpu:1\\n#SBATCH --array=0-19\\n\\n# --------------------------------------------------------------------------------------\\n\\n# Setup\\nsource /users/afengler/.bashrc\\nmodule load cudnn/8.1.0\\nmodule load cuda/11.1.1\\n#module load cuda/11.3.1\\nmodule load gcc/10.2\\n\\nconda deactivate\\nconda deactivate\\nconda activate lanfactory\\n\\n# Read in arguments:\\nmodel=ddm\\nmodeltype=hierarchical\\nnsteps=1000\\nnparticles=2\\nguide=normal\\nmachine=cpu\\nidrange=10\\nprogressbar=0\\n\\nnvidia-smi\\nlscpu\\n\\nwhile [ ! $# -eq 0 ]\\n    do\\n        case \\\"$1\\\" in\\n            --model | -m)\\n                echo \\\"passing model $2\\\"\\n                model=$2\\n                ;;\\n            --modeltype | -t)\\n                echo \\\"passing modeltype $2\\\"\\n                modeltype=$2\\n                ;;\\n            --machine | -m)\\n                echo \\\"passing modeltype $2\\\"\\n                machine=$2\\n                ;;\\n            --nsteps | -s)\\n                echo \\\"passing nsteps $2\\\"\\n                nsteps=$2\\n                ;;\\n            --nparticles | -p)\\n                echo \\\"passing nparticles $2\\\"\\n                nparticles=$2\\n                ;;\\n            --guide | -g)\\n                echo \\\"passing guide $2\\\"\\n                guide=$2\\n                ;;     \\n            --progressbar | -b)\\n                echo \\\"passing model $2\\\"\\n                progressbar=$2\\n                ;;\\n            --idrange | -i)\\n                echo \\\"passing idrange $2\\\"\\n                idrange=$2\\n        esac\\n        shift 2\\n    done\\n\\npython -u run_inference_pyro.py --model $model \\\\\\n                                --modeltype $modeltype \\\\\\n                                --nsteps $nsteps \\\\\\n                                --nparticles $nparticles \\\\\\n                                --machine $machine \\\\\\n                                --progressbar $progressbar \\\\\\n                                --guide $guide \\\\\\n                                --idmin $((SLURM_ARRAY_TASK_ID*idrange)) \\\\\\n                                --idmax $((SLURM_ARRAY_TASK_ID*idrange + idrange))\\n\"\n}\n```\nWORKFLOW COMPLETE",
+            "error": null
+        },
+        {
+            "step": "validate",
+            "duration": 13.619743430987,
+            "result": "```json\n{\n  \"valid\": false,\n  \"tool_call\": false,\n  \"reasons\": [\n    \"The script loads CUDA/CUDNN modules and calls `nvidia-smi`, indicating a GPU requirement, but the corresponding `#SBATCH` directive to request a GPU (`-p gpu --gres=gpu:1`) is commented out.\"\n  ],\n  \"issues\": [\n    \"The short command-line option '-m' is duplicated for both '--model' and '--machine', which will lead to incorrect argument parsing.\",\n    \"The script calls `conda deactivate` twice consecutively, which is redundant.\",\n    \"The CPU core request (`-c 4`) is commented out, which will result in the default allocation of cores (likely 1). This may not be the intended resource allocation given the 8GB memory request.\",\n    \"The argument parsing loop uses `shift 2`, which is not robust and can fail if arguments are passed differently than expected (e.g., flags without values).\"\n  ]\n}\n```\nWORKFLOW COMPLETE",
+            "error": null
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "agent",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": true,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "slurm",
+                    "script": "#!/bin/bash\n\n# Default resources are 1 core with 2.8GB of memory per core.\n\n# job name:\n#SBATCH -J pyro_sampler\n\n# priority\n##SBATCH --account=carney-frankmj-condo\n\n# output file\n#SBATCH --output slurm/pyro_sampler_%A_%a.out\n\n# Request runtime, memory, cores\n#SBATCH --time=32:00:00\n#SBATCH --mem=8G\n##SBATCH -c 4\n#SBATCH -N 1\n##SBATCH -p gpu --gres=gpu:1\n#SBATCH --array=0-19\n\n# --------------------------------------------------------------------------------------\n\n# Setup\nsource /users/afengler/.bashrc\nmodule load cudnn/8.1.0\nmodule load cuda/11.1.1\n#module load cuda/11.3.1\nmodule load gcc/10.2\n\nconda deactivate\nconda deactivate\nconda activate lanfactory\n\n# Read in arguments:\nmodel=ddm\nmodeltype=hierarchical\nnsteps=1000\nnparticles=2\nguide=normal\nmachine=cpu\nidrange=10\nprogressbar=0\n\nnvidia-smi\nlscpu\n\nwhile [ ! $# -eq 0 ]\n    do\n        case \"$1\" in\n            --model | -m)\n                echo \"passing model $2\"\n                model=$2\n                ;;\n            --modeltype | -t)\n                echo \"passing modeltype $2\"\n                modeltype=$2\n                ;;\n            --machine | -m)\n                echo \"passing modeltype $2\"\n                machine=$2\n                ;;\n            --nsteps | -s)\n                echo \"passing nsteps $2\"\n                nsteps=$2\n                ;;\n            --nparticles | -p)\n                echo \"passing nparticles $2\"\n                nparticles=$2\n                ;;\n            --guide | -g)\n                echo \"passing guide $2\"\n                guide=$2\n                ;;     \n            --progressbar | -b)\n                echo \"passing model $2\"\n                progressbar=$2\n                ;;\n            --idrange | -i)\n                echo \"passing idrange $2\"\n                idrange=$2\n        esac\n        shift 2\n    done\n\npython -u run_inference_pyro.py --model $model \\\n                                --modeltype $modeltype \\\n                                --nsteps $nsteps \\\n                                --nparticles $nparticles \\\n                                --machine $machine \\\n                                --progressbar $progressbar \\\n                                --guide $guide \\\n                                --idmin $((SLURM_ARRAY_TASK_ID*idrange)) \\\n                                --idmax $((SLURM_ARRAY_TASK_ID*idrange + idrange))"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "agent",
+                "prompt": "validate_jobspec_expert",
+                "inputs": {
+                    "script": "{{ result.jobspec }}"
+                },
+                "transitions": {
+                    "success": "success",
+                    "failure": "failed"
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

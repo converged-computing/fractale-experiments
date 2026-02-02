@@ -1,0 +1,50 @@
+{
+    "steps": [
+        {
+            "step": "transform",
+            "duration": 14.364527472062036,
+            "result": "```json\n{\n  \"jobspec\": \"#!/bin/sh\\n#FLUX -N 1\\n#FLUX -n 1\\n#FLUX -q LongJobs\\n#FLUX --gpus-per-task=2\\n#FLUX --mem-per-task=12000M\\n#FLUX -t 30d\\n\\n# The Slurm --partition directive was translated to the Flux -q directive.\\n# The Slurm --mem directive was translated to the Flux --mem-per-task directive.\\n# The Slurm --gres=gpu:2 directive was translated to the Flux --gpus-per-task=2 directive.\\n# All other Slurm directives were translated to their Flux equivalents.\\n\\nexport CUDA_HOME=/opt/cuda-9.0.176.1/\\n\\nexport CUDNN_HOME=/opt/cuDNN-7.0/\\n\\nexport STUDENT_ID=$(whoami)\\n\\nexport LD_LIBRARY_PATH=${CUDNN_HOME}/lib64:${CUDA_HOME}/lib64:$LD_LIBRARY_PATH\\n\\nexport LIBRARY_PATH=${CUDNN_HOME}/lib64:$LIBRARY_PATH\\n\\nexport CPATH=${CUDNN_HOME}/include:$CPATH\\n\\nexport PATH=${CUDA_HOME}/bin:${PATH}\\n\\nexport PYTHON_PATH=$PATH\\n\\nmkdir -p /disk/scratch/${STUDENT_ID}\\n\\n\\nexport TMPDIR=/disk/scratch/${STUDENT_ID}/\\nexport TMP=/disk/scratch/${STUDENT_ID}/\\n\\nmkdir -p ${TMP}/datasets/\\nexport DATASET_DIR=${TMP}/datasets/\\n# Activate the relevant virtual environment:\\n\\nsource /home/${STUDENT_ID}/miniconda3/bin/activate mlp\\npython scripts/experiments/lstm_experiment.py --data_path /home/${STUDENT_ID}/lanl_earthquake/data \\\\\\n\\t\\t\\t\\t\\t\\t\\t\\t\\t\\t\\t --experiment_name \\\"lstm_full_raw\\\" \\\\\\n\\t\\t\\t\\t\\t\\t\\t\\t\\t\\t\\t --segment_size 150000 --element_size 1000 \\\\\\n\\t\\t\\t\\t\\t\\t\\t\\t\\t\\t\\t --use_gpu \\\"true\\\" --gpu_id \\\"0,1\\\" \\\\\\n\\t\\t\\t\\t\\t\\t\\t\\t\\t\\t\\t --num_epochs 60 --dropout 0.3 \\\\\\n\\t\\t\\t\\t\\t\\t\\t\\t\\t\\t\\t --learning_rate 0.0002\\n\"\n}\n```\nWORKFLOW COMPLETE",
+            "error": null
+        },
+        {
+            "step": "validate",
+            "duration": 14.641810563043691,
+            "result": "{\"jobspec\":null,\"errors\":[],\"valid\":true}",
+            "error": null
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "agent",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": true,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/sh\n#SBATCH -N 1\t  # nodes requested\n#SBATCH -n 1\t  # tasks requested\n#SBATCH --partition=LongJobs\n#SBATCH --gres=gpu:2\n#SBATCH --mem=12000  # memory in Mb\n#SBATCH --time=0-30:00:00\n\nexport CUDA_HOME=/opt/cuda-9.0.176.1/\n\nexport CUDNN_HOME=/opt/cuDNN-7.0/\n\nexport STUDENT_ID=$(whoami)\n\nexport LD_LIBRARY_PATH=${CUDNN_HOME}/lib64:${CUDA_HOME}/lib64:$LD_LIBRARY_PATH\n\nexport LIBRARY_PATH=${CUDNN_HOME}/lib64:$LIBRARY_PATH\n\nexport CPATH=${CUDNN_HOME}/include:$CPATH\n\nexport PATH=${CUDA_HOME}/bin:${PATH}\n\nexport PYTHON_PATH=$PATH\n\nmkdir -p /disk/scratch/${STUDENT_ID}\n\n\nexport TMPDIR=/disk/scratch/${STUDENT_ID}/\nexport TMP=/disk/scratch/${STUDENT_ID}/\n\nmkdir -p ${TMP}/datasets/\nexport DATASET_DIR=${TMP}/datasets/\n# Activate the relevant virtual environment:\n\nsource /home/${STUDENT_ID}/miniconda3/bin/activate mlp\npython scripts/experiments/lstm_experiment.py --data_path /home/${STUDENT_ID}/lanl_earthquake/data \\\n\t\t\t\t\t\t\t\t\t\t\t --experiment_name \"lstm_full_raw\" \\\n\t\t\t\t\t\t\t\t\t\t\t --segment_size 150000 --element_size 1000 \\\n\t\t\t\t\t\t\t\t\t\t\t --use_gpu \"true\" --gpu_id \"0,1\" \\\n\t\t\t\t\t\t\t\t\t\t\t --num_epochs 60 --dropout 0.3 \\\n\t\t\t\t\t\t\t\t\t\t\t --learning_rate 0.0002"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "agent",
+                "prompt": "validate_jobspec_expert",
+                "inputs": {
+                    "script": "{{ result.jobspec }}"
+                },
+                "transitions": {
+                    "success": "success",
+                    "failure": "failed"
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

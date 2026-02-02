@@ -1,0 +1,50 @@
+{
+    "steps": [
+        {
+            "step": "transform",
+            "duration": 20.608166030957364,
+            "result": "```json\n{\n  \"jobspec\": \"#!/bin/sh\\n#FLUX --job-name=iqtree\\n# FLUX does not have a direct equivalent for --mail-type=ALL, this is omitted.\\n# FLUX does not have a direct equivalent for --mail-user=user@ufl.edu, this is omitted.\\n#FLUX -N 1\\n#FLUX -n 1\\n#FLUX -c 5\\n#FLUX --mem-per-task=10gb\\n#FLUX -t 100h\\n#FLUX --output=logs/iqtree.plastid-%J.out\\n#FLUX --error=logs/iqtree.plastid-%J.err\\n\\n\\ncd $FLUX_SUBMIT_DIR\\ndate\\nhostname\\n\\nmodule purge\\nmodule load cuda/9.2.88 intel/2018.1.163 openmpi/3.1.2 iq-tree/1.6.10\\n\\n#cd ../mafft/\\n\\n#files=( $(ls *_alignment.fasta) )\\n#file=\\\"${files[$FLUX_TASK_ID]}\\\"\\n\\n# -s alignment file\\n# -te fixed user tree\\n# -o outgroup\\n# -nt number of CPUs\\n# -m Model selection (TEST = automatic model selection follwed by tree building using model)\\n# -merit select optimality criterion (AIC, AICc, BIC)\\n# -q specify partition file OR -spp partitions have different evoltuionary speed OR -sp unlinked partitions\\n# -g specify a topological constraint, does not need all taxa\\n# -pers perturbation strength, recommended a low number for small sequences\\n# -nstop number of unsucessful iteration, again, recommended for small sequences\\n# -bb ultrafast bootstrap iterations\\n#-spp Trimal90_noninterleaved_supercontig_partition_file.txt\\n\\n#echo \\\"running IQ-Tree on ${file}\\\"\\n\\n#iqtree -s ${file} -nt $FLUX_JOB_NCORES -seed $RANDOM -m TEST -merit BIC -pers 0.2 -nstop 500 -bb 1000 > ../iqtree/${file}.tre\\n\\niqtree -s plastid_whole_read_mapped_reduced.fasta -nt $FLUX_JOB_NCORES -seed $RANDOM -m TEST -merit AIC -bb 1000\\n\"\n}\n```\nWORKFLOW COMPLETE",
+            "error": null
+        },
+        {
+            "step": "validate",
+            "duration": 21.50091869290918,
+            "result": "{\"jobspec\":null,\"errors\":[],\"valid\":true}",
+            "error": null
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "agent",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": true,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/sh\n#SBATCH --job-name=iqtree\n#SBATCH --mail-type=ALL\n#SBATCH --mail-user=user@ufl.edu\n#SBATCH --nodes=1\n#SBATCH --ntasks=1\n#SBATCH --cpus-per-task=5\n#SBATCH --mem=10gb\n#SBATCH --time=100:00:00\n#SBATCH --output=logs/iqtree.plastid-%j.out\n#SBATCH --error=logs/iqtree.plastid-%j.err\n\n\ncd $SLURM_SUBMIT_DIR\ndate\nhostname\n\nmodule purge\nmodule load cuda/9.2.88 intel/2018.1.163 openmpi/3.1.2 iq-tree/1.6.10\n\n#cd ../mafft/\n\n#files=( $(ls *_alignment.fasta) )\n#file=\"${files[$SLURM_ARRAY_TASK_ID]}\"\n\n# -s alignment file\n# -te fixed user tree\n# -o outgroup\n# -nt number of CPUs\n# -m Model selection (TEST = automatic model selection follwed by tree building using model)\n# -merit select optimality criterion (AIC, AICc, BIC)\n# -q specify partition file OR -spp partitions have different evoltuionary speed OR -sp unlinked partitions\n# -g specify a topological constraint, does not need all taxa\n# -pers perturbation strength, recommended a low number for small sequences\n# -nstop number of unsucessful iteration, again, recommended for small sequences\n# -bb ultrafast bootstrap iterations\n#-spp Trimal90_noninterleaved_supercontig_partition_file.txt\n\n#echo \"running IQ-Tree on ${file}\"\n\n#iqtree -s ${file} -nt $SLURM_CPUS_ON_NODE -seed $RANDOM -m TEST -merit BIC -pers 0.2 -nstop 500 -bb 1000 > ../iqtree/${file}.tre\n\niqtree -s plastid_whole_read_mapped_reduced.fasta -nt $SLURM_CPUS_ON_NODE -seed $RANDOM -m TEST -merit AIC -bb 1000\n"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "agent",
+                "prompt": "validate_jobspec_expert",
+                "inputs": {
+                    "script": "{{ result.jobspec }}"
+                },
+                "transitions": {
+                    "success": "success",
+                    "failure": "failed"
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

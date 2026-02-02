@@ -1,0 +1,50 @@
+{
+    "steps": [
+        {
+            "step": "transform",
+            "duration": 26.81083157006651,
+            "result": "```json\n{\n  \"jobspec\": \"#!/bin/bash\\n#FLUX: -J ASpot\\n#FLUX: -o log/%x.%J.out\\n#FLUX: -e log/%x.%J.err\\n#FLUX: --time=5-00:00:00\\n#FLUX: --gres=gpu:1\\n# The specific gpu type 'v100' from the original job specification is not supported in flux and has been omitted.\\n# This may have performance implications.\\n#FLUX: --cpus-per-task=6\\n#FLUX: -N 1\\n#FLUX: --mem-per-node=90G\\n# The --exclude directive from slurm is not supported in flux.\\n# This may have performance implications if the excluded nodes are faulty.\\n##FLUX: -A conf-iccv-2021.03.25-ghanembs\\n\\n\\ndate\\n\\necho \\\"Loading anaconda...\\\"\\n# module purge\\nmodule load anaconda3\\nmodule load cuda/10.1.243\\nmodule list\\nsource activate CALF-pytorch\\necho \\\"...Anaconda env loaded\\\"\\n\\n\\necho \\\"Running python script...\\\"\\n# This job has an ID:  $FLUX_TASK_RANK\\n# echo $FLUX_TASK_RANK \\npython src/main.py \\\\\\n--SoccerNet_path=/ibex/scratch/giancos/SoccerNet_calibration/ \\\\\\n--features=ResNET_TF2_PCA512.npy \\\\\\n--num_features=512 \\\\\\n--model_name=CALF_subj_SBATCH \\\\\\n--batch_size 32 \\\\\\n--evaluation_frequency 20 \\\\\\n--chunks_per_epoch 18000 \\\\\\n\\\"$@\\\"\\n\\necho \\\"... script terminated\\\"\\n\\n\\ndate\"\n}\n```\nWORKFLOW COMPLETE",
+            "error": null
+        },
+        {
+            "step": "validate",
+            "duration": 19.78478417301085,
+            "result": "{\"jobspec\":null,\"errors\":[\"sequence item 0: expected str instance, dict found\"],\"valid\":false}",
+            "error": null
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "agent",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": true,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n#SBATCH -J ASpot\n#SBATCH -o log/%x.%3a.%A.out\n#SBATCH -e log/%x.%3a.%A.err\n#SBATCH --time=5-00:0:00\n#SBATCH --gres=gpu:v100:1\n#SBATCH --cpus-per-task=6\n#SBATCH -N 1\n#SBATCH --mem=90G\n#SBATCH --exclude=gpu212-14\n##SBATCH -A conf-iccv-2021.03.25-ghanembs\n\n\ndate\n\necho \"Loading anaconda...\"\n# module purge\nmodule load anaconda3\nmodule load cuda/10.1.243\nmodule list\nsource activate CALF-pytorch\necho \"...Anaconda env loaded\"\n\n\necho \"Running python script...\"\n# This job has an ID:  $SLURM_ARRAY_TASK_ID\n# echo $SLURM_ARRAY_TASK_ID \npython src/main.py \\\n--SoccerNet_path=/ibex/scratch/giancos/SoccerNet_calibration/ \\\n--features=ResNET_TF2_PCA512.npy \\\n--num_features=512 \\\n--model_name=CALF_subj_SBATCH \\\n--batch_size 32 \\\n--evaluation_frequency 20 \\\n--chunks_per_epoch 18000 \\\n\"$@\"\n\necho \"... script terminated\"\n\n\ndate\n"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "agent",
+                "prompt": "validate_jobspec_expert",
+                "inputs": {
+                    "script": "{{ result.jobspec }}"
+                },
+                "transitions": {
+                    "success": "success",
+                    "failure": "failed"
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

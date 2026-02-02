@@ -1,0 +1,50 @@
+{
+    "steps": [
+        {
+            "step": "transform",
+            "duration": 10.585364962927997,
+            "result": "```json\n{\n  \"jobspec\": \"#!/bin/bash\\n\\n# Slurm Resource Parameters (Example)\\n#SBATCH --ntasks=1                     # Number of cores\\n#SBATCH -N 1                    # Ensure that all cores are on one machine\\n#SBATCH -w bender\\n#SBATCH --cpus-per-task=1\\n#SBATCH -t 1-00:00              # Runtime in D-HH:MM\\n#SBATCH -p gpu                  # Partition to submit to\\n#SBATCH --gres=gpu:4            # Number of gpus\\n#SBATCH --mem=20000             # Memory pool for all cores (see also --mem-per-cpu)\\n#SBATCH -o training-outputs/hostname_%j.out      # File to which STDOUT will be written\\n#SBATCH -e training-outputs/hostname_%j.err      # File to which STDERR will be written\\n#SBATCH --mail-type=ALL         # Type of email notification- BEGIN,END,FAIL,ALL\\n#SBATCH --mail-user=tscherli@andrew.cmu.edu # Email to which notifications will be sent\\n\\n# After requested resources are allocated, run your program (for example in a docker container)\\n\\n. /home/tscherli/.bash_profile\\n\\necho \\\"Starting Docker Image\\\"\\n\\npwd\\ndocker ps\\nnvidia-docker ps\\n\\nset -x\\n\\nnvidia-docker run -v /data/datasets:/data/datasets -v /home/tscherli:/home/tscherli tscherli/alphatraining python3 /data/datasets/tscherli/task2/train/basic3.py &\\n\\nwait\\n\\necho \\\"Done!\\\"\\n\"\n}\n```\nWORKFLOW COMPLETE",
+            "error": null
+        },
+        {
+            "step": "validate",
+            "duration": 12.798444199957885,
+            "result": "```json\n{\n  \"valid\": true,\n  \"reasons\": [],\n  \"issues\": [\n    \"The use of `nvidia-docker` is deprecated. It is recommended to use `docker run --gpus ...` instead.\",\n    \"The job is hardcoded to run on a specific node (`-w bender`). This can lead to long queue times if the node is unavailable. It's generally better to let the scheduler choose a suitable node from the partition.\",\n    \"The script backgrounds the main workload (`&`) and then immediately calls `wait`. While this works, for a single command it is redundant. The `&` and `wait` can be removed without changing the script's behavior.\",\n    \"Sourcing a user's personal `.bash_profile` can make the script less portable and harder to debug. It's better to explicitly load required modules or set environment variables within the script.\"\n  ],\n  \"tool_call\": false\n}\n```\nWORKFLOW COMPLETE",
+            "error": null
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "agent",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": true,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "slurm",
+                    "script": "#!/bin/bash\n\n# Slurm Resource Parameters (Example)\n#SBATCH --ntasks=1                     # Number of cores\n#SBATCH -N 1                    # Ensure that all cores are on one machine\n#SBATCH -w bender\n#SBATCH --cpus-per-task=1\n#SBATCH -t 1-00:00              # Runtime in D-HH:MM\n#SBATCH -p gpu                  # Partition to submit to\n#SBATCH --gres=gpu:4            # Number of gpus\n#SBATCH --mem=20000             # Memory pool for all cores (see also --mem-per-cpu)\n#SBATCH -o training-outputs/hostname_%j.out      # File to which STDOUT will be written\n#SBATCH -e training-outputs/hostname_%j.err      # File to which STDERR will be written\n#SBATCH --mail-type=ALL         # Type of email notification- BEGIN,END,FAIL,ALL\n#SBATCH --mail-user=tscherli@andrew.cmu.edu # Email to which notifications will be sent\n\n# After requested resources are allocated, run your program (for example in a docker container)\n\n. /home/tscherli/.bash_profile\n\necho \"Starting Docker Image\"\n\npwd\ndocker ps\nnvidia-docker ps\n\nset -x\n\nnvidia-docker run -v /data/datasets:/data/datasets -v /home/tscherli:/home/tscherli tscherli/alphatraining python3 /data/datasets/tscherli/task2/train/basic3.py &\n\nwait\n\necho \"Done!\"\n"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "agent",
+                "prompt": "validate_jobspec_expert",
+                "inputs": {
+                    "script": "{{ result.jobspec }}"
+                },
+                "transitions": {
+                    "success": "success",
+                    "failure": "failed"
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

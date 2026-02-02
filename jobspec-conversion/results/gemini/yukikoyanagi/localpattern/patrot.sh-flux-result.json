@@ -1,0 +1,50 @@
+{
+    "steps": [
+        {
+            "step": "transform",
+            "duration": 12.665280515910126,
+            "result": "```json\n{\n  \"jobspec\": \"#!/usr/bin/env bash\\n#\\n#FLUX --nodes=3\\n#FLUX --ntasks-per-node=24\\n#FLUX --time=2:00:00\\n#\\n# File: patrot.sh\\n#\\n# Author: Yuki Koyanagi\\n#\\n# The following sbatch directive does not have a direct translation:\\n# --account\\n# In flux, the account is typically passed to the `flux alloc` or `flux submit` command.\\n\\n\\necho Running on \\\"$(hostname)\\\"\\necho Available nodes: \\\"$FLUX_JOB_NODELIST\\\"\\necho Flux_submit_dir: \\\"$FLUX_SUBMIT_DIR\\\"\\necho Start time: \\\"$(date)\\\"\\nstart=$(date +%s)\\n\\n# Load the modules previously used when compiling the application\\nmodule purge\\nmodule load python-intel\\n\\n# Start in total [nodes]*24 MPI ranks on all available CPU cores\\nflux run python ./patrot.py\\n\\nend=$(date +%s)\\necho End time: \\\"$(date)\\\"\\ndur=$(date -d \\\"0 $end sec - $start sec\\\" +%T)\\necho Duration: \\\"$dur\\\"\\necho Done.\\n\\n\"\n}\n```\nWORKFLOW COMPLETE",
+            "error": null
+        },
+        {
+            "step": "validate",
+            "duration": 13.402177719050087,
+            "result": "{\"jobspec\":null,\"errors\":[],\"valid\":true}",
+            "error": null
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "agent",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": true,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/usr/bin/env bash\n#\n#SBATCH --account austmathjea_slim      # account\n#SBATCH --nodes 3                 # number of nodes\n#SBATCH --ntasks-per-node 24      # number of MPI tasks per node\n#SBATCH --time 2:00:00            # max time (HH:MM:SS)\n#\n# File: patrot.sh\n#\n# Author: Yuki Koyanagi\n#\n\necho Running on \"$(hostname)\"\necho Available nodes: \"$SLURM_NODELIST\"\necho Slurm_submit_dir: \"$SLURM_SUBMIT_DIR\"\necho Start time: \"$(date)\"\nstart=$(date +%s)\n\n# Load the modules previously used when compiling the application\nmodule purge\nmodule load python-intel\n\n# Start in total [nodes]*24 MPI ranks on all available CPU cores\nsrun python ./patrot.py\n\nend=$(date +%s)\necho End time: \"$(date)\"\ndur=$(date -d \"0 $end sec - $start sec\" +%T)\necho Duration: \"$dur\"\necho Done.\n"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "agent",
+                "prompt": "validate_jobspec_expert",
+                "inputs": {
+                    "script": "{{ result.jobspec }}"
+                },
+                "transitions": {
+                    "success": "success",
+                    "failure": "failed"
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

@@ -1,0 +1,50 @@
+{
+    "steps": [
+        {
+            "step": "transform",
+            "duration": 8.585298943100497,
+            "result": "```json\n{\n  \"jobspec\": \"#!/bin/bash\\n#flux: --job-name=active\\n#flux: --output=active_%J.out\\n#flux: --queue=gpuv100\\n#flux: --gpus-per-task=1\\n# LSF's \\\"mode=exclusive_process\\\" for GPUs does not have a direct equivalent in Flux.\\n# This may have performance implications if process isolation on the GPU is critical.\\n#flux: --time=24:00:00\\n#flux: --nodes=1\\n#flux: --mem=16GB\\n\\nmodule load python3/3.9.6\\nmodule load cuda/11.3\\nsource venv/bin/activate\\n\\npython src/train_active.py \\\\\\n    --multirun \\\\\\n    data=mura \\\\\\n    training.lr=3e-4 \\\\\\n    training.epochs=50 \\\\\\n    training.active_queries=100 \\\\\\n    training.initial_pool=50 \\\\\\n    training.query_size=10 \\\\\\n    acquisition=random,max_entropy \\\\\\n    inference=nn \\\\\\n    inference/model=convnet \\\\\\n    inference.model.num_classes=7 \\\\\\n    inference.device=cuda\\n\"\n}\n```\nWORKFLOW COMPLETE",
+            "error": null
+        },
+        {
+            "step": "validate",
+            "duration": 17.510149945970625,
+            "result": "{\"jobspec\":null,\"errors\":[\"Validation failed at directives:\\n--gpus-per-task=1: 2\\n--mem=16GB: 2\"],\"valid\":false}",
+            "error": null
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "agent",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": true,
+                "inputs": {
+                    "from_manager": "lsf",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n#BSUB -J active\n#BSUB -o active_%J.out\n#BSUB -q gpuv100\n#BSUB -gpu \"num=1:mode=exclusive_process\"\n#BSUB -W 24:00\n#BSUB -R \"rusage[mem=16GB] span[hosts=1]\"\n\nmodule load python3/3.9.6\nmodule load cuda/11.3\nsource venv/bin/activate\n\npython src/train_active.py \\\n    --multirun \\\n    data=mura \\\n    training.lr=3e-4 \\\n    training.epochs=50 \\\n    training.active_queries=100 \\\n    training.initial_pool=50 \\\n    training.query_size=10 \\\n    acquisition=random,max_entropy \\\n    inference=nn \\\n    inference/model=convnet \\\n    inference.model.num_classes=7 \\\n    inference.device=cuda\n"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "agent",
+                "prompt": "validate_jobspec_expert",
+                "inputs": {
+                    "script": "{{ result.jobspec }}"
+                },
+                "transitions": {
+                    "success": "success",
+                    "failure": "failed"
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

@@ -1,0 +1,50 @@
+{
+    "steps": [
+        {
+            "step": "transform",
+            "duration": 16.187959632021375,
+            "result": "```json\n{\n  \"jobspec\": \"#!/bin/bash\\n#FLUX -q qexp\\n#FLUX -A OPEN-20-37\\n#FLUX -N 1\\n#FLUX -n 36\\n# The 'vtune' resource request from the original PBS script has been omitted\\n# as there is no direct equivalent in Flux. The script relies on the 'ml'\\n# command to load the required software.\\n#FLUX -t 0:10:00\\n#FLUX --mail-type=END,FAIL\\n#FLUX -J AVS-Advisor\\n\\n\\ncd $FLUX_SUBMIT_DIR\\nml CMake intel-compilers/2021.1.2 Advisor/2020_update3\\n\\nrm -rf build_advisor\\nmkdir build_advisor\\ncd build_advisor\\n\\nCC=icc CXX=icpc cmake ..\\nmake\\n\\n\\nfor calc in \\\"ref\\\" \\\"batch\\\" \\\"line\\\"; do\\n    rm -rf Advisor-$calc\\n    mkdir Advisor-$calc\\n\\n    # Basic survey\\n    advixe-cl -collect survey -project-dir Advisor-$calc  -- ./mandelbrot -c $calc -s 4000\\n\\n\\n    # Roof line\\n    advixe-cl -collect tripcounts -flop -project-dir Advisor-$calc  -- ./mandelbrot -c $calc -s 4000\\ndone\\n\"\n}\n```\nWORKFLOW COMPLETE",
+            "error": null
+        },
+        {
+            "step": "validate",
+            "duration": 18.309079746017233,
+            "result": "{\"jobspec\":null,\"errors\":[],\"valid\":true}",
+            "error": null
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "agent",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": true,
+                "inputs": {
+                    "from_manager": "pbs",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n#PBS -q qexp\n#PBS -A OPEN-20-37\n#PBS -l select=1:ncpus=36,vtune=2020_update3-GCC \n#PBS -l walltime=0:10:00\n#PBS -m e\n#PBS -N AVS-Advisor\n\n\ncd $PBS_O_WORKDIR\nml CMake intel-compilers/2021.1.2 Advisor/2020_update3\n\nrm -rf build_advisor\nmkdir build_advisor\ncd build_advisor\n\nCC=icc CXX=icpc cmake ..\nmake\n\n\nfor calc in \"ref\" \"batch\" \"line\"; do\n    rm -rf Advisor-$calc\n    mkdir Advisor-$calc\n\n    # Basic survey\n    advixe-cl -collect survey -project-dir Advisor-$calc  -- ./mandelbrot -c $calc -s 4000\n\n\n    # Roof line\n    advixe-cl -collect tripcounts -flop -project-dir Advisor-$calc  -- ./mandelbrot -c $calc -s 4000\ndone"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "agent",
+                "prompt": "validate_jobspec_expert",
+                "inputs": {
+                    "script": "{{ result.jobspec }}"
+                },
+                "transitions": {
+                    "success": "success",
+                    "failure": "failed"
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

@@ -1,0 +1,50 @@
+{
+    "steps": [
+        {
+            "step": "transform",
+            "duration": 18.54525211895816,
+            "result": "```json\n{\n  \"jobspec\": \"#!/bin/bash\\n#SBATCH --nodes=1\\n#SBATCH --ntasks-per-node=10\\n#SBATCH --cpus-per-task=2\\n#SBATCH --mem=64GB\\n#SBATCH --partition=common_cpuQ\\n#SBATCH --job-name=hundreth_sdf\\n#SBATCH --output=beegenn.stdout.txt\\n#SBATCH --error=beegenn.stderr.txt\\n#SBATCH --mail-type=BEGIN,END,FAIL\\n#SBATCH --mail-user=giacomo.fantoni@studenti.unitn.it\\n\\nmodule load cuda-11.1\\nmodule load singularity-3.4.0\\n\\ncd $SLURM_SUBMIT_DIR\\n\\nrm beegenn_sleep.sif\\n\\n# NOTE: you need to install squashfs-tools from source, or singularity will fail!\\n# https://github.com/plougher/squashfs-tools/blob/master/INSTALL\\n# Make sure to install mksquashfs inside ~/.local so that it can be found in the PATH\\n\\nsingularity pull docker://giacthephantom/beegenn:sleep\\n# TODO: genn-network-model/data can/should be replaced with anything we want\\n# singularity run --bind $SLURM_SUBMIT_DIR/genn-network-model/data:/data,$SLURM_SUBMIT_DIR/outputs:/home/genn docker://giacthephantom/beegenn:sleep sim_docker\\n\\nsingularity exec \\\\\\n  --bind $SLURM_SUBMIT_DIR/genn-network-model/t_30_hundreth_synapses:/t_30_hundreth_synapses,$SLURM_SUBMIT_DIR/outputs:/home/genn \\\\\\n  --nv \\\\\\n  docker://giacthephantom/beegenn:sleep \\\\\\n  python3 -m beegenn.plots.sdf /t_30_hundreth_synapses t30noinputhundrethsynapsespoissoncluster\\n\"\n}\n```\nWORKFLOW COMPLETE",
+            "error": null
+        },
+        {
+            "step": "validate",
+            "duration": 13.986773354001343,
+            "result": "```json\n{\n  \"valid\": false,\n  \"tool_call\": false,\n  \"reasons\": [\n    \"The job script loads a CUDA module and uses the '--nv' flag with Singularity, indicating a GPU is required.\",\n    \"The specified partition '--partition=common_cpuQ' appears to be a CPU-only partition.\",\n    \"The job specification is missing a directive to request a GPU resource, such as '--gres=gpu:1'.\"\n  ],\n  \"issues\": [\n    \"The script requests 10 tasks, but the execution is a single python command. This might be an inefficient use of resources unless the python script is internally parallelized to use the allocated cores.\",\n    \"The script pulls a singularity image to a local file but then executes the remote docker URI. It is more robust to execute the local SIF file (`beegenn_sleep.sif`) that was pulled.\",\n    \"The command `rm beegenn_sleep.sif` will raise an error if the file does not exist on a re-run. It is safer to use `rm -f beegenn_sleep.sif`.\"\n  ]\n}\n```\nWORKFLOW COMPLETE",
+            "error": null
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "agent",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": true,
+                "inputs": {
+                    "from_manager": "pbs",
+                    "to_manager": "slurm",
+                    "script": "#!/bin/bash\n#PBS -l select=1:ncpus=2:mpiprocs=10:mem=64GB\n#PBS -q common_cpuQ\n#PBS -N hundreth_sdf\n#PBS -o beegenn.stdout.txt\n#PBS -e beegenn.stderr.txt\n#PBS -m abe\n#PBS -M giacomo.fantoni@studenti.unitn.it\n\nmodule load cuda-11.1\nmodule load singularity-3.4.0\n\ncd $PBS_O_WORKDIR\n\nrm beegenn_sleep.sif\n\n# NOTE: you need to install squashfs-tools from source, or singularity will fail!\n# https://github.com/plougher/squashfs-tools/blob/master/INSTALL\n# Make sure to install mksquashfs inside ~/.local so that it can be found in the PATH\n\nsingularity pull docker://giacthephantom/beegenn:sleep\n# TODO: genn-network-model/data can/should be replaced with anything we want\n# singularity run --bind $PBS_O_WORKDIR/genn-network-model/data:/data,$PBS_O_WORKDIR/outputs:/home/genn docker://giacthephantom/beegenn:sleep sim_docker\n\nsingularity exec \\\n  --bind $PBS_O_WORKDIR/genn-network-model/t_30_hundreth_synapses:/t_30_hundreth_synapses,$PBS_O_WORKDIR/outputs:/home/genn \\\n  --nv \\\n  docker://giacthephantom/beegenn:sleep \\\n  python3 -m beegenn.plots.sdf /t_30_hundreth_synapses t30noinputhundrethsynapsespoissoncluster\n"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "agent",
+                "prompt": "validate_jobspec_expert",
+                "inputs": {
+                    "script": "{{ result.jobspec }}"
+                },
+                "transitions": {
+                    "success": "success",
+                    "failure": "failed"
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

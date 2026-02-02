@@ -1,0 +1,50 @@
+{
+    "steps": [
+        {
+            "step": "transform",
+            "duration": 17.34659836103674,
+            "result": "{\"jobspec\":null,\"errors\":[],\"valid\":true}",
+            "error": null
+        },
+        {
+            "step": "validate",
+            "duration": 11.307466989965178,
+            "result": "{\"jobspec\":null,\"errors\":[],\"valid\":true}",
+            "error": null
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "agent",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": true,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n\n#SBATCH --job-name=milestoning      ## job name\n#SBATCH --account andricio_lab     ## account to charge\n#SBATCH -p standard          ## partition/queue name\n#SBATCH --nodes=1            ## (-N) number of nodes to use\n#SBATCH --cpus-per-task=4    ## number of cores the job needs\n#SBATCH -t 72:00:00\n#SBATCH --mem=8gb\n#SBATCH --error=slurm-%J.err ## error log file\n\n\nsource /data/homezvol2/dray1/Miniconda2/etc/profile.d/conda.sh\n\n#equilibrate\ncd equilibration\n/data/homezvol2/dray1/NAMD_2.13_Linux-x86_64-multicore/namd2 +p 4 equilibration.conf > equilibration.log\n#*** Make sure to provide the correct path to NAMD in your cluster in above line ***#\n\npython calc_rxn_coor.py > distance.dat\ncd ..\n\n# Make sure environment is set\nsource env.sh\n\n\n# Clean up from previous/ failed runs\nrm -rf traj_segs seg_logs istates west.h5 binbounds.txt\nmkdir   seg_logs traj_segs istates\n\n#copy files to bstate directory for starting points\ncp equilibration/distance.dat bstates/dist.dat\ncp equilibration/milestone_equilibration.restart.coor bstates/seg.coor\ncp equilibration/milestone_equilibration.colvars.traj  bstates/seg.colvars.traj\ncp equilibration/milestone_equilibration.restart.vel  bstates/seg.vel\ncp equilibration/milestone_equilibration.restart.xsc  bstates/seg.xsc\ncp common_files/colvars.in bstates/colvars.in\n\n# Set pointer to bstate and tstate\nBSTATE_ARGS=\"--bstate-file $WEST_SIM_ROOT/bstates/bstates.txt\"\n#TSTATE_ARGS=\"--tstate-file $WEST_SIM_ROOT/tstate.file\"\n\n# Run w_init\n$WEST_ROOT/bin/w_init $BSTATE_ARGS  $TSTATE_ARGS  --segs-per-state 4  --work-manager=threads \"$@\"\n\n\n# Clean up\nrm -f west.log \n\n\n# Run unrestrained dynamics\n$WEST_ROOT/bin/w_run -r west.cfg --work-manager processes --n-workers 4 \"$@\" &> west.log\n\n"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "agent",
+                "prompt": "validate_jobspec_expert",
+                "inputs": {
+                    "script": "{{ result.jobspec }}"
+                },
+                "transitions": {
+                    "success": "success",
+                    "failure": "failed"
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

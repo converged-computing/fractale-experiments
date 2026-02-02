@@ -45,6 +45,10 @@ def parse_step_result(result):
         # It's already a dictionary, so we're done.
         return result
 
+    # Agent sometimes gives null result without quotes
+    # This means it decided to not transform (not a batch script)
+    result = result.replace(':null', ':"null"')
+
     # It's a string, so first, strip any markdown code block formatting.
     content = get_code_block(result, code_type="json")
     try:
@@ -116,26 +120,43 @@ def display_comparison(console: Console, result: dict):
 
     meta_table.add_row("Source File:", result["source_file"])
     meta_table.add_row("Transform:", f"{result['from_manager']} -> {result['to_manager']}")
-    
-    validation_text = Text("Valid", style="bold green") if result["is_valid"] else Text("Invalid", style="bold red")
+
+    # Noop vs. valid or invalid
+    invalid = False
+    if result['generated_script'] == "null":
+        result['generated_script'] = None
+        validation_text = Text("Noop", style="bold purple")
+        invalid = True
+    else:
+        validation_text = Text("Valid", style="bold green") if result["is_valid"] else Text("Invalid", style="bold red")
     meta_table.add_row("Status:", validation_text)
-    
+
+    import IPython 
+    IPython.embed()
     if result["errors"]:
         error_text = "\n".join(result["errors"])
         meta_table.add_row("Errors:", Text(error_text, style="red"))
         
     # original script
+    if len(result['original_script']) > 800:
+        result['original_script'] = result['generated_script'][:800]
+
     original_syntax = Syntax(result["original_script"], "bash", theme="monokai", line_numbers=True)
     console.print(Panel(meta_table, title="[yellow]Summary[/yellow]", border_style="yellow"))
     console.print(Panel(original_syntax, title="[blue]Original Script[/blue]", border_style="blue", padding=(1, 2)))
 
     # generated script
     border_style = "green" if result["is_valid"] else "red"
-    if result["generated_script"]:
-        generated_syntax = Syntax(result["generated_script"], "bash", theme="monokai", line_numbers=True)
-        console.print(Panel(generated_syntax, title=f"[{border_style}]Generated Script[/{border_style}]", border_style=border_style, padding=(1, 2)))
-    else:
-        console.print(Panel("[dim]No jobspec was generated in the transform step.[/dim]", title="[red]Generated Script[/red]", border_style="red"))
+
+    # Easier to just look at top
+    if not invalid:
+        if len(result['generated_script']) > 800:
+            result['generated_script'] = result['generated_script'][:800]
+        if result["generated_script"]:
+            generated_syntax = Syntax(result["generated_script"], "bash", theme="monokai", line_numbers=True)
+            console.print(Panel(generated_syntax, title=f"[{border_style}]Generated Script[/{border_style}]", border_style=border_style, padding=(1, 2)))
+        else:
+            console.print(Panel("[dim]No jobspec was generated in the transform step.[/dim]", title="[red]Generated Script[/red]", border_style="red"))
 
     # display llm reasons if not valid
     # note to others: we can look at these and figure out how to make it better
