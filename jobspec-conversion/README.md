@@ -69,8 +69,7 @@ pip install seaborn pandas matplotlib --break-system-packages
 # This calls a tool endpoint and generates plots
 python3 scripts/validate-flux.py
 ```
-
-
+Note that the [analysis/issues.json]([analysis/issues.json) were empty for to flux conversions only, but I've parsed for all conversion types so we can look at.
 
 ## Notes
 
