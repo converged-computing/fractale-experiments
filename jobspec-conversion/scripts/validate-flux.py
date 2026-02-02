@@ -128,10 +128,13 @@ def parse_result_file(file_path: Path) -> dict:
         is_valid = validation_data.get("valid", False)
         errors = validation_data.get("errors", [])
         reasons = validation_data.get("reasons", [])
+        issues = validation_data.get("issues", [])
+
     else:
         is_valid = False
         reasons = [validation_data] if validation_data else []
         errors = "See reasons"
+        issues = []
 
     return {
         "source_file": file_path.name,
@@ -142,6 +145,7 @@ def parse_result_file(file_path: Path) -> dict:
         "is_valid": is_valid,
         "errors": errors,
         "reasons": reasons,
+        "issues": issues,
     }
 
 
@@ -188,6 +192,16 @@ def main():
     path = Path(args.input)
     if not path.exists() or not path.is_dir():
         sys.exit(f"Error: Input directory not found: {path}")
+
+    # There weren't any issues for to flux conversions
+    issues = []
+    all_files = sorted(list(path.rglob("*-result.json")))
+    for i, file_path in enumerate(all_files):
+        try:
+            result_data = parse_result_file(file_path)
+        except (AttributeError, json.JSONDecodeError) as e:
+            continue
+        issues += result_data.get('issues')
 
     console = Console()
     json_files = sorted(list(path.rglob("*flux-result.json")))
@@ -238,6 +252,7 @@ def main():
         assert result_data["to_manager"] == "flux"
         result = asyncio.run(is_valid(result_data["generated_script"]))
         reasons += result_data.get("reasons", [])
+        issues += result_data.get("issues", [])
 
         # Add to count
         errors = result.data.get("errors", [])
@@ -261,6 +276,7 @@ def main():
     os.makedirs(output_directory, exist_ok=True)
     write_json(reasons, os.path.join(root, "analysis", "reasons.json"))
     write_json(failed, os.path.join(root, "analysis", "failed-validation.json"))
+    write_json(issues, os.path.join(root, "analysis", "issues.json"))
 
     print("Generating Plots")
     df = add_agreement_category(df)
