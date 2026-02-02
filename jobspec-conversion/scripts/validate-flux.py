@@ -194,14 +194,20 @@ def main():
         sys.exit(f"Error: Input directory not found: {path}")
 
     # There weren't any issues for to flux conversions
-    issues = []
+    issues = {}
     all_files = sorted(list(path.rglob("*-result.json")))
     for i, file_path in enumerate(all_files):
         try:
             result_data = parse_result_file(file_path)
         except (AttributeError, json.JSONDecodeError) as e:
             continue
-        issues += result_data.get('issues')
+        from_manager = result_data['from_manager']
+        to_manager = result_data['to_manager']
+        if from_manager not in issues:
+            issues[from_manager] = {}
+        if to_manager not in issues[from_manager]:
+            issues[from_manager][to_manager] = []
+        issues[from_manager][to_manager] += result_data.get('issues')
 
     console = Console()
     json_files = sorted(list(path.rglob("*flux-result.json")))
@@ -252,7 +258,6 @@ def main():
         assert result_data["to_manager"] == "flux"
         result = asyncio.run(is_valid(result_data["generated_script"]))
         reasons += result_data.get("reasons", [])
-        issues += result_data.get("issues", [])
 
         # Add to count
         errors = result.data.get("errors", [])
