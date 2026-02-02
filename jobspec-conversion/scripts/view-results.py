@@ -138,8 +138,8 @@ def display_comparison(console: Console, result: dict):
         meta_table.add_row("Errors:", Text(error_text, style="red"))
         
     # original script
-    if len(result['original_script']) > 800:
-        result['original_script'] = result['generated_script'][:800]
+    if len(result['original_script']) > 500:
+        result['original_script'] = result['generated_script'][:500]
 
     original_syntax = Syntax(result["original_script"], "bash", theme="monokai", line_numbers=True)
     console.print(Panel(meta_table, title="[yellow]Summary[/yellow]", border_style="yellow"))
@@ -150,8 +150,8 @@ def display_comparison(console: Console, result: dict):
 
     # Easier to just look at top
     if not invalid:
-        if len(result['generated_script']) > 800:
-            result['generated_script'] = result['generated_script'][:800]
+        if len(result['generated_script']) > 500:
+            result['generated_script'] = result['generated_script'][:500]
         if result["generated_script"]:
             generated_syntax = Syntax(result["generated_script"], "bash", theme="monokai", line_numbers=True)
             console.print(Panel(generated_syntax, title=f"[{border_style}]Generated Script[/{border_style}]", border_style=border_style, padding=(1, 2)))
