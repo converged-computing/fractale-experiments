@@ -4,9 +4,7 @@ This includes our open source [jobspec database](https://github.com/converged-co
 
 ## Fractale (Agentic)
 
-Let's use agents (of different backends) to do the translation. The general strategy is that we can deploy different servers (e.g., serving different kinds of validators or backed by different workload managers) but vary the environment variables for fractale-mcp that select the model backend.
-
-Note that for the engine, autogen is hard-coded, but you'll need to export credentials / model information for different setups. The server setup and tools may also vary based on the setup. You will likely need to generate a function-specific file in [servers](servers). 
+Let's use agents (of different backends) to do the translation. The general strategy is that we can deploy different servers (e.g., serving different kinds of validators or backed by different workload managers) but vary the environment variables for fractale-mcp that select the model backend. You'll need to export credentials / model information for different setups. The server setup and tools may also vary based on the setup. You will likely need to generate a function-specific file in [servers](servers). 
 
 ### General Setup
 
@@ -16,20 +14,13 @@ These setup steps are used regardless of the model. I am doing this in a .devcon
 ```bash
 git clone -b experiment-tweaks https://github.com/compspec/fractale-mcp /tmp/fractale-mcp
 pip install -e /tmp/fractale-mcp[all] --break-system-packages
-pip install IPython mcp-serve colorama --break-system-packages
+pip install IPython mcp-serve colorama flux-mcp --break-system-packages
 ```
 
 ### Gemini
 
-This example will show the Flux setup, meaning we have a flux validation tool and run the server alongside a Flux handle. I am using the local [.devcontainer](.devcontainer) to do this. In the container, after [setup](#setup), install `flux-mcp`:
-
-```bash
-# This is with experiment changes WIP
-git clone -b experiment-tweaks https://github.com/converged-computing/flux-mcp /tmp/flux-mcp
-pip install /tmp/flux-mcp --break-system-packages
-```
-
-It would be good if someone could review my changes to the flux validate command there. Then start a flux instance.
+This example will show the Flux setup, meaning we have a flux validation tool and run the server alongside a Flux handle. I am using the local [.devcontainer](.devcontainer) to do this. In the container, after [setup](#setup), 
+start a flux instance.
 
 ```bash
 flux start
@@ -47,7 +38,7 @@ In a different terminal, export your API key:
 export GEMINI_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
-And then run the experiment with AutoGen, Flux, and Gemini. The plan (the original `transform-jobspec.yaml` is generated programatically in the script).
+And then run the experiment with a native State Machine, Flux, and Gemini. The plan (the original `transform-retry.yaml` is generated programatically in the script).
 
 ```bash
 # here is how I generated testing data
@@ -69,11 +60,15 @@ pip install seaborn pandas matplotlib --break-system-packages
 # This calls a tool endpoint and generates plots
 python3 scripts/validate-flux.py
 ```
+
 Note that the [analysis/issues.json]([analysis/issues.json) were empty for to flux conversions only, but I've parsed for all conversion types so we can look at.
+Note from Vanessa: since we now enforce it finishes valid, these numbers should be the same, except maybe for cases when we failed up to max tries.
 
 ## Notes
 
+- TODO: V: need to re-run 100/200 samples with updated orchestration. I think we are going to do a lot better.
 - Need a differ to look at same manager translations and figure out if anything changed.
+- Group based on complexity.
 
 ## Results
 

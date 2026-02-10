@@ -74,31 +74,60 @@ AGENTIC_PLAN = {
     "name": "Transform Jobspec Between Managers",
     "steps": [
         {
+            # Transform Jobspec from A to B
             "name": "transform",
             "type": "agent",
             "prompt": "transform_jobspec_expert",
-            "allow_tools": True, # Assume the agent has tools for transformation
-            "inputs": {
-                "from_manager": "{{ from_manager }}",
-                "to_manager": "{{ to_manager }}",
-                "script": "{{ script }}",
-            },
+            # This part needs more work - disabling for now
+            "allow_tools": False,
+            # will be populated with from_manager, to_manager, script
+            "inputs": {},
             "transitions": {
                 "failed": "transform",
                 "success": "validate"
-            }
-        },
-        {
+            },
+            # It is a failure if we don't get a jobspec in the result
+             "rules": {
+                 "failed": ["not jobspec"],
+                 "success": ["jobspec"]
+             }
+       },
+       {
+            # Agentic validate - can (but doesn't have to) call tools
+            # TODO the bug is that this is sometimes not set, it's not clear why.
             "name": "validate",
             "type": "agent",
             "prompt": "validate_jobspec_expert",
-            "inputs": {
-                "script": "{{ result.jobspec }}"
+            # This part needs more work - disabling for now
+            "allow_tools": False,
+            "inputs": {"script": "{{transform_result.jobspec}}"},
+            "transitions": {
+                "failed": "transform",
+                "success": "manual_validate"
             }
+        },
+        {
+            # Manual, forced tool call
+            "name": "manual_validate",
+            "type": "tool",
+            "tool": "validate_flux_jobspec",            
+            "inputs": { "content": "{{transform_result.jobspec}}"},
+            "transitions": {
+                "failed": "transform"
+             },
+             # We are careful to define at least one that triggers in the postitive,
+             # meaning we add or apply the transition on finding it set
+             "rules": {
+                 "success": ["valid"],
+                 "failed": ["not valid"]
+             }
         }
     ]
 }
 
+
+# blue bottle
+# verve (california)
 
 def get_parser():
     parser = argparse.ArgumentParser(description="Agentic Jobspec Transformer")
@@ -116,6 +145,14 @@ def get_parser():
     parser.add_argument(
         "--output",
         help="Output directory for generated scripts",
+    )
+    parser.add_argument(
+        "--engine",
+        help="Name of engine",
+        default="native",
+        # I spent 2 days on autogen, and went back to native (state machine) when I could not control when the agent
+        # stopped calling tools (or stopping working), I also found the UI extremely annoying. Can't do it.
+        choices=['native', 'autogen'], 
     )
     parser.add_argument(
         "--model",
@@ -158,8 +195,9 @@ def main():
     failure_count = 0
 
     # We are going to cheat a little and instantiate this once (here) with a faux plan    
-    engine = get_engine(AGENTIC_PLAN, engine="autogen", backend=args.model, max_attempts=5)
-    limit = args.limit if args.limit is not None else len(files)
+    engine = get_engine(AGENTIC_PLAN, engine=args.engine, backend=args.model, max_attempts=5)
+    # limit is 2x because we do two conversions per jobspec file
+    limit = args.limit if args.limit is not None else len(files) * 2
     print(f"Will process {limit} files")
     time.sleep(2)
 
@@ -170,9 +208,7 @@ def main():
     count = 0
 
     for _, filename in enumerate(files):
-
         if count >= limit:
-            print(f"Reached limit {limit}, completing.")
             break     
         print("-" * 50)
         print(f"Processing file {count+1}/{limit}: {os.path.basename(filename)}")        
@@ -196,11 +232,12 @@ def main():
 
         for to_manager in to_managers:
 
+            if count >= limit:
+                print(f"Reached limit {limit}, completing.")
+                break     
+
             # I originally was filtering out TO the same manager,
             # but I am now curious how the model will handle it.
-            # if from_manager == to_manager:
-            #    continue
-
             relative_path = os.path.relpath(filename, args.input)
             # TODO: run for same sample some number of times and see how different.
             outfile_path = os.path.join(args.output, relative_path + f"-{to_manager}-result.json")                
@@ -255,7 +292,7 @@ def main():
                 })
                 print(Fore.RED + f"  ❌ Failure: {e}" + Style.RESET_ALL)
 
-        count+=1
+            count+=1
 
     # NOTE: here success means the functions worked, NOT that the result was valid.
     print("\n" + "=" * 50)
