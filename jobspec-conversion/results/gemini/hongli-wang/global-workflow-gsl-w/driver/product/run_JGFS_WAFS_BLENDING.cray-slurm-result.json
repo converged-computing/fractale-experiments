@@ -1,0 +1,131 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "metrics": {
+                    "candidates_token_count": 1872,
+                    "prompt_token_count": 3626,
+                    "thoughts_token_count": 3486,
+                    "total_token_count": 8984
+                },
+                "data": {
+                    "jobspec": "#!/bin/sh\n\n#SBATCH --job-name=gfs_wafs_blending\n#SBATCH --chdir=/gpfs/hps/ptmp/Yali.Mao\n#SBATCH --output=/gpfs/hps/ptmp/Yali.Mao/gfs_wafs_blending.o%j\n#SBATCH --error=/gpfs/hps/ptmp/Yali.Mao/gfs_wafs_blending.o%j\n#SBATCH --partition=debug\n#SBATCH --time=00:30:00\n#SBATCH --account=GFS-T2O\n#SBATCH --nodes=1\n#SBATCH --ntasks-per-node=24\n#SBATCH --mem-per-cpu=500M\n# LSF Directives '-extsched' and resource requirements 'select[!vnode]' and 'cu[type=cabinet]' were omitted.\n# These are highly specific to the LSF-Cray integration and do not have a direct SLURM equivalent.\n# This may affect job placement and performance. Consult your system administrator for equivalent SLURM constraints if needed.\n\n############################################\n# Loading module\n############################################\n. $MODULESHOME/init/ksh\nmodule load PrgEnv-intel ESMF-intel-haswell/3_1_0rp5 cfp-intel-sandybridge iobuf craype-hugepages2M craype-haswell\n#module load cfp-intel-sandybridge/1.1.0\nmodule use /gpfs/hps/nco/ops/nwprod/modulefiles\nmodule load prod_envir/1.1.0\nmodule load prod_util/1.0.4\nmodule load grib_util/1.0.3\n\n\nset -xa\n\nexport OMP_NUM_THREADS=1\nexport KMP_AFFINITY=disabled\nexport OMP_STACKSIZE=1024m\nexport MP_LABELIO=yes\nexport MP_STDOUTMODE=ordered \n\n####export OMP_NUM_THREADS=1\n####export MP_MPILIB=mpich2\n####export MP_EUILIB=us\n####export MP_LABELIO=yes\n####export MP_COMPILER=intel\n\n############################################\n# required exports!\n############################################\n### envir: prod/dev/para/bkup/ges/test bkup2/ges2/para2/prod2/prd_p6\nexport envir=para\n\nexport cyc=${cyc:-00}\n\n# gfs_wafs_blending for blending icing turbulence of US and UK\nexport job=gfs_wafs_blending_${cyc}\n\n############################################\n# set NET RUN\n############################################\n### NET: gfs/para/parallel-test/nam/rap/ dump/ens/nawips/nesdis/\nexport NET=gfs\nexport RUN=gfs\n\n\n############################################\n# Specify versions\n############################################\nexport gfs_ver=v4.0.0\n\n\n############################################\n# user defined\n############################################\nexport pid=${pid:-$$}\nexport jobid=${job}.${pid}\n\n#needs to be the current date to make sure comparison is good at $PCOM\n#export PDY=`$NDATE -24 | cut -c 1-8`\nexport PDY=`cut -c 7-14 $COMROOT/date/t00z`\nexport PDY=20161101\n\nUSER=`whoami`\n\n############################################\n# SENDCOM=YES--Copy output file to /com\n# SENDECF=YES--Allow to talk back to ECF\n# SENDDBN=YES--Alert output file to TOC\n# KEEPDATA=NO--Remove temporary working\n############################################\nexport SENDCOM=YES\nexport SENDDBN=NO\nexport SENDDBN_NTC=NO\nexport KEEPDATA=YES\n \n############################################\n# Define ROOT directories\n############################################\necho $COMROOT\n#export NWROOTp1=/nwprod\nexport PCOMROOT=/gpfs/hps/ptmp/${USER}/pcom\n#export PCOMROOT=/gpfs/gp1/ptmp/Yali.Mao\nexport NWROOT=/gpfs/hps/emc/global/noscrub/Yali.Mao/project\nexport DATAROOT=/gpfs/hps/ptmp/${USER}\n# for UK data\nif [[ `hostname` =~ \"^l\" ]] ; then ! LUNA/TIDE\n  export DCOMROOT=/gpfs/tp1/nco/ops/dcom\nelse                               ! SURGE/GYRE\n  export DCOMROOT=/gpfs/gp1/nco/ops/dcom\nfi\n# For canned data:\nexport DCOMROOT=/gpfs/hps/emc/global/noscrub/Yali.Mao/datainput/dcom\n\n############################################\n# Define DATA PCOM, COMOUT and COMIN\n############################################\nexport DATA=${DATA:-${DATAROOT}/${jobid}}\nexport PCOM=${PCOM:-$PCOMROOT/wafs}\nexport COMOUT=/gpfs/hps/ptmp/${USER}/gfs_wafs_blending.$PDY\n\nexport COMINus=$PCOM\n#export COMINus=/gpfs/gp2/nco/ops/pcom/prod/wafs\nexport COMINuk=${COMINuk:-$DCOMROOT/us007003/$PDY/wgrbbul/ukmet_wafs}\n\nexport jlogfile=/$DATA/jlogfile.${jobid}\n\n################################\n# Set up the HOME directory\n################################\nexport HOMEgfs=${HOMEgfs:-${NWROOT}/wafs_cray.${gfs_ver}}\n\n\n############################################\n# run the job\n#############################################\nexport SHOUR=06\nexport EHOUR=36\nexport FHINC=03\n\nsh $HOMEgfs/jobs/JGFS_WAFS_BLENDING\n\nexit\n\n#############################################\n# compare the output (optional)\n#############################################\nif [ $USER = 'Yali.Mao' ] ; then\n\n  # the standard data to be compared to\n  stdout=/com/${NET}/$envir/${RUN}.${PDY}\n  if [ $envir = prod ]; then\n    stdpcom=/pcom/wafs\n  else\n    stdpcom=/pcom/${envir}/wafs\n  fi\n\n  ffhr=$SHOUR\n\n  while test $ffhr -le $EHOUR ; do\n\n    cmp $COMOUT/WAFS_blended_${PDY}${cyc}f${ffhr}.grib2 $stdout/WAFS_blended_${PDY}${cyc}f${ffhr}.grib2\n\n    # $PCOM data on develop machine may be out of date, so skip the comparison\n    continue\n\n    cmp $PCOM/grib2.t${cyc}z.WAFS_blended_f${ffhr} $stdpcom/grib2.t${cyc}z.WAFS_blended_f${ffhr}\n\n    ffhr=`expr $ffhr + $FHINC`\n    if test $ffhr -lt 10\n    then\n      ffhr=0${ffhr}\n    fi\n\n  done\n\nfi\nexit\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "metrics": {
+                    "candidates_token_count": 254,
+                    "prompt_token_count": 7590,
+                    "thoughts_token_count": 1431,
+                    "total_token_count": 9275
+                },
+                "data": {
+                    "valid": true,
+                    "tool_call": false,
+                    "reasons": [],
+                    "issues": [
+                        "A hard `exit` is called immediately after the main job execution line (`sh $HOMEgfs/jobs/JGFS_WAFS_BLENDING`), which will prevent the subsequent comparison block (`if [ $USER = 'Yali.Mao' ]`) from ever executing.",
+                        "The line `if [[ `hostname` =~ \"^l\" ]] ; then ! LUNA/TIDE` appears to have a syntax error or an incomplete comment, as `! LUNA/TIDE` is not a valid shell command.",
+                        "The variable `PDY` is set from a file (`cut -c 7-14 $COMROOT/date/t00z`) and then immediately overwritten with a hardcoded value (`export PDY=20161101`). The first assignment is redundant.",
+                        "Inside the `while` loop, the `continue` statement is unconditional. This means the second `cmp` command in the loop is unreachable and will never be executed."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "metrics": {
+                    "duration": 0.04715,
+                    "tool": "manual_validate"
+                },
+                "data": {
+                    "jobspec": "#!/bin/sh\n\n#SBATCH --job-name=gfs_wafs_blending\n#SBATCH --chdir=/gpfs/hps/ptmp/Yali.Mao\n#SBATCH --output=/gpfs/hps/ptmp/Yali.Mao/gfs_wafs_blending.o%j\n#SBATCH --error=/gpfs/hps/ptmp/Yali.Mao/gfs_wafs_blending.o%j\n#SBATCH --partition=debug\n#SBATCH --time=00:30:00\n#SBATCH --account=GFS-T2O\n#SBATCH --nodes=1\n#SBATCH --ntasks-per-node=24\n#SBATCH --mem-per-cpu=500M\n# LSF Directives '-extsched' and resource requirements 'select[!vnode]' and 'cu[type=cabinet]' were omitted.\n# These are highly specific to the LSF-Cray integration and do not have a direct SLURM equivalent.\n# This may affect job placement and performance. Consult your system administrator for equivalent SLURM constraints if needed.\n\n############################################\n# Loading module\n############################################\n. $MODULESHOME/init/ksh\nmodule load PrgEnv-intel ESMF-intel-haswell/3_1_0rp5 cfp-intel-sandybridge iobuf craype-hugepages2M craype-haswell\n#module load cfp-intel-sandybridge/1.1.0\nmodule use /gpfs/hps/nco/ops/nwprod/modulefiles\nmodule load prod_envir/1.1.0\nmodule load prod_util/1.0.4\nmodule load grib_util/1.0.3\n\n\nset -xa\n\nexport OMP_NUM_THREADS=1\nexport KMP_AFFINITY=disabled\nexport OMP_STACKSIZE=1024m\nexport MP_LABELIO=yes\nexport MP_STDOUTMODE=ordered \n\n####export OMP_NUM_THREADS=1\n####export MP_MPILIB=mpich2\n####export MP_EUILIB=us\n####export MP_LABELIO=yes\n####export MP_COMPILER=intel\n\n############################################\n# required exports!\n############################################\n### envir: prod/dev/para/bkup/ges/test bkup2/ges2/para2/prod2/prd_p6\nexport envir=para\n\nexport cyc=${cyc:-00}\n\n# gfs_wafs_blending for blending icing turbulence of US and UK\nexport job=gfs_wafs_blending_${cyc}\n\n############################################\n# set NET RUN\n############################################\n### NET: gfs/para/parallel-test/nam/rap/ dump/ens/nawips/nesdis/\nexport NET=gfs\nexport RUN=gfs\n\n\n############################################\n# Specify versions\n############################################\nexport gfs_ver=v4.0.0\n\n\n############################################\n# user defined\n############################################\nexport pid=${pid:-$$}\nexport jobid=${job}.${pid}\n\n#needs to be the current date to make sure comparison is good at $PCOM\n#export PDY=`$NDATE -24 | cut -c 1-8`\nexport PDY=`cut -c 7-14 $COMROOT/date/t00z`\nexport PDY=20161101\n\nUSER=`whoami`\n\n############################################\n# SENDCOM=YES--Copy output file to /com\n# SENDECF=YES--Allow to talk back to ECF\n# SENDDBN=YES--Alert output file to TOC\n# KEEPDATA=NO--Remove temporary working\n############################################\nexport SENDCOM=YES\nexport SENDDBN=NO\nexport SENDDBN_NTC=NO\nexport KEEPDATA=YES\n \n############################################\n# Define ROOT directories\n############################################\necho $COMROOT\n#export NWROOTp1=/nwprod\nexport PCOMROOT=/gpfs/hps/ptmp/${USER}/pcom\n#export PCOMROOT=/gpfs/gp1/ptmp/Yali.Mao\nexport NWROOT=/gpfs/hps/emc/global/noscrub/Yali.Mao/project\nexport DATAROOT=/gpfs/hps/ptmp/${USER}\n# for UK data\nif [[ `hostname` =~ \"^l\" ]] ; then ! LUNA/TIDE\n  export DCOMROOT=/gpfs/tp1/nco/ops/dcom\nelse                               ! SURGE/GYRE\n  export DCOMROOT=/gpfs/gp1/nco/ops/dcom\nfi\n# For canned data:\nexport DCOMROOT=/gpfs/hps/emc/global/noscrub/Yali.Mao/datainput/dcom\n\n############################################\n# Define DATA PCOM, COMOUT and COMIN\n############################################\nexport DATA=${DATA:-${DATAROOT}/${jobid}}\nexport PCOM=${PCOM:-$PCOMROOT/wafs}\nexport COMOUT=/gpfs/hps/ptmp/${USER}/gfs_wafs_blending.$PDY\n\nexport COMINus=$PCOM\n#export COMINus=/gpfs/gp2/nco/ops/pcom/prod/wafs\nexport COMINuk=${COMINuk:-$DCOMROOT/us007003/$PDY/wgrbbul/ukmet_wafs}\n\nexport jlogfile=/$DATA/jlogfile.${jobid}\n\n################################\n# Set up the HOME directory\n################################\nexport HOMEgfs=${HOMEgfs:-${NWROOT}/wafs_cray.${gfs_ver}}\n\n\n############################################\n# run the job\n#############################################\nexport SHOUR=06\nexport EHOUR=36\nexport FHINC=03\n\nsh $HOMEgfs/jobs/JGFS_WAFS_BLENDING\n\nexit\n\n#############################################\n# compare the output (optional)\n#############################################\nif [ $USER = 'Yali.Mao' ] ; then\n\n  # the standard data to be compared to\n  stdout=/com/${NET}/$envir/${RUN}.${PDY}\n  if [ $envir = prod ]; then\n    stdpcom=/pcom/wafs\n  else\n    stdpcom=/pcom/${envir}/wafs\n  fi\n\n  ffhr=$SHOUR\n\n  while test $ffhr -le $EHOUR ; do\n\n    cmp $COMOUT/WAFS_blended_${PDY}${cyc}f${ffhr}.grib2 $stdout/WAFS_blended_${PDY}${cyc}f${ffhr}.grib2\n\n    # $PCOM data on develop machine may be out of date, so skip the comparison\n    continue\n\n    cmp $PCOM/grib2.t${cyc}z.WAFS_blended_f${ffhr} $stdpcom/grib2.t${cyc}z.WAFS_blended_f${ffhr}\n\n    ffhr=`expr $ffhr + $FHINC`\n    if test $ffhr -lt 10\n    then\n      ffhr=0${ffhr}\n    fi\n\n  done\n\nfi\nexit\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "agent",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "lsf",
+                    "to_manager": "slurm",
+                    "script": "#!/bin/sh\n\n#BSUB -J gfs_wafs_blending\n#BSUB -cwd /gpfs/hps/ptmp/Yali.Mao\n#BSUB -oo /gpfs/hps/ptmp/Yali.Mao/gfs_wafs_blending.o%J\n#BSUB -eo /gpfs/hps/ptmp/Yali.Mao/gfs_wafs_blending.o%J\n#BSUB -L /bin/sh\n#BSUB -q debug\n#BSUB -W 00:30\n#BSUB -P GFS-T2O\n#BSUB -M 500\n#BSUB -extsched 'CRAYLINUX[]' -R '1*{select[craylinux && !vnode]} + 1*{select[craylinux && vnode]span[ptile=24] cu[type=cabinet]}'\n\n############################################\n# Loading module\n############################################\n. $MODULESHOME/init/ksh\nmodule load PrgEnv-intel ESMF-intel-haswell/3_1_0rp5 cfp-intel-sandybridge iobuf craype-hugepages2M craype-haswell\n#module load cfp-intel-sandybridge/1.1.0\nmodule use /gpfs/hps/nco/ops/nwprod/modulefiles\nmodule load prod_envir/1.1.0\nmodule load prod_util/1.0.4\nmodule load grib_util/1.0.3\n\n\nset -xa\n\nexport OMP_NUM_THREADS=1\nexport KMP_AFFINITY=disabled\nexport OMP_STACKSIZE=1024m\nexport MP_LABELIO=yes\nexport MP_STDOUTMODE=ordered \n\n####export OMP_NUM_THREADS=1\n####export MP_MPILIB=mpich2\n####export MP_EUILIB=us\n####export MP_LABELIO=yes\n####export MP_COMPILER=intel\n\n############################################\n# required exports!\n############################################\n### envir: prod/dev/para/bkup/ges/test bkup2/ges2/para2/prod2/prd_p6\nexport envir=para\n\nexport cyc=${cyc:-00}\n\n# gfs_wafs_blending for blending icing turbulence of US and UK\nexport job=gfs_wafs_blending_${cyc}\n\n############################################\n# set NET RUN\n############################################\n### NET: gfs/para/parallel-test/nam/rap/ dump/ens/nawips/nesdis/\nexport NET=gfs\nexport RUN=gfs\n\n\n############################################\n# Specify versions\n############################################\nexport gfs_ver=v4.0.0\n\n\n############################################\n# user defined\n############################################\nexport pid=${pid:-$$}\nexport jobid=${job}.${pid}\n\n#needs to be the current date to make sure comparison is good at $PCOM\n#export PDY=`$NDATE -24 | cut -c 1-8`\nexport PDY=`cut -c 7-14 $COMROOT/date/t00z`\nexport PDY=20161101\n\nUSER=`whoami`\n\n############################################\n# SENDCOM=YES--Copy output file to /com\n# SENDECF=YES--Allow to talk back to ECF\n# SENDDBN=YES--Alert output file to TOC\n# KEEPDATA=NO--Remove temporary working\n############################################\nexport SENDCOM=YES\nexport SENDDBN=NO\nexport SENDDBN_NTC=NO\nexport KEEPDATA=YES\n \n############################################\n# Define ROOT directories\n############################################\necho $COMROOT\n#export NWROOTp1=/nwprod\nexport PCOMROOT=/gpfs/hps/ptmp/${USER}/pcom\n#export PCOMROOT=/gpfs/gp1/ptmp/Yali.Mao\nexport NWROOT=/gpfs/hps/emc/global/noscrub/Yali.Mao/project\nexport DATAROOT=/gpfs/hps/ptmp/${USER}\n# for UK data\nif [[ `hostname` =~ \"^l\" ]] ; then ! LUNA/TIDE\n  export DCOMROOT=/gpfs/tp1/nco/ops/dcom\nelse                               ! SURGE/GYRE\n  export DCOMROOT=/gpfs/gp1/nco/ops/dcom\nfi\n# For canned data:\nexport DCOMROOT=/gpfs/hps/emc/global/noscrub/Yali.Mao/datainput/dcom\n\n############################################\n# Define DATA PCOM, COMOUT and COMIN\n############################################\nexport DATA=${DATA:-${DATAROOT}/${jobid}}\nexport PCOM=${PCOM:-$PCOMROOT/wafs}\nexport COMOUT=/gpfs/hps/ptmp/${USER}/gfs_wafs_blending.$PDY\n\nexport COMINus=$PCOM\n#export COMINus=/gpfs/gp2/nco/ops/pcom/prod/wafs\nexport COMINuk=${COMINuk:-$DCOMROOT/us007003/$PDY/wgrbbul/ukmet_wafs}\n\nexport jlogfile=/$DATA/jlogfile.${jobid}\n\n################################\n# Set up the HOME directory\n################################\nexport HOMEgfs=${HOMEgfs:-${NWROOT}/wafs_cray.${gfs_ver}}\n\n\n############################################\n# run the job\n#############################################\nexport SHOUR=06\nexport EHOUR=36\nexport FHINC=03\n\nsh $HOMEgfs/jobs/JGFS_WAFS_BLENDING\n\nexit\n\n#############################################\n# compare the output (optional)\n#############################################\nif [ $USER = 'Yali.Mao' ] ; then\n\n  # the standard data to be compared to\n  stdout=/com/${NET}/$envir/${RUN}.${PDY}\n  if [ $envir = prod ]; then\n    stdpcom=/pcom/wafs\n  else\n    stdpcom=/pcom/${envir}/wafs\n  fi\n\n  ffhr=$SHOUR\n\n  while test $ffhr -le $EHOUR ; do\n\n    cmp $COMOUT/WAFS_blended_${PDY}${cyc}f${ffhr}.grib2 $stdout/WAFS_blended_${PDY}${cyc}f${ffhr}.grib2\n\n    # $PCOM data on develop machine may be out of date, so skip the comparison\n    continue\n\n    cmp $PCOM/grib2.t${cyc}z.WAFS_blended_f${ffhr} $stdpcom/grib2.t${cyc}z.WAFS_blended_f${ffhr}\n\n    ffhr=`expr $ffhr + $FHINC`\n    if test $ffhr -lt 10\n    then\n      ffhr=0${ffhr}\n    fi\n\n  done\n\nfi\nexit\n"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "agent",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{transform_result.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{transform_result.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    },
+    "attempts": 1
+}

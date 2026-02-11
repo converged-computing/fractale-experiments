@@ -13,6 +13,7 @@ from colorama import Fore, Style
 from fractale.engines import get_engine
 from fractale.core.plan import Plan
 
+
 def detect_transformer(jobspec):
     """
     Quick and dirty detection.
@@ -46,6 +47,7 @@ def recursive_find(base, pattern="*"):
         for filename in fnmatch.filter(filenames, pattern):
             yield os.path.join(root, filename)
 
+
 def content_hash(filename):
     sha1 = hashlib.sha1()
     with open(filename, "rb") as f:
@@ -56,13 +58,16 @@ def content_hash(filename):
             sha1.update(data)
     return sha1.hexdigest()
 
+
 def write_file(content, filename):
     with open(filename, "w") as fd:
         fd.write(content)
 
+
 def write_json(obj, filename):
     with open(filename, "w") as fd:
         fd.write(json.dumps(obj, indent=4))
+
 
 here = os.path.abspath(os.path.dirname(__file__))
 root = os.path.dirname(here)
@@ -82,17 +87,11 @@ AGENTIC_PLAN = {
             "allow_tools": False,
             # will be populated with from_manager, to_manager, script
             "inputs": {},
-            "transitions": {
-                "failed": "transform",
-                "success": "validate"
-            },
+            "transitions": {"failed": "transform", "success": "validate"},
             # It is a failure if we don't get a jobspec in the result
-             "rules": {
-                 "failed": ["not jobspec"],
-                 "success": ["jobspec"]
-             }
-       },
-       {
+            "rules": {"failed": ["not jobspec"], "success": ["jobspec"]},
+        },
+        {
             # Agentic validate - can (but doesn't have to) call tools
             # TODO the bug is that this is sometimes not set, it's not clear why.
             "name": "validate",
@@ -101,33 +100,26 @@ AGENTIC_PLAN = {
             # This part needs more work - disabling for now
             "allow_tools": False,
             "inputs": {"script": "{{transform_result.jobspec}}"},
-            "transitions": {
-                "failed": "transform",
-                "success": "manual_validate"
-            }
+            "transitions": {"failed": "transform", "success": "manual_validate"},
         },
         {
             # Manual, forced tool call
             "name": "manual_validate",
             "type": "tool",
-            "tool": "validate_flux_jobspec",            
-            "inputs": { "content": "{{transform_result.jobspec}}"},
-            "transitions": {
-                "failed": "transform"
-             },
-             # We are careful to define at least one that triggers in the postitive,
-             # meaning we add or apply the transition on finding it set
-             "rules": {
-                 "success": ["valid"],
-                 "failed": ["not valid"]
-             }
-        }
-    ]
+            "tool": "validate_flux_jobspec",
+            "inputs": {"content": "{{transform_result.jobspec}}"},
+            "transitions": {"failed": "transform"},
+            # We are careful to define at least one that triggers in the postitive,
+            # meaning we add or apply the transition on finding it set
+            "rules": {"success": ["valid"], "failed": ["not valid"]},
+        },
+    ],
 }
 
 
 # blue bottle
 # verve (california)
+
 
 def get_parser():
     parser = argparse.ArgumentParser(description="Agentic Jobspec Transformer")
@@ -152,13 +144,13 @@ def get_parser():
         default="native",
         # I spent 2 days on autogen, and went back to native (state machine) when I could not control when the agent
         # stopped calling tools (or stopping working), I also found the UI extremely annoying. Can't do it.
-        choices=['native', 'autogen'], 
+        choices=["native", "autogen"],
     )
     parser.add_argument(
         "--model",
         help="Name of model",
         default="gemini",
-        choices=['gemini'], # TODO add others
+        choices=["gemini"],  # TODO add others
     )
     return parser
 
@@ -187,15 +179,17 @@ def main():
         files.append(filename)
 
     print(f"⭐️ Found {len(files)} unique job scripts to process.")
-    
+
     # Structure to keep track of summary results
     # Detailed results will be saved to file (json)
     results = []
     success_count = 0
     failure_count = 0
 
-    # We are going to cheat a little and instantiate this once (here) with a faux plan    
-    engine = get_engine(AGENTIC_PLAN, engine=args.engine, backend=args.model, max_attempts=5)
+    # We are going to cheat a little and instantiate this once (here) with a faux plan
+    engine = get_engine(
+        AGENTIC_PLAN, engine=args.engine, backend=args.model, max_attempts=5
+    )
     # limit is 2x because we do two conversions per jobspec file
     limit = args.limit if args.limit is not None else len(files) * 2
     print(f"Will process {limit} files")
@@ -209,20 +203,26 @@ def main():
 
     for _, filename in enumerate(files):
         if count >= limit:
-            break     
+            break
         print("-" * 50)
-        print(f"Processing file {count+1}/{limit}: {os.path.basename(filename)}")        
+        print(f"Processing file {count+1}/{limit}: {os.path.basename(filename)}")
         original_script = utils.read_file(filename)
-        
+
         try:
             from_manager = detect_transformer(filename)
         except ValueError:
-            print(Fore.YELLOW + f"  Skipping file, could not detect source manager." + Style.RESET_ALL)
-            results.append({
-                "source_file": filename,
-                "status": "skipped",
-                "reason": "Unknown source workload manager"
-            })
+            print(
+                Fore.YELLOW
+                + f"  Skipping file, could not detect source manager."
+                + Style.RESET_ALL
+            )
+            results.append(
+                {
+                    "source_file": filename,
+                    "status": "skipped",
+                    "reason": "Unknown source workload manager",
+                }
+            )
             continue
 
         # Define the target managers for conversion
@@ -234,18 +234,20 @@ def main():
 
             if count >= limit:
                 print(f"Reached limit {limit}, completing.")
-                break     
+                break
 
             # I originally was filtering out TO the same manager,
             # but I am now curious how the model will handle it.
             relative_path = os.path.relpath(filename, args.input)
             # TODO: run for same sample some number of times and see how different.
-            outfile_path = os.path.join(args.output, relative_path + f"-{to_manager}-result.json")                
+            outfile_path = os.path.join(
+                args.output, relative_path + f"-{to_manager}-result.json"
+            )
             if os.path.exists(outfile_path):
                 continue
 
             print(f"  Attempting transformation: {from_manager} -> {to_manager}")
-            
+
             # save results some consistent prefix
             context = {
                 "from_manager": from_manager,
@@ -256,53 +258,69 @@ def main():
             try:
                 # Update the engine to have the new plan
                 plan = copy.deepcopy(AGENTIC_PLAN)
-                plan['steps'][0]['inputs'] = context
+                plan["steps"][0]["inputs"] = context
                 engine.reset(Plan(plan))
 
                 # The core agentic call replaces the old transformer.convert()
                 steps = engine.run(context)
-                result = {'steps': steps, "plan": plan}
-                
+
+                # Metadata includes full steps
+                result = {
+                    "steps": steps,
+                    "plan": plan,
+                    "attempts": engine.metadata["attempts"],
+                }
+
                 # Save the new jobspec to the equivalent place on the filesystem
                 outdir = os.path.dirname(outfile_path)
                 if not os.path.exists(outdir):
-                    os.makedirs(outdir)                
+                    os.makedirs(outdir)
                 write_json(result, outfile_path)
-                
+
                 # Log success
                 success_count += 1
-                results.append({
-                    "source_file": filename,
-                    "from": from_manager,
-                    "to": to_manager,
-                    "status": "success",
-                    "output_file": outfile_path
-                })
-                print(Fore.GREEN + f"  ✅ Success: Saved to {os.path.basename(outfile_path)}" + Style.RESET_ALL)
+                results.append(
+                    {
+                        "source_file": filename,
+                        "from": from_manager,
+                        "to": to_manager,
+                        "status": "success",
+                        "output_file": outfile_path,
+                    }
+                )
+                print(
+                    Fore.GREEN
+                    + f"  ✅ Success: Saved to {os.path.basename(outfile_path)}"
+                    + Style.RESET_ALL
+                )
 
             except Exception as e:
                 # Log failure
                 failure_count += 1
-                results.append({
-                    "source_file": filename,
-                    "from": from_manager,
-                    "to": to_manager,
-                    "status": "failure",
-                    "error": str(e)
-                })
+                results.append(
+                    {
+                        "source_file": filename,
+                        "from": from_manager,
+                        "to": to_manager,
+                        "status": "failure",
+                        "error": str(e),
+                    }
+                )
                 print(Fore.RED + f"  ❌ Failure: {e}" + Style.RESET_ALL)
 
-            count+=1
+            count += 1
 
     # NOTE: here success means the functions worked, NOT that the result was valid.
     print("\n" + "=" * 50)
     print("Processing Complete.")
     print(f"\nSummary:")
-    print(Fore.GREEN + f"  Successful Transformations: {success_count}" + Style.RESET_ALL)
+    print(
+        Fore.GREEN + f"  Successful Transformations: {success_count}" + Style.RESET_ALL
+    )
     print(Fore.RED + f"  Failed Transformations:     {failure_count}" + Style.RESET_ALL)
 
     # Save the detailed results log for later analysis
-    results_log_path = os.path.join(args.output, "experiment-summary.json")        
+    results_log_path = os.path.join(args.output, "experiment-summary.json")
     write_json(results, results_log_path)
     print(f"\nDetailed log saved to: {results_log_path}")
 

@@ -85,7 +85,8 @@ Process results.
 pip install matplotlib pandas seaborn --break-system-packages
 python3 ./scripts/process-results.py
 ```
-Here is my small sample (still testing)
+
+Here is the first round testing (before refactor)
 
 ```console
 Found 401 result files to analyze.
@@ -107,6 +108,44 @@ error_category
 Directive Syntax/Format Error    41
 Parsing/Structural Error         12
 Other                             8
+Name: count, dtype: int64
+
+Generating Plots
+Saved plot: analysis/1_valid_vs_invalid_flux_breakdown.png
+Saved plot: analysis/2_error_category_flux_distribution.png
+Saved plot: analysis/3_average_duration.png
+
+Analysis complete.
+```
+
+And after:
+
+```
+Found 173 result files to analyze.
+Attempt value counts:
+attempts
+1    133
+2     17
+5     16
+3      4
+4      2
+
+Summary Metrics (for transformations to Flux)
+Overall Flux Validation Success Rate: 70 / 86 (81.40%)
+
+Success Rate by Transformation Type (to Flux):
+is_valid                False     True 
+transformation_type                    
+cobalt -> flux       0.000000  1.000000
+flux -> flux         0.000000  1.000000
+lsf -> flux          0.375000  0.625000
+pbs -> flux          0.133333  0.866667
+slurm -> flux        0.183333  0.816667
+
+Failure Reason Counts (for Flux jobs):
+error_category
+Directive Syntax/Format Error    15
+Other                             1
 Name: count, dtype: int64
 
 Generating Plots
