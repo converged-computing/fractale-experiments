@@ -1,0 +1,128 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "metrics": {
+                    "candidates_token_count": 423,
+                    "prompt_token_count": 944,
+                    "thoughts_token_count": 5293,
+                    "total_token_count": 6660
+                },
+                "data": {
+                    "jobspec": "#!/bin/bash\n#SBATCH --job-name=AADH_production\n#SBATCH --partition=gpu\n#SBATCH --nodes=1\n#SBATCH --ntasks-per-node=1\n#SBATCH --gpus-per-node=1\n#SBATCH --time=25:00:00\n#SBATCH --mail-type=FAIL\n#SBATCH --output=%x-%j.out\n# NOTE: The PBS 'exclusive_process' option was omitted. Slurm's default CPU isolation\n#       is sufficient for a single-core job. If full node exclusivity is required,\n#       add '#SBATCH --exclusive'. No performance impact is expected from this omission.\n\ninput=production4\n\n###############################################################\n### You should not have to change anything below this line ####\n###############################################################\n\n# Slurm jobs typically start in the submission directory by default.\n# The line below is kept for explicit clarity.\ncd \"$SLURM_SUBMIT_DIR\"\n\necho \"Running on host: $(hostname)\"\necho \"Time: $(date)\"\necho \"Directory: $(pwd)\"\necho \"SLURM job ID: $SLURM_JOBID\"\necho \"This job runs on the following GPUs:\"\n# Slurm automatically sets CUDA_VISIBLE_DEVICES, replacing the need for PBS_GPUFILE\necho \"Assigned GPUs: $CUDA_VISIBLE_DEVICES\"\n\n#Run nvidia-smi on visible GPUs\nnvidia-smi\nnvidia-smi -q -d COMPUTE\n./get_X_GPUs.sh 1\n\n# Run the executable\ncharmm -i $input.inp > $input.out\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "metrics": {
+                    "candidates_token_count": 144,
+                    "prompt_token_count": 2092,
+                    "thoughts_token_count": 1056,
+                    "total_token_count": 3292
+                },
+                "data": {
+                    "valid": true,
+                    "tool_call": false,
+                    "reasons": [],
+                    "issues": [
+                        "The script calls `./get_X_GPUs.sh 1`. This appears to be a remnant from a PBS/TORQUE environment where GPU devices might need to be manually parsed from a file like `$PBS_GPUFILE`. In Slurm, the `CUDA_VISIBLE_DEVICES` environment variable is automatically and correctly set, making such helper scripts unnecessary and a potential point of failure. It is recommended to remove this line as CUDA-aware applications will automatically use the GPU assigned by Slurm."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "metrics": {
+                    "duration": 0.064964,
+                    "tool": "manual_validate"
+                },
+                "data": {
+                    "jobspec": "#!/bin/bash\n#SBATCH --job-name=AADH_production\n#SBATCH --partition=gpu\n#SBATCH --nodes=1\n#SBATCH --ntasks-per-node=1\n#SBATCH --gpus-per-node=1\n#SBATCH --time=25:00:00\n#SBATCH --mail-type=FAIL\n#SBATCH --output=%x-%j.out\n# NOTE: The PBS 'exclusive_process' option was omitted. Slurm's default CPU isolation\n#       is sufficient for a single-core job. If full node exclusivity is required,\n#       add '#SBATCH --exclusive'. No performance impact is expected from this omission.\n\ninput=production4\n\n###############################################################\n### You should not have to change anything below this line ####\n###############################################################\n\n# Slurm jobs typically start in the submission directory by default.\n# The line below is kept for explicit clarity.\ncd \"$SLURM_SUBMIT_DIR\"\n\necho \"Running on host: $(hostname)\"\necho \"Time: $(date)\"\necho \"Directory: $(pwd)\"\necho \"SLURM job ID: $SLURM_JOBID\"\necho \"This job runs on the following GPUs:\"\n# Slurm automatically sets CUDA_VISIBLE_DEVICES, replacing the need for PBS_GPUFILE\necho \"Assigned GPUs: $CUDA_VISIBLE_DEVICES\"\n\n#Run nvidia-smi on visible GPUs\nnvidia-smi\nnvidia-smi -q -d COMPUTE\n./get_X_GPUs.sh 1\n\n# Run the executable\ncharmm -i $input.inp > $input.out\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "agent",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "pbs",
+                    "to_manager": "slurm",
+                    "script": "#!/bin/bash \n#PBS -N AADH_production \n#PBS -j oe \n#PBS -q gpu\n#PBS -l nodes=1:ppn=1:gpus=1:exclusive_process,walltime=25:00:00\n#! Mail to user if job aborts\n#PBS -m a\n\ninput=production4\n\n###############################################################\n### You should not have to change anything below this line ####\n###############################################################\n\n#! change the working directory (default is home directory)\n\ncd $PBS_O_WORKDIR\n\necho Running on host `hostname`\necho Time is `date`\necho Directory is `pwd`\necho PBS job ID is $PBS_JOBID\necho This jobs runs on the following GPUs:\necho `cat $PBS_GPUFILE | uniq`\n\n#From GPU file, export visible devices to GPUs\n##export CUDA_VISIBLE_DEVICES=`cat $PBS_GPUFILE | awk -F\"-gpu\" '{ printf A$2;A=\",\"}'`\n\n#Run nvidia-smi on visible GPUs\nnvidia-smi\nnvidia-smi -q -d COMPUTE\n./get_X_GPUs.sh 1\n#! Run the executable\ncharmm -i $input.inp > $input.out \n"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "agent",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{transform_result.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{transform_result.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    },
+    "attempts": 1
+}
