@@ -1,0 +1,133 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "metrics": {
+                    "candidates_token_count": 2506,
+                    "prompt_token_count": 4324,
+                    "thoughts_token_count": 8418,
+                    "total_token_count": 15248
+                },
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n#SBATCH --job-name=soft_patterns\n#SBATCH --output=\"$HOME/work/soft_patterns/logs/%x-%j.out\"\n#SBATCH --partition=normal\n#SBATCH --nodes=1\n#SBATCH --ntasks=1\n#SBATCH --time=48:00:00\n#SBATCH --mail-user=roysch@cs.washington.edu\n#SBATCH --mail-type=ALL\n#SBATCH --account=TG-DBS110003\n\n# NOTE: The original script dynamically generated the job name and output file path\n# based on input parameters (e.g., -J parameter_string, -o logs/parameter_string.out).\n# In a static Slurm batch script, these directives are processed before the script logic runs,\n# so dynamic values cannot be used directly.\n# This script uses Slurm's substitution format: %x for the job name and %j for the job ID.\n# For a descriptive log file, submit the job with a custom name:\n# sbatch --job-name=\"my_descriptive_name\" this_script.sh <args...>\n\nset -e\n\nr=0\nmp=0\nrf=''\nmpf=''\nrs=''\nmps='_pt'\nb=1\nclip=''\nclips=''\ngpu=''\nfile_type=0\nw=0\nmtf=''\nmts=''\nglove_index=0\ngloves=(6B.100d 6B.300d 840B.300d 6B.50d)\ndirs=(stanford_sentiment_binary amazon_reviews ROC_stories stanford_sentiment_binary_100 stanford_sentiment_binary_500 stanford_sentiment_binary_1000 stanford_sentiment_binary_2500 amazon_reviews_100 amazon_reviews_500 amazon_reviews_1000 amazon_reviews_2500 amazon_reviews_5000 amazon_reviews_10000 politifact Bills)\n\nn_dirs=${#dirs[@]}\nlet n_dirs--\ndatadir_index=0\nseed=100\n\nbilstm=0\nbilstms=''\n\n\nif [ -z ${WORK+x} ]; then\n    WORK=$HOME/\n    if [ -z ${model_dir+x} ]; then\n        model_dir=$HOME/work/soft_patterns\n    fi\nelse\n    if [ -z ${model_dir+x} ]; then\n        model_dir=${WORK}/soft_patterns\n    fi\nfi\n\nif [ -z ${resource_dir+x} ]; then\n    resource_dir=${WORK}/resources\nfi\n\nsuffix=''\n\nif [ \"$#\" -lt 4 ]; then\n\techo \"Usage: $0\"\n\techo \"<Pattern specification>\"\n\techo \"<MLP dim>\"\n\techo \"<Learning rate>\"\n\techo \"<dropout>\"\n\techo \"<reschedule=$r>\"\n\techo \"<maxplus=$mp (1 for maxplus, 2 for maxtimes, 0 for prob)>\"\n\techo \" <batch size=$b>\"\n\techo \"<gradient clipping (optional)>\"\n\techo \"<gpu (optional)>\" \n\techo \"<glove index=$glove_index (${gloves[@]})>\"\n\techo \"<file type=$file_type (0 -- lower case, 1 -- case sensitive, 2 -- train with phrases, 3 -- fine grained categories, 4 -- fine grained categories with phrases)>\"\n\techo \"<word_dropout=$w>\"\n\techo \" <data dir: 0 -- stanford (default), 1 -- amazon, 2 -- ROC stories>\"\n\techo \"<seed=$seed>\"\n\techo \"<bilstm=$bilstm>\"\n\n\techo \"Dirs:\"\n        for i in $(seq 0 $n_dirs); do\n                echo ${i}: ${dirs[$i]}\n        done\n\n\texit -1\nelif [ \"$#\" -gt 4 ]; then\n\tr=$5\n\n\tif [ ${r} -eq 1 ]; then\n\t\trf=\"-r\"\n\t\trs='_r'\n\tfi\n\tif [ \"$#\" -gt 5 ]; then\n\t\tmp=$6\n\t\tif [ ${mp} -eq 1 ]; then\n\t\t\tmpf=\"--maxplus\"\n\t\t\tmps='_mp'\n\t\telif [ ${mp} -eq 2 ]; then\n\t\t\tmpf=\"--maxtimes\"\n\t\t\tmps='_mt'\n\t\tfi\n\t\tif [ \"$#\" -gt 6 ]; then\n\t\t\tb=$7\n\t\t\tif [ \"$#\" -gt 7 ]; then\n\t\t\t\tclip=\"--clip $8\"\n\t\t\t\tclips=\"_clip$8\"\n\t\t\t\tif [ \"$#\" -gt 8 ]; then\n\t\t\t\t\tif [ $9 -eq 1 ]; then\n\t\t\t\t\t\tgpu='-g'\n\t\t\t\t\tfi\n\t\t\t\t\tif [ \"$#\" -gt 9 ]; then\n\t\t\t\t\t\tglove_index=${10}\n\t\t\t\t\t\tif [ \"$#\" -gt 10 ]; then\n\t\t\t\t\t\t\tif [ \"${11}\" -eq 1 ]; then\n\t\t\t\t\t\t\t\tsuffix='_case_sensitive'\n\t\t\t\t\t\t\telif [ \"${11}\" -eq 2 ]; then\n\t\t\t\t\t\t\t\tsuffix='_phrases'\n\t\t\t\t\t\t\telif [ \"${11}\" -eq 3 ]; then\n\t\t\t\t\t\t\t\tsuffix='_fine'\n\t\t\t\t\t\t\telif [ \"${11}\" -eq 4 ]; then\n\t\t\t\t\t\t\t\tsuffix='_phrases_fine'\n\t\t\t\t\t\t\telif [ \"${11}\" -ne 0 ]; then\n\t\t\t\t\t\t\t\techo \"Expected a number between 0-4 for file type, got ${11}\"\n\t\t\t\t\t\t\t\texit -2\n\t\t\t\t\t\t\tfi\n\t\t\t\t\t\t\tif [ \"$#\" -gt 11 ]; then\n                               \t\t\t\t\tif [ \"$#\" -gt 12 ]; then\n\t\t\t\t                                    datadir_index=${13}\n                               \t\t\t\t\t    if [ \"$#\" -gt 13 ]; then\n\t\t\t\t                                        seed=${14}\n                                                        if [ \"$#\" -gt 14 ]; then\n                                                            bilstm=${15}\n\n                                                            if [ $bilstm -gt 0 ]; then\n                                                                bilstms=\"--use_rnn --hidden_dim $bilstm\"\n                                                            fi\n                                                        fi\n                                \t\t\t\t\t    fi\n                                \t\t\t\tfi\n                                \t\t\t\tw=${12}\n                            \t\t\t\tfi\n\t\t\t\t\t\tfi\n\t\t\t\t\tfi\n\t\t\t\tfi\n\t\t\tfi\n\t\tfi\n\tfi\nfi\n\n\np=$1\n\np2=`echo ${p} | tr ',' '_' | tr ':' '-'`\ndim=$2\nlr=$3\nt=$4\n\nglove=${gloves[$glove_index]}\n\ngit_tag=$(git log | head -1 | awk '{print $2}' | cut -b-7)\n\ns=p${p2}_d${dim}_l${lr}_t${t}${rs}${mps}_b${7}${clips}_${glove}${suffix}_w${w}_${dirs[$datadir_index]}_seed${seed}_bh${bilstm}_${git_tag}\nodir=${model_dir}/output_${s}\n\ndata_dir=\"${resource_dir}/text_cat/${dirs[$datadir_index]}\"\nglove_dir=\"${resource_dir}/glove\"\n\nmkdir -p ${odir}\n\nif [ $dim -eq 0 ]; then\n    dim=\"0 -y 1\"\nfi\n\ncom=\"python -u soft_patterns.py        \\\n         -e ${glove_dir}/glove.${glove}.txt         \\\n        --td ${data_dir}/train$suffix.data    \\\n        --tl ${data_dir}/train$suffix.labels  \\\n        --vd ${data_dir}/dev$suffix.data      \\\n        --vl ${data_dir}/dev.labels           \\\n        --model_save_dir $odir \\\n        -i 250 \\\n         -p $p \\\n        -t $t \\\n        -d $dim \\\n        $bilstms \\\n        -l $lr $rf $mpf $clip $gpu\\\n        -b $b \\\n\t--max_doc_len 100 \\\n\t--seed $seed \\\n\t-w $w\"\n\n# Activate Conda environment\nsource activate torch3\n\n# Execute the parallel command\nmpirun ${com}\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "metrics": {
+                    "candidates_token_count": 340,
+                    "prompt_token_count": 9264,
+                    "thoughts_token_count": 1441,
+                    "total_token_count": 11045
+                },
+                "data": {
+                    "valid": false,
+                    "tool_call": false,
+                    "reasons": [
+                        "The script includes logic to pass a GPU flag ('-g') to the Python application, but no GPU resources are requested in the #SBATCH directives (e.g., via '--gres=gpu:1' or a GPU-specific partition). The job will be scheduled on a node without a GPU, likely causing the application to fail if one is required.",
+                        "The script executes 'mpirun', which is for MPI parallel jobs, but only requests a single task ('--ntasks=1'). This is a resource mismatch; if the job is truly parallel, it requires more than one task. If it is a serial job, 'mpirun' is unnecessary and potentially problematic."
+                    ],
+                    "issues": [
+                        "The script constructs an output string 's' using a hardcoded positional parameter '$7' (s=..._b${7}...). This is brittle; if fewer than 7 arguments are passed, it will be empty. It would be safer to use the variable '$b', which is explicitly assigned a value.",
+                        "The deeply nested 'if' statements for command-line argument parsing are complex and difficult to maintain. A standard approach like 'getopts' in bash or handling argument parsing within the Python script would be more robust.",
+                        "The script calls 'git log' to tag the output directory. This assumes the job submission directory is a git repository, which may not always be true and could cause an error."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "metrics": {
+                    "duration": 0.066283,
+                    "tool": "manual_validate"
+                },
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n#SBATCH --job-name=soft_patterns\n#SBATCH --output=\"$HOME/work/soft_patterns/logs/%x-%j.out\"\n#SBATCH --partition=normal\n#SBATCH --nodes=1\n#SBATCH --ntasks=1\n#SBATCH --time=48:00:00\n#SBATCH --mail-user=roysch@cs.washington.edu\n#SBATCH --mail-type=ALL\n#SBATCH --account=TG-DBS110003\n\n# NOTE: The original script dynamically generated the job name and output file path\n# based on input parameters (e.g., -J parameter_string, -o logs/parameter_string.out).\n# In a static Slurm batch script, these directives are processed before the script logic runs,\n# so dynamic values cannot be used directly.\n# This script uses Slurm's substitution format: %x for the job name and %j for the job ID.\n# For a descriptive log file, submit the job with a custom name:\n# sbatch --job-name=\"my_descriptive_name\" this_script.sh <args...>\n\nset -e\n\nr=0\nmp=0\nrf=''\nmpf=''\nrs=''\nmps='_pt'\nb=1\nclip=''\nclips=''\ngpu=''\nfile_type=0\nw=0\nmtf=''\nmts=''\nglove_index=0\ngloves=(6B.100d 6B.300d 840B.300d 6B.50d)\ndirs=(stanford_sentiment_binary amazon_reviews ROC_stories stanford_sentiment_binary_100 stanford_sentiment_binary_500 stanford_sentiment_binary_1000 stanford_sentiment_binary_2500 amazon_reviews_100 amazon_reviews_500 amazon_reviews_1000 amazon_reviews_2500 amazon_reviews_5000 amazon_reviews_10000 politifact Bills)\n\nn_dirs=${#dirs[@]}\nlet n_dirs--\ndatadir_index=0\nseed=100\n\nbilstm=0\nbilstms=''\n\n\nif [ -z ${WORK+x} ]; then\n    WORK=$HOME/\n    if [ -z ${model_dir+x} ]; then\n        model_dir=$HOME/work/soft_patterns\n    fi\nelse\n    if [ -z ${model_dir+x} ]; then\n        model_dir=${WORK}/soft_patterns\n    fi\nfi\n\nif [ -z ${resource_dir+x} ]; then\n    resource_dir=${WORK}/resources\nfi\n\nsuffix=''\n\nif [ \"$#\" -lt 4 ]; then\n\techo \"Usage: $0\"\n\techo \"<Pattern specification>\"\n\techo \"<MLP dim>\"\n\techo \"<Learning rate>\"\n\techo \"<dropout>\"\n\techo \"<reschedule=$r>\"\n\techo \"<maxplus=$mp (1 for maxplus, 2 for maxtimes, 0 for prob)>\"\n\techo \" <batch size=$b>\"\n\techo \"<gradient clipping (optional)>\"\n\techo \"<gpu (optional)>\" \n\techo \"<glove index=$glove_index (${gloves[@]})>\"\n\techo \"<file type=$file_type (0 -- lower case, 1 -- case sensitive, 2 -- train with phrases, 3 -- fine grained categories, 4 -- fine grained categories with phrases)>\"\n\techo \"<word_dropout=$w>\"\n\techo \" <data dir: 0 -- stanford (default), 1 -- amazon, 2 -- ROC stories>\"\n\techo \"<seed=$seed>\"\n\techo \"<bilstm=$bilstm>\"\n\n\techo \"Dirs:\"\n        for i in $(seq 0 $n_dirs); do\n                echo ${i}: ${dirs[$i]}\n        done\n\n\texit -1\nelif [ \"$#\" -gt 4 ]; then\n\tr=$5\n\n\tif [ ${r} -eq 1 ]; then\n\t\trf=\"-r\"\n\t\trs='_r'\n\tfi\n\tif [ \"$#\" -gt 5 ]; then\n\t\tmp=$6\n\t\tif [ ${mp} -eq 1 ]; then\n\t\t\tmpf=\"--maxplus\"\n\t\t\tmps='_mp'\n\t\telif [ ${mp} -eq 2 ]; then\n\t\t\tmpf=\"--maxtimes\"\n\t\t\tmps='_mt'\n\t\tfi\n\t\tif [ \"$#\" -gt 6 ]; then\n\t\t\tb=$7\n\t\t\tif [ \"$#\" -gt 7 ]; then\n\t\t\t\tclip=\"--clip $8\"\n\t\t\t\tclips=\"_clip$8\"\n\t\t\t\tif [ \"$#\" -gt 8 ]; then\n\t\t\t\t\tif [ $9 -eq 1 ]; then\n\t\t\t\t\t\tgpu='-g'\n\t\t\t\t\tfi\n\t\t\t\t\tif [ \"$#\" -gt 9 ]; then\n\t\t\t\t\t\tglove_index=${10}\n\t\t\t\t\t\tif [ \"$#\" -gt 10 ]; then\n\t\t\t\t\t\t\tif [ \"${11}\" -eq 1 ]; then\n\t\t\t\t\t\t\t\tsuffix='_case_sensitive'\n\t\t\t\t\t\t\telif [ \"${11}\" -eq 2 ]; then\n\t\t\t\t\t\t\t\tsuffix='_phrases'\n\t\t\t\t\t\t\telif [ \"${11}\" -eq 3 ]; then\n\t\t\t\t\t\t\t\tsuffix='_fine'\n\t\t\t\t\t\t\telif [ \"${11}\" -eq 4 ]; then\n\t\t\t\t\t\t\t\tsuffix='_phrases_fine'\n\t\t\t\t\t\t\telif [ \"${11}\" -ne 0 ]; then\n\t\t\t\t\t\t\t\techo \"Expected a number between 0-4 for file type, got ${11}\"\n\t\t\t\t\t\t\t\texit -2\n\t\t\t\t\t\t\tfi\n\t\t\t\t\t\t\tif [ \"$#\" -gt 11 ]; then\n                               \t\t\t\t\tif [ \"$#\" -gt 12 ]; then\n\t\t\t\t                                    datadir_index=${13}\n                               \t\t\t\t\t    if [ \"$#\" -gt 13 ]; then\n\t\t\t\t                                        seed=${14}\n                                                        if [ \"$#\" -gt 14 ]; then\n                                                            bilstm=${15}\n\n                                                            if [ $bilstm -gt 0 ]; then\n                                                                bilstms=\"--use_rnn --hidden_dim $bilstm\"\n                                                            fi\n                                                        fi\n                                \t\t\t\t\t    fi\n                                \t\t\t\tfi\n                                \t\t\t\tw=${12}\n                            \t\t\t\tfi\n\t\t\t\t\t\tfi\n\t\t\t\t\tfi\n\t\t\t\tfi\n\t\t\tfi\n\t\tfi\n\tfi\nfi\n\n\np=$1\n\np2=`echo ${p} | tr ',' '_' | tr ':' '-'`\ndim=$2\nlr=$3\nt=$4\n\nglove=${gloves[$glove_index]}\n\ngit_tag=$(git log | head -1 | awk '{print $2}' | cut -b-7)\n\ns=p${p2}_d${dim}_l${lr}_t${t}${rs}${mps}_b${7}${clips}_${glove}${suffix}_w${w}_${dirs[$datadir_index]}_seed${seed}_bh${bilstm}_${git_tag}\nodir=${model_dir}/output_${s}\n\ndata_dir=\"${resource_dir}/text_cat/${dirs[$datadir_index]}\"\nglove_dir=\"${resource_dir}/glove\"\n\nmkdir -p ${odir}\n\nif [ $dim -eq 0 ]; then\n    dim=\"0 -y 1\"\nfi\n\ncom=\"python -u soft_patterns.py        \\\n         -e ${glove_dir}/glove.${glove}.txt         \\\n        --td ${data_dir}/train$suffix.data    \\\n        --tl ${data_dir}/train$suffix.labels  \\\n        --vd ${data_dir}/dev$suffix.data      \\\n        --vl ${data_dir}/dev.labels           \\\n        --model_save_dir $odir \\\n        -i 250 \\\n         -p $p \\\n        -t $t \\\n        -d $dim \\\n        $bilstms \\\n        -l $lr $rf $mpf $clip $gpu\\\n        -b $b \\\n\t--max_doc_len 100 \\\n\t--seed $seed \\\n\t-w $w\"\n\n# Activate Conda environment\nsource activate torch3\n\n# Execute the parallel command\nmpirun ${com}\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "agent",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "slurm",
+                    "script": "#!/usr/bin/env bash \n\nset -e\n\nr=0\nmp=0\nrf=''\nmpf=''\nrs=''\nmps='_pt'\nb=1\nclip=''\nclips=''\ngpu=''\nfile_type=0\nw=0\nmtf=''\nmts=''\nglove_index=0\ngloves=(6B.100d 6B.300d 840B.300d 6B.50d)\ndirs=(stanford_sentiment_binary amazon_reviews ROC_stories stanford_sentiment_binary_100 stanford_sentiment_binary_500 stanford_sentiment_binary_1000 stanford_sentiment_binary_2500 amazon_reviews_100 amazon_reviews_500 amazon_reviews_1000 amazon_reviews_2500 amazon_reviews_5000 amazon_reviews_10000 politifact Bills)\n\nn_dirs=${#dirs[@]}\nlet n_dirs--\ndatadir_index=0\nseed=100\n\nbilstm=0\nbilstms=''\n\n\nif [ -z ${WORK+x} ]; then\n    WORK=$HOME/\n    if [ -z ${model_dir+x} ]; then\n        model_dir=$HOME/work/soft_patterns\n    fi\nelse\n    if [ -z ${model_dir+x} ]; then\n        model_dir=${WORK}/soft_patterns\n    fi\nfi\n\nif [ -z ${resource_dir+x} ]; then\n    resource_dir=${WORK}/resources\nfi\n\n\n\nsuffix=''\n\nif [ \"$#\" -lt 4 ]; then\n\techo \"Usage: $0\"\n\techo \"<Pattern specification>\"\n\techo \"<MLP dim>\"\n\techo \"<Learning rate>\"\n\techo \"<dropout>\"\n\techo \"<reschedule=$r>\"\n\techo \"<maxplus=$mp (1 for maxplus, 2 for maxtimes, 0 for prob)>\"\n\techo \" <batch size=$b>\"\n\techo \"<gradient clipping (optional)>\"\n\techo \"<gpu (optional)>\" \n\techo \"<glove index=$glove_index (${gloves[@]})>\"\n\techo \"<file type=$file_type (0 -- lower case, 1 -- case sensitive, 2 -- train with phrases, 3 -- fine grained categories, 4 -- fine grained categories with phrases)>\"\n\techo \"<word_dropout=$w>\"\n\techo \" <data dir: 0 -- stanford (default), 1 -- amazon, 2 -- ROC stories>\"\n\techo \"<seed=$seed>\"\n\techo \"<bilstm=$bilstm>\"\n\n\techo \"Dirs:\"\n        for i in $(seq 0 $n_dirs); do\n                echo ${i}: ${dirs[$i]}\n        done\n\n\texit -1\nelif [ \"$#\" -gt 4 ]; then\n\tr=$5\n\n\tif [ ${r} -eq 1 ]; then\n\t\trf=\"-r\"\n\t\trs='_r'\n\tfi\n\tif [ \"$#\" -gt 5 ]; then\n\t\tmp=$6\n\t\tif [ ${mp} -eq 1 ]; then\n\t\t\tmpf=\"--maxplus\"\n\t\t\tmps='_mp'\n\t\telif [ ${mp} -eq 2 ]; then\n\t\t\tmpf=\"--maxtimes\"\n\t\t\tmps='_mt'\n\t\tfi\n\t\tif [ \"$#\" -gt 6 ]; then\n\t\t\tb=$7\n\t\t\tif [ \"$#\" -gt 7 ]; then\n\t\t\t\tclip=\"--clip $8\"\n\t\t\t\tclips=\"_clip$8\"\n\t\t\t\tif [ \"$#\" -gt 8 ]; then\n\t\t\t\t\tif [ $9 -eq 1 ]; then\n\t\t\t\t\t\tgpu='-g'\n\t\t\t\t\tfi\n\t\t\t\t\tif [ \"$#\" -gt 9 ]; then\n\t\t\t\t\t\tglove_index=${10}\n\t\t\t\t\t\tif [ \"$#\" -gt 10 ]; then\n\t\t\t\t\t\t\tif [ \"${11}\" -eq 1 ]; then\n\t\t\t\t\t\t\t\tsuffix='_case_sensitive'\n\t\t\t\t\t\t\telif [ \"${11}\" -eq 2 ]; then\n\t\t\t\t\t\t\t\tsuffix='_phrases'\n\t\t\t\t\t\t\telif [ \"${11}\" -eq 3 ]; then\n\t\t\t\t\t\t\t\tsuffix='_fine'\n\t\t\t\t\t\t\telif [ \"${11}\" -eq 4 ]; then\n\t\t\t\t\t\t\t\tsuffix='_phrases_fine'\n\t\t\t\t\t\t\telif [ \"${11}\" -ne 0 ]; then\n\t\t\t\t\t\t\t\techo \"Expected a number between 0-4 for file type, got ${11}\"\n\t\t\t\t\t\t\t\texit -2\n\t\t\t\t\t\t\tfi\n\t\t\t\t\t\t\tif [ \"$#\" -gt 11 ]; then\n                               \t\t\t\t\tif [ \"$#\" -gt 12 ]; then\n\t\t\t\t                                    datadir_index=${13}\n                               \t\t\t\t\t    if [ \"$#\" -gt 13 ]; then\n\t\t\t\t                                        seed=${14}\n                                                        if [ \"$#\" -gt 14 ]; then\n                                                            bilstm=${15}\n\n                                                            if [ $bilstm -gt 0 ]; then\n                                                                bilstms=\"--use_rnn --hidden_dim $bilstm\"\n                                                            fi\n                                                        fi\n                                \t\t\t\t    fi\n                                \t\t\t\tfi\n                                \t\t\t\tw=${12}\n                            \t\t\t\tfi\n\t\t\t\t\t\tfi\n\t\t\t\t\tfi\n\t\t\t\tfi\n\t\t\tfi\n\t\tfi\n\tfi\nfi\n\n\np=$1\n\np2=`echo ${p} | tr ',' '_' | tr ':' '-'`\ndim=$2\nlr=$3\nt=$4\n\nglove=${gloves[$glove_index]}\n\ngit_tag=$(git log | head -1 | awk '{print $2}' | cut -b-7)\n\ns=p${p2}_d${dim}_l${lr}_t${t}${rs}${mps}_b${7}${clips}_${glove}${suffix}_w${w}_${dirs[$datadir_index]}_seed${seed}_bh${bilstm}_${git_tag}\nodir=${model_dir}/output_${s}\n\ndata_dir=\"${resource_dir}/text_cat/${dirs[$datadir_index]}\"\nglove_dir=\"${resource_dir}/glove\"\n\nmkdir -p ${odir}\n\nif [ $dim -eq 0 ]; then\n    dim=\"0 -y 1\"\nfi\n\ncom=\"python -u soft_patterns.py        \\\n         -e ${glove_dir}/glove.${glove}.txt         \\\n        --td ${data_dir}/train$suffix.data    \\\n        --tl ${data_dir}/train$suffix.labels  \\\n        --vd ${data_dir}/dev$suffix.data      \\\n        --vl ${data_dir}/dev.labels           \\\n        --model_save_dir $odir \\\n        -i 250 \\\n         -p $p \\\n        -t $t \\\n        -d $dim \\\n        $bilstms \\\n        -l $lr $rf $mpf $clip $gpu\\\n        -b $b \\\n\t--max_doc_len 100 \\\n\t--seed $seed \\\n\t-w $w\"\n\n${com}\n\nfunction gen_cluster_file {\n    local s=$1\n\n    f=$HOME/work/soft_patterns/runs/${s}\n\n    echo \"#!/usr/bin/env bash\" > ${f}\n    echo \"#SBATCH -J $s\" >> ${f}\n    echo \"#SBATCH -o $HOME/work/soft_patterns/logs/$s.out\" >> ${f}\n    echo \"#SBATCH -p normal\" >> ${f}         # specify queue\n    echo \"#SBATCH -N 1\" >> ${f}              # Number of nodes, not cores (16 cores/node)\n    echo \"#SBATCH -n 1\" >> ${f}\n    echo \"#SBATCH -t 48:00:00\" >> ${f}       # max time\n\n    echo \"#SBATCH --mail-user=roysch@cs.washington.edu\" >> ${f}\n    echo \"#SBATCH --mail-type=ALL\" >> ${f}\n\n    echo \"#SBATCH -A TG-DBS110003       # project/allocation number;\" >> ${f}\n    echo \"source activate torch3\" >> ${f}\n\n    echo \"mpirun ${com}\" >> ${f}\n\n    echo ${f}\n}\n\nif [[ \"$HOSTNAME\" == *.stampede2.tacc.utexas.edu ]]; then\n    f=$(gen_cluster_file ${s})\n\n    sbatch ${f}\nelif [[ $HOSTNAME = roys.local ]]; then\n    ${com} 2&>1 | tee ${odir}/output.dat\nelse\n    ${com} |& tee ${odir}/output.dat\nfi\n"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "agent",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{transform_result.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{transform_result.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    },
+    "attempts": 1
+}

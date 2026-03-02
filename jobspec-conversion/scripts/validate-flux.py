@@ -105,8 +105,8 @@ def parse_result_file(file_path: Path) -> dict:
     if not all(
         [from_manager, to_manager, original_script, transform_step, validate_step]
     ):
-        raise ValueError(
-            "Log file is missing required fields (plan, steps, or inputs)."
+        print(
+            "Log file {file_path} is missing required fields (plan, steps, or inputs)."
         )
 
     # The result fields can be nested JSON strings, and inconsistent. Yuck
@@ -201,13 +201,13 @@ def main():
             result_data = parse_result_file(file_path)
         except (AttributeError, json.JSONDecodeError) as e:
             continue
-        from_manager = result_data['from_manager']
-        to_manager = result_data['to_manager']
+        from_manager = result_data["from_manager"]
+        to_manager = result_data["to_manager"]
         if from_manager not in issues:
             issues[from_manager] = {}
         if to_manager not in issues[from_manager]:
             issues[from_manager][to_manager] = []
-        issues[from_manager][to_manager] += result_data.get('issues')
+        issues[from_manager][to_manager] += result_data.get("issues")
 
     console = Console()
     json_files = sorted(list(path.rglob("*flux-result.json")))
@@ -239,6 +239,8 @@ def main():
 
         try:
             result_data = parse_result_file(file_path)
+            if not result_data:
+                continue
         except (AttributeError, json.JSONDecodeError) as e:
             failed_generation["json_decode_error"] += 1
             continue
