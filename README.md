@@ -2,7 +2,8 @@
 
 This will be a home for fractale experiments.
 
-- [jobspec-conversion](jobspec-conversion)
+- [jobspec-conversion](jobspec-conversion) using Gemini
+- [optimization-study](optimization-study) also using Gemini
 
 ## License
 
