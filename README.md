@@ -4,6 +4,7 @@ This will be a home for fractale experiments.
 
 - [jobspec-conversion](jobspec-conversion) using Gemini
 - [optimization-study](optimization-study) also using Gemini
+- [Flask App](flask-app) will reproduce [Flask Copilot](https://github.com/FLASK-LLNL/flask-copilot/)
 
 ## License
 
