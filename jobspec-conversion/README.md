@@ -12,9 +12,10 @@ We first need to start the server with the translation prompt and validation too
 These setup steps are used regardless of the model. I am doing this in a .devcontainer, and cloning to a temporary spot. Install the fractale-mcp library:
 
 ```bash
-git clone -b experiment-tweaks https://github.com/compspec/fractale-mcp /tmp/fractale-mcp
-pip install -e /tmp/fractale-mcp[all] --break-system-packages
-pip install IPython mcp-serve colorama flux-mcp --break-system-packages
+git clone -b check-malformed-response-gemini https://github.com/converged-computing/fractale /tmp/fractale
+git clone -b tweak-flux-operator https://github.com/converged-computing/fractale-agents /tmp/fractale-agents
+pip install -e /tmp/fractale[all] --break-system-packages
+pip install IPython mcp-serve colorama flux-mcp hpc-mcp --break-system-packages
 ```
 
 ### Gemini
@@ -41,8 +42,9 @@ export GEMINI_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 And then run the experiment with a native State Machine, Flux, and Gemini. The plan (the original `transform-retry.yaml` is generated programatically in the script).
 
 ```bash
-# here is how I generated testing data
-python3 scripts/run-experiment.py --output ./results/gemini --limit 10
+# Generate the random sample of N=200.
+python3 scripts/generate-sample.py
+python3 scripts/run-experiment.py --output ./results/gemini
 
 # defaults to --input ./data, no limit
 python scripts/run-experiment.py --output ./results/gemini
