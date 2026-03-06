@@ -9,10 +9,11 @@ import fnmatch
 import hashlib
 import fractale.utils as utils
 from colorama import Fore, Style
+import fractale.core.registry as registry
 
 from fractale.engines import get_engine
 from fractale.core.plan import Plan
-
+from fractale.agents.base import init_backend
 
 def detect_transformer(jobspec):
     """
@@ -81,7 +82,7 @@ AGENTIC_PLAN = {
         {
             # Transform Jobspec from A to B
             "name": "transform",
-            "type": "agent",
+            "type": "prompt",
             "prompt": "transform_jobspec_expert",
             # This part needs more work - disabling for now
             "allow_tools": False,
@@ -95,19 +96,19 @@ AGENTIC_PLAN = {
             # Agentic validate - can (but doesn't have to) call tools
             # TODO the bug is that this is sometimes not set, it's not clear why.
             "name": "validate",
-            "type": "agent",
+            "type": "prompt",
             "prompt": "validate_jobspec_expert",
-            # This part needs more work - disabling for now
             "allow_tools": False,
-            "inputs": {"script": "{{transform_result.jobspec}}"},
+            "inputs": {"script": "{{steps.transform.outputs.jobspec}}"},
             "transitions": {"failed": "transform", "success": "manual_validate"},
+            "rules": {"success": ["valid"], "failed": ["not valid"]},
         },
         {
             # Manual, forced tool call
             "name": "manual_validate",
             "type": "tool",
             "tool": "validate_flux_jobspec",
-            "inputs": {"content": "{{transform_result.jobspec}}"},
+            "inputs": {"content": "{{steps.transform.outputs.jobspec}}"},
             "transitions": {"failed": "transform"},
             # We are careful to define at least one that triggers in the postitive,
             # meaning we add or apply the transition on finding it set
@@ -168,23 +169,24 @@ def main():
     if not os.path.exists(args.output):
         os.makedirs(args.output)
 
-    # Find unique job scripts to process
-    seen = set()
-    files = []
-    for filename in recursive_find(args.input):
-        digest = content_hash(filename)
-        if digest in seen:
-            continue
-        seen.add(digest)
-        files.append(filename)
+    # Read in sample
+    sample_file = os.path.join(here, "sample-200.json")
+    if not os.path.exists(sample_file):
+        sys.exit(f'Sample file {sample_file} does not exist.')
 
-    print(f"⭐️ Found {len(files)} unique job scripts to process.")
+    files = utils.read_json(sample_file)
+    print(f"⭐️ Loaded {len(files)} unique job scripts to process.")
 
     # Structure to keep track of summary results
     # Detailed results will be saved to file (json)
     results = []
     success_count = 0
     failure_count = 0
+
+    # Initialize backend 
+    # TODO: make this more seamless part of library
+    registry.init_registry()
+    init_backend()
 
     # We are going to cheat a little and instantiate this once (here) with a faux plan
     engine = get_engine(
@@ -226,9 +228,8 @@ def main():
             continue
 
         # Define the target managers for conversion
-        # Note that I'm including TO slurm even though we do not have a validation
-        # step here.
-        to_managers = ["flux", "slurm"]
+        # We can only validate TO flux
+        to_managers = ["flux"]
 
         for to_manager in to_managers:
 
@@ -253,6 +254,8 @@ def main():
                 "from_manager": from_manager,
                 "to_manager": to_manager,
                 "script": original_script,
+                "error": "{{ steps.manual_validate.outputs.errors }}", 
+                "jobspec": "{{ steps.manual_validate.outputs.jobspec }}",
             }
 
             try:
@@ -262,13 +265,12 @@ def main():
                 engine.reset(Plan(plan))
 
                 # The core agentic call replaces the old transformer.convert()
-                steps = engine.run(context)
+                steps = engine.run()
 
                 # Metadata includes full steps
                 result = {
                     "steps": steps,
                     "plan": plan,
-                    "attempts": engine.metadata["attempts"],
                 }
 
                 # Save the new jobspec to the equivalent place on the filesystem

@@ -4,14 +4,8 @@
             "agent": "transform",
             "result": {
                 "has_error": false,
-                "metrics": {
-                    "candidates_token_count": 223,
-                    "prompt_token_count": 678,
-                    "thoughts_token_count": 2545,
-                    "total_token_count": 3446
-                },
                 "data": {
-                    "jobspec": "#!/bin/bash\n#FLUX --tasks-per-node=4\n#FLUX --gpus-per-node=2\n#FLUX --mem-per-node=16G\n#FLUX --time=2d\n# The --exclude directive from slurm does not have a direct equivalent in flux.\n# Its omission means the job may be scheduled on nodes 'kepler2,kepler3', potentially impacting performance if those nodes are unsuitable.\n\ncd ~/IFT6085/progressive_growing_of_gans\n\nsource ~/miniconda3/bin/activate\nconda activate tensorflow1\n\ngit checkout master\ngit pull\n\ncp -r --no-clobber datasets /Tmp/pichetre/ -v\n\npython ./train.py --blur-schedule NOBLUR --train-k-images 1000\n"
+                    "jobspec": "#!/bin/bash\n#FLUX --ntasks-per-node=4\n#FLUX --gpus-per-node=2\n#FLUX --mem=16G\n#FLUX -t 2d\n# The Slurm '--exclude' option does not have a direct Flux equivalent.\n# Its omission means the job could be scheduled on the excluded nodes 'kepler2,kepler3', potentially impacting performance or causing failure if those nodes have known issues.\n\ncd ~/IFT6085/progressive_growing_of_gans\n\nsource ~/miniconda3/bin/activate\nconda activate tensorflow1\n\ngit checkout master\ngit pull\n\ncp -r --no-clobber datasets /Tmp/pichetre/ -v\n\npython ./train.py --blur-schedule NOBLUR --train-k-images 1000\n"
                 },
                 "attempts": 1
             },
@@ -23,23 +17,15 @@
             "agent": "validate",
             "result": {
                 "has_error": false,
-                "metrics": {
-                    "candidates_token_count": 240,
-                    "prompt_token_count": 1323,
-                    "thoughts_token_count": 1070,
-                    "total_token_count": 2633
-                },
                 "data": {
-                    "valid": false,
-                    "reasons": [
-                        "The directive `--mem-per-node=16G` is not a valid Flux directive. Flux typically manages memory on a per-task basis (e.g., --mem-per-task)."
-                    ],
+                    "valid": true,
+                    "tool_call": false,
+                    "reasons": [],
                     "issues": [
-                        "Hardcoded paths like `~/IFT6085/...` and `~/miniconda3/...` reduce portability. It's better to use environment variables like `$HOME` or relative paths if the job is submitted from a specific directory.",
-                        "Executing `git pull` within a batch script can lead to non-reproducible results if the remote branch changes between runs. It is often safer to run jobs against a specific, tested commit hash.",
-                        "The use of `/Tmp/pichetre/` for temporary data is hardcoded. High-performance computing systems often provide a specific environment variable (e.g., `$TMPDIR`, `$SCRATCH`) for job-specific temporary storage that should be used instead."
-                    ],
-                    "tool_call": true
+                        "The translation from Slurm directives to Flux is correct. All active Flux directives (`--ntasks-per-node`, `--gpus-per-node`, `--mem`, `-t`) are valid.",
+                        "The script is missing an explicit node count (`-N` or `--nodes`). While not an error, it means the job will run with a default of 1 node. This is a common and often intended configuration, but explicitly stating `-N 1` would improve clarity.",
+                        "The comment accurately notes that the Slurm `--exclude` option does not have a standard Flux equivalent, which is a correct and important detail."
+                    ]
                 },
                 "attempts": 1
             },
@@ -51,12 +37,8 @@
             "agent": "manual_validate",
             "result": {
                 "has_error": false,
-                "metrics": {
-                    "duration": 0.068689,
-                    "tool": "manual_validate"
-                },
                 "data": {
-                    "jobspec": "#!/bin/bash\n#FLUX --tasks-per-node=4\n#FLUX --gpus-per-node=2\n#FLUX --mem-per-node=16G\n#FLUX --time=2d\n# The --exclude directive from slurm does not have a direct equivalent in flux.\n# Its omission means the job may be scheduled on nodes 'kepler2,kepler3', potentially impacting performance if those nodes are unsuitable.\n\ncd ~/IFT6085/progressive_growing_of_gans\n\nsource ~/miniconda3/bin/activate\nconda activate tensorflow1\n\ngit checkout master\ngit pull\n\ncp -r --no-clobber datasets /Tmp/pichetre/ -v\n\npython ./train.py --blur-schedule NOBLUR --train-k-images 1000\n",
+                    "jobspec": "#!/bin/bash\n#FLUX --ntasks-per-node=4\n#FLUX --gpus-per-node=2\n#FLUX --mem=16G\n#FLUX -t 2d\n# The Slurm '--exclude' option does not have a direct Flux equivalent.\n# Its omission means the job could be scheduled on the excluded nodes 'kepler2,kepler3', potentially impacting performance or causing failure if those nodes have known issues.\n\ncd ~/IFT6085/progressive_growing_of_gans\n\nsource ~/miniconda3/bin/activate\nconda activate tensorflow1\n\ngit checkout master\ngit pull\n\ncp -r --no-clobber datasets /Tmp/pichetre/ -v\n\npython ./train.py --blur-schedule NOBLUR --train-k-images 1000\n",
                     "errors": [],
                     "valid": true
                 }
@@ -71,13 +53,15 @@
         "steps": [
             {
                 "name": "transform",
-                "type": "agent",
+                "type": "prompt",
                 "prompt": "transform_jobspec_expert",
                 "allow_tools": false,
                 "inputs": {
                     "from_manager": "slurm",
                     "to_manager": "flux",
-                    "script": "#!/bin/bash\n#SBATCH --ntasks-per-node=4\n#SBATCH --gres=gpu:2\n#SBATCH --mem=16G\n#SBATCH --time=2-00:00\n#SBATCH --exclude=kepler2,kepler3\n\ncd ~/IFT6085/progressive_growing_of_gans\n\nsource ~/miniconda3/bin/activate\nconda activate tensorflow1\n\ngit checkout master\ngit pull\n\ncp -r --no-clobber datasets /Tmp/pichetre/ -v\n\npython ./train.py --blur-schedule NOBLUR --train-k-images 1000\n"
+                    "script": "#!/bin/bash\n#SBATCH --ntasks-per-node=4\n#SBATCH --gres=gpu:2\n#SBATCH --mem=16G\n#SBATCH --time=2-00:00\n#SBATCH --exclude=kepler2,kepler3\n\ncd ~/IFT6085/progressive_growing_of_gans\n\nsource ~/miniconda3/bin/activate\nconda activate tensorflow1\n\ngit checkout master\ngit pull\n\ncp -r --no-clobber datasets /Tmp/pichetre/ -v\n\npython ./train.py --blur-schedule NOBLUR --train-k-images 1000\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
                 },
                 "transitions": {
                     "failed": "transform",
@@ -95,15 +79,23 @@
             },
             {
                 "name": "validate",
-                "type": "agent",
+                "type": "prompt",
                 "prompt": "validate_jobspec_expert",
                 "allow_tools": false,
                 "inputs": {
-                    "script": "{{transform_result.jobspec}}"
+                    "script": "{{steps.transform.outputs.jobspec}}"
                 },
                 "transitions": {
                     "failed": "transform",
                     "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
                 }
             },
             {
@@ -111,7 +103,7 @@
                 "type": "tool",
                 "tool": "validate_flux_jobspec",
                 "inputs": {
-                    "content": "{{transform_result.jobspec}}"
+                    "content": "{{steps.transform.outputs.jobspec}}"
                 },
                 "transitions": {
                     "failed": "transform"
@@ -127,6 +119,5 @@
             }
         ],
         "inputs": {}
-    },
-    "attempts": 1
+    }
 }
