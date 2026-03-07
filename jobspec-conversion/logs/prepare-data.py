@@ -65,9 +65,12 @@ def prepare_data(root_dir, output_file="data.js"):
                 elif isinstance(out, dict) and "valid" not in out:
                     final_status = "NA"
 
+            relevant_steps = ['transform', 'validate', 'validate_flux_jobspec', 'manual_validate']
+            step_count = sum(1 for e in events if e.get("step") in relevant_steps and e.get('event') == "exit")
             entry = {
                 "id": prefix,
                 "status": final_status,
+                "step_count": step_count,
                 "slurm": slurm_source,
                 "flux": flux_output,
                 "events": events
