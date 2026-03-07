@@ -1,0 +1,121 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash -l\n\n#.Declare a name for this job (preferably under 16 characters).\n#FLUX -J gkyl\n\n#.Request the queue (enter the possible names)\n#FLUX --qos=pppl-short\n\n#.Number of nodes to request (Stellar-amd has 128 cores and 2 gpus per node)\n#FLUX -N 1\n#FLUX --ntasks-per-node=2\n\n#.Request a GPU.\n#FLUX --gpus-per-node=2\n\n#.Request wall time\n#FLUX -t 00:30:00\n\n#.Mail is sent to you when the job starts and when it terminates or aborts.\n# NOTE: The --mail-user and --mail-type directives have been omitted as Flux\n# does not have a direct equivalent for job status email notifications.\n\nmodule load gcc/8\nmodule load cudatoolkit/12.0\nmodule load openmpi/cuda-11.1/gcc/4.1.1\nmodule load anaconda3/2020.11\n\n# For some reason we need to specify the full path to gkyl command in jobscript.\nexport gComDir=\"$HOME/gkylsoft/gkyl/bin\"\n\necho 'flux mini run -n 1 --gpus-per-task=2 '$gComDir'/gkyl -g input_file.lua'\nflux mini run -n 1 --gpus-per-task=2 $gComDir/gkyl -g input_file.lua\n\nexit 0\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "The job submission requests resources for 2 tasks via '#FLUX --ntasks-per-node=2'. However, the execution line 'flux mini run -n 1 ...' only launches a single task. This results in an over-allocation of resources, where one task slot is reserved but remains idle. To improve efficiency, the job-level resource request should be changed to match the workload, for example, by setting '#FLUX --ntasks-per-node=1'."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash -l\n\n#.Declare a name for this job (preferably under 16 characters).\n#FLUX -J gkyl\n\n#.Request the queue (enter the possible names)\n#FLUX --qos=pppl-short\n\n#.Number of nodes to request (Stellar-amd has 128 cores and 2 gpus per node)\n#FLUX -N 1\n#FLUX --ntasks-per-node=2\n\n#.Request a GPU.\n#FLUX --gpus-per-node=2\n\n#.Request wall time\n#FLUX -t 00:30:00\n\n#.Mail is sent to you when the job starts and when it terminates or aborts.\n# NOTE: The --mail-user and --mail-type directives have been omitted as Flux\n# does not have a direct equivalent for job status email notifications.\n\nmodule load gcc/8\nmodule load cudatoolkit/12.0\nmodule load openmpi/cuda-11.1/gcc/4.1.1\nmodule load anaconda3/2020.11\n\n# For some reason we need to specify the full path to gkyl command in jobscript.\nexport gComDir=\"$HOME/gkylsoft/gkyl/bin\"\n\necho 'flux mini run -n 1 --gpus-per-task=2 '$gComDir'/gkyl -g input_file.lua'\nflux mini run -n 1 --gpus-per-task=2 $gComDir/gkyl -g input_file.lua\n\nexit 0\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash -l\n\n#.Declare a name for this job (preferably under 16 characters).\n#SBATCH -J gkyl\n\n#.Request the queue (enter the possible names)\n#SBATCH --qos pppl-short\n\n#.Number of nodes to request (Stellar-amd has 128 cores and 2 gpus per node)\n#SBATCH -N 1\n#SBATCH --tasks-per-node=2\n\n#.Request a GPU.\n#SBATCH --gres=gpu:2\n\n#.Request wall time\n#SBATCH -t 00:30:00\n\n#.Mail is sent to you when the job starts and when it terminates or aborts.\n#SBATCH --mail-user=jdoe@msn.com\n#SBATCH --mail-type=END,FAIL,REQUEUE\n\nmodule load gcc/8\nmodule load cudatoolkit/12.0\nmodule load openmpi/cuda-11.1/gcc/4.1.1\nmodule load anaconda3/2020.11\n\n# For some reason we need to specify the full path to gkyl command in jobscript.\nexport gComDir=\"$HOME/gkylsoft/gkyl/bin\"\n\necho 'srun -n 1 --gpus 2 '$gComDir'/gkyl -g input_file.lua'\nsrun -n 1 --gpus 2 $gComDir/gkyl -g input_file.lua\n\nexit 0\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

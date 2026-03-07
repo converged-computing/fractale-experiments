@@ -1,0 +1,119 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n#FLUX -A ast106\n#FLUX --job-name=xrb-48-MPI-PE16\n#FLUX --time=0:30:00\n#FLUX --nodes=64\n#FLUX --queue=batch\n\n# NOTE: The PBS directive '-j oe' (join stdout/stderr) is the default behavior\n# in Flux when an error file (-e) is not specified.\n\n# NOTE: The PBS gres 'atlas1%atlas2' is system-specific and likely refers to\n# interconnect hardware. Flux does not have a direct equivalent. Omission of\n# this directive may have performance implications if the job is scheduled on\n# nodes that lack this specific hardware.\n\n# The aprun command requested 16 tasks per node (-N 16).\n#FLUX --ntasks-per-node=16\n\n# The aprun command requested 1 CPU per task (-d 1) for threading.\n#FLUX --cpus-per-task=1\n\n# The Flux equivalent of PBS_O_WORKDIR is FLUX_SUBMIT_DIR\ncd $FLUX_SUBMIT_DIR\n\nexport OMP_NUM_THREADS=1\n\n# 'aprun' is a Cray-specific process launcher. 'flux run' is the equivalent in Flux.\n# The resource and placement options from aprun are now specified in the job-level directives.\n# The total number of tasks will be 64 nodes * 16 tasks/node = 1024.\nflux run ./main.Linux.Cray.mpi.omp.exe inputs_3d_6.0cm.hi_dens\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": []
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n#FLUX -A ast106\n#FLUX --job-name=xrb-48-MPI-PE16\n#FLUX --time=0:30:00\n#FLUX --nodes=64\n#FLUX --queue=batch\n\n# NOTE: The PBS directive '-j oe' (join stdout/stderr) is the default behavior\n# in Flux when an error file (-e) is not specified.\n\n# NOTE: The PBS gres 'atlas1%atlas2' is system-specific and likely refers to\n# interconnect hardware. Flux does not have a direct equivalent. Omission of\n# this directive may have performance implications if the job is scheduled on\n# nodes that lack this specific hardware.\n\n# The aprun command requested 16 tasks per node (-N 16).\n#FLUX --ntasks-per-node=16\n\n# The aprun command requested 1 CPU per task (-d 1) for threading.\n#FLUX --cpus-per-task=1\n\n# The Flux equivalent of PBS_O_WORKDIR is FLUX_SUBMIT_DIR\ncd $FLUX_SUBMIT_DIR\n\nexport OMP_NUM_THREADS=1\n\n# 'aprun' is a Cray-specific process launcher. 'flux run' is the equivalent in Flux.\n# The resource and placement options from aprun are now specified in the job-level directives.\n# The total number of tasks will be 64 nodes * 16 tasks/node = 1024.\nflux run ./main.Linux.Cray.mpi.omp.exe inputs_3d_6.0cm.hi_dens\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "pbs",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n#PBS -A ast106\n#PBS -N xrb-48-MPI-PE16\n#PBS -j oe\n#PBS -l walltime=0:30:00,nodes=64\n#PBS -q batch\n#PBS -l gres=atlas1%atlas2\n\ncd $PBS_O_WORKDIR\n\nexport OMP_NUM_THREADS=1\n\n# Cray uses the term \"processing elements\" (PEs) to refer to the\n# number of executables that are launched.  For our purposes, this is\n# the number of MPI tasks.\n\n# from https://www.olcf.ornl.gov/kb_articles/xk7-cpu-description/\n#\n# Each Titan compute node contains (1) AMD Opteron\u2122 6274 (Interlagos)\n# CPU. Each CPU contains (2) die. Each die contains (4) \u201cbulldozer\u201d\n# compute units and a shared L3 cache. Each compute unit contains (2)\n# integer cores (and their L1 cache), a shared floating point\n# scheduler, and shared L2 cache.\n#\n# To aid in task placement, each die is organized into a NUMA\n# node. Each compute node contains (2) NUMA nodes. Each NUMA node\n# contains a die\u2019s L3 cache and its (4) compute units (8 cores).\n\n# -n number of PEs (MPI tasks)\n# -N number of PEs per node  (MPI tasks / node)\n# -d number of CPUs per PE -- this should be the number of threads / MPI task\n# -j number of CPUs to use per compute unit (since 2 CPUs share an FPU, we may want to reduce this)\n# -S PEs to allocate per NUMA node (if we have 2 MPI tasks per node, we want -S 2 -- one on each NUMA node)\naprun -n 1024 -N 16 -d 1 -j 2 ./main.Linux.Cray.mpi.omp.exe inputs_3d_6.0cm.hi_dens\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

@@ -1,0 +1,113 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n#FLUX --job-name=EASEL\n#FLUX -N 1\n#FLUX -n 1\n#FLUX -c 4\n#FLUX --queue=general\n#FLUX --qos=general\n#FLUX --mem=10G\n# NOTE: The --mail-user directive was empty and has been omitted.\n\nmodule load nextflow\n\nSINGULARITY_TMPDIR=$PWD\nexport SINGULARITY_TMPDIR\n\nnextflow run -hub gitlab PlantGenomicsLab/easel -profile singularity,xanadu -params-file params.yaml \n\n\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "content": "[SSL: SSLV3_ALERT_BAD_RECORD_MAC] sslv3 alert bad record mac (_ssl.c:2559)"
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n#FLUX --job-name=EASEL\n#FLUX -N 1\n#FLUX -n 1\n#FLUX -c 4\n#FLUX --queue=general\n#FLUX --qos=general\n#FLUX --mem=10G\n# NOTE: The --mail-user directive was empty and has been omitted.\n\nmodule load nextflow\n\nSINGULARITY_TMPDIR=$PWD\nexport SINGULARITY_TMPDIR\n\nnextflow run -hub gitlab PlantGenomicsLab/easel -profile singularity,xanadu -params-file params.yaml \n\n\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n#SBATCH --job-name=EASEL\n#SBATCH -N 1\n#SBATCH -n 1\n#SBATCH -c 4\n#SBATCH --partition=general\n#SBATCH --qos=general\n#SBATCH --mem=10G\n#SBATCH --mail-user=\n\nmodule load nextflow\n\nSINGULARITY_TMPDIR=$PWD\nexport SINGULARITY_TMPDIR\n\nnextflow run -hub gitlab PlantGenomicsLab/easel -profile singularity,xanadu -params-file params.yaml \n\n\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

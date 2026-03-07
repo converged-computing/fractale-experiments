@@ -1,0 +1,121 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash -l\n\n#FLUX --job-name=jobname\n#FLUX --nodes=1\n#FLUX --ntasks-per-node=1\n#FLUX --time=00:05:00\n#FLUX --mem=20G\n\n# NOTE: The --mail-user (-M) and mail-type (-m) directives have been omitted as\n# Flux does not have a direct equivalent for job status email notifications.\n#\n\n# The Flux equivalent of PBS_O_WORKDIR is FLUX_SUBMIT_DIR\ncd $FLUX_SUBMIT_DIR\n\nset -u # fail when using an undefined variable\nset -x # echo script lines as they are executed\nset -e # abort at first error\n\nmodule load Python/3.7.4-GCCcore-8.3.0\nmodule load h5py/2.10.0-intel-2019b-Python-3.7.4\nmodule load netcdf4-python/1.5.3-intel-2019b-Python-3.7.4\n\n./myprogram.sh\n\nexit\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "The script's execution is entirely dependent on an external script, `./myprogram.sh`, being present and executable in the job submission directory. If this file is missing or does not have the correct permissions, the job will fail at runtime."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash -l\n\n#FLUX --job-name=jobname\n#FLUX --nodes=1\n#FLUX --ntasks-per-node=1\n#FLUX --time=00:05:00\n#FLUX --mem=20G\n\n# NOTE: The --mail-user (-M) and mail-type (-m) directives have been omitted as\n# Flux does not have a direct equivalent for job status email notifications.\n#\n\n# The Flux equivalent of PBS_O_WORKDIR is FLUX_SUBMIT_DIR\ncd $FLUX_SUBMIT_DIR\n\nset -u # fail when using an undefined variable\nset -x # echo script lines as they are executed\nset -e # abort at first error\n\nmodule load Python/3.7.4-GCCcore-8.3.0\nmodule load h5py/2.10.0-intel-2019b-Python-3.7.4\nmodule load netcdf4-python/1.5.3-intel-2019b-Python-3.7.4\n\n./myprogram.sh\n\nexit\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "pbs",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash -l\n\n#PBS -S /usr/bin/bash\n#PBS -N jobname\n#PBS -l nodes=1:ppn=1\n#PBS -l walltime=00:05:00\n#PBS -M email@emai.com\n#PBS -l mem=20GB\n#PBS -m bea\n#\ncd $PBS_O_WORKDIR\n\nset -u # fail when using an undefined variable\nset -x # echo script lines as they are executedi\nset -e # abort at first error\n\nmodule load Python/3.7.4-GCCcore-8.3.0\nmodule load h5py/2.10.0-intel-2019b-Python-3.7.4\nmodule load netcdf4-python/1.5.3-intel-2019b-Python-3.7.4\n\n./myprogram.sh\n\nexit\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

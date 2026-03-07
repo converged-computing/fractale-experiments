@@ -1,0 +1,33 @@
+[
+    {
+        "timestamp": 1772852483.8143227,
+        "data": {
+            "use_tools": null,
+            "metrics": {
+                "cached_content_token_count": 329513,
+                "candidates_token_count": 566,
+                "prompt_token_count": 333000,
+                "total_token_count": 333566
+            },
+            "memory": true,
+            "tools": null,
+            "prompt": "### PERSONA\nYou are a job specification generation expert.\n\n### CONTEXT\nWe need to convert between workload manager job specification formats.\n\n### GOAL\nI need to convert the provided job specification from 'pbs' to 'flux'. The desired output format is a 'batch' script.\n\n### REQUIREMENTS & CONSTRAINTS\nYou MUST not make up directives that do not exist.\nYou MUST preserve as many options as possible from the original.\nIf there is a directive that does not translate, you MUST leave it out and add a comment about the performance implications of the omission.\n\n### INSTRUCTIONS\n1. Analyze the provided script below.\n2. Write a new script and return in a json structure with a \"jobspec\"\n3. If the input script is not a workload manager batch file, you MUST return the json jobspec structure as \"noop\"\n\n#!/bin/bash -l\n#PBS -A X\n#PBS -q X\n#PBS -l select=2\n#PBS -j oe\n#PBS -l walltime=48:00:00\n#PBS -o OUTPUT_PATH\n\nunset CUDA_VISIBLE_DEVICES\nexport NCCL_P2P_DISABLE=1\n\ncd SOURCE_DIR_PATH\nsource activate mddt\n\n# required for multinode\nhead_node=$(cat $PBS_NODEFILE | head -n 1)\nhead_node_ip=$(ssh $head_node hostname --ip-address)\nRANDOM=84210\n\necho Head node: $head_node\necho Node IP: $head_node_ip\necho head_node_ip: $head_node_ip\nexport LOGLEVEL=INFO\n\n# on 16 GPUs (2 nodes, 8 GPUs per node) --> total batch size 1024\npython main.py -m hydra/launcher=torchrun +hydra.launcher.nnodes=2 hydra.launcher.nproc_per_node=8 hydra.launcher.max_nodes=2 hydra.launcher.rdzv_id=$RANDOM hydra.launcher.rdzv_backend=c10d hydra.launcher.rdzv_endpoint=$head_node_ip:29501 +ddp=True experiment_name=mddt_pretrain seed=42 env_params=multi_domain_mtdmc agent_params=cdt_pretrain_disc agent_params.kind=MDDT agent_params/model_kwargs=multi_domain_mtdmc agent_params/data_paths=mt40v2_dmc10 run_params=pretrain eval_params=pretrain_disc +agent_params/replay_buffer_kwargs=multi_domain_mtdmc +agent_params.accumulation_steps=2 +agent_params.use_amp=True +agent_params.batch_size=64\n"
+        }
+    },
+    {
+        "timestamp": 1772852504.137466,
+        "data": {
+            "use_tools": null,
+            "metrics": {
+                "cached_content_token_count": 329514,
+                "candidates_token_count": 267,
+                "prompt_token_count": 334323,
+                "thoughts_token_count": 1107,
+                "total_token_count": 335697
+            },
+            "memory": true,
+            "tools": null,
+            "prompt": "### PERSONA\nYou are a job validation expert.\n\n### CONTEXT\nWe need to validate a job specification for correctness.\n\n### GOAL\nI need to validate if the following job specification is correct:\n\n```\n#!/bin/bash -l\n#FLUX --account=X\n#FLUX --queue=X\n#FLUX --nodes=2\n#FLUX --time=48:00:00\n#FLUX --output=OUTPUT_PATH\n\n# NOTE: This script appears to be for a multi-GPU, multi-node job. The 'select=2'\n# PBS directive has been translated to '--nodes=2'. Assuming 8 GPUs per node as\n# specified in the Python launch command, the following directives would be appropriate.\n#FLUX --ntasks-per-node=8\n#FLUX --gpus-per-task=1\n\n# NOTE: The PBS directive '-j oe' (join stdout/stderr) is the default behavior\n# in Flux when an error file (-e) is not specified.\n\nunset CUDA_VISIBLE_DEVICES\nexport NCCL_P2P_DISABLE=1\n\ncd SOURCE_DIR_PATH\nsource activate mddt\n\n# NOTE: The original script's logic for manually setting up a multi-node launch\n# with Hydra is not necessary with Flux. Flux provides the necessary environment\n# variables for PyTorch's native distributed launch (torchrun) to discover the\n# cluster topology automatically. The manual host discovery has been removed.\n\n# on 16 GPUs (2 nodes, 8 GPUs per node) --> total batch size 1024\n# The Hydra launch parameters are simplified to leverage the environment set by Flux.\npython main.py -m hydra/launcher=torchrun \\ \n    +hydra.launcher.nproc_per_node=8 \\ \n    +ddp=True experiment_name=mddt_pretrain seed=42 \\ \n    env_params=multi_domain_mtdmc agent_params=cdt_pretrain_disc agent_params.kind=MDDT \\ \n    agent_params/model_kwargs=multi_domain_mtdmc agent_params/data_paths=mt40v2_dmc10 \\ \n    run_params=pretrain eval_params=pretrain_disc \\ \n    +agent_params/replay_buffer_kwargs=multi_domain_mtdmc \\ \n    +agent_params.accumulation_steps=2 +agent_params.use_amp=True +agent_params.batch_size=64\n\n```\n\n### REQUIREMENTS & CONSTRAINTS\nYou MUST return a JSON structure with fields for 'valid' (bool) and a list of string 'reasons'. You MAY optionally add a field `issues` with a list of debugging or critique of any code.\n\n### INSTRUCTIONS\n1. Analyze the provided script above.\n2. Use MUST use a jobspec validation tool for the manager if one is available otherwise use your knowledge.\n3. Determine validity based on the resource section ONLY\n4. The 'reasons' should ONLY be specific to resources\n5. If the script includes problematic code, please include in 'issues'\n6. You MUST include a 'tool_call' boolean, true or false, to indicate if you used a validation tool for validation.\n7. Return a json structure with 'valid' and 'tool_call' and 'reasons' (if not valid) and 'issues'\n"
+        }
+    }
+]

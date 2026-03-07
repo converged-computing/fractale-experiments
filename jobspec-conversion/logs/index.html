@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fractale: HPC Orchestrator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono&family=Inter:wght@400;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background: #020617; color: #f8fafc; }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+        
+        /* Timeline Connector Line */
+        .step-node:not(:last-child)::after {
+            content: ''; position: absolute; top: 24px; right: -24px; width: 24px; height: 2px; background: #1e293b; z-index: 0;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+        .code-container { background: #010409; }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden">
+
+    <header class="h-16 border-b border-slate-800 flex items-center justify-between px-6 bg-slate-900/50 backdrop-blur-md z-50">
+        <div class="flex items-center gap-6">
+            <h1 class="text-xl font-bold text-blue-400 tracking-tighter">FRACTALE <span class="text-slate-500 font-light text-lg">ORCHESTRATOR</span></h1>
+            <div class="flex items-center gap-3">
+                <label class="text-[10px] uppercase font-bold text-slate-500">Experiment</label>
+                <select id="experiment-select" class="bg-slate-900 border border-slate-700 text-xs p-1.5 rounded focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer" onchange="loadExperiment(this.value)"></select>
+            </div>
+        </div>
+        <div id="global-stats" class="flex gap-8 text-[11px] font-bold uppercase tracking-widest">
+            <div class="flex flex-col items-end"><span class="text-slate-500">Success Rate</span><span id="stat-accuracy" class="text-blue-400 text-sm">--</span></div>
+            <div class="flex flex-col items-end"><span class="text-slate-500">Avg Tokens</span><span id="stat-tokens" class="text-blue-400 text-sm">--</span></div>
+        </div>
+    </header>
+
+    <div class="flex flex-1 overflow-hidden">
+        <aside class="w-80 border-r border-slate-800 flex flex-col bg-slate-950">
+            <div class="p-4 border-b border-slate-800 bg-slate-900/20 text-[10px] font-black text-slate-500 uppercase tracking-widest">Attempt History</div>
+            <div id="attempt-list" class="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar"></div>
+        </aside>
+
+        <main class="flex-1 flex flex-col overflow-hidden">
+            <div class="h-1/3 border-b border-slate-800 p-6 bg-slate-900/10 overflow-hidden flex flex-col">
+                <h2 class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Execution Path (State Machine)</h2>
+                <div id="timeline-flow" class="flex items-start gap-12 overflow-x-auto h-full pb-4 px-4 custom-scrollbar"></div>
+            </div>
+
+            <div class="flex-1 flex overflow-hidden">
+                <div class="flex-1 border-r border-slate-800 flex flex-col">
+                    <div class="px-4 py-2 bg-slate-900/60 border-b border-slate-800 flex justify-between items-center">
+                        <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Source: Slurm</span>
+                    </div>
+                    <pre id="input-view" class="flex-1 p-6 overflow-auto text-[12px] mono text-slate-400 code-container custom-scrollbar whitespace-pre"></pre>
+                </div>
+                <div class="flex-1 flex flex-col">
+                    <div class="px-4 py-2 bg-slate-900/60 border-b border-slate-800 flex justify-between items-center">
+                        <span class="text-[10px] font-black text-blue-400 uppercase tracking-widest">Target: Flux</span>
+                    </div>
+                    <pre id="output-view" class="flex-1 p-6 overflow-auto text-[12px] mono text-blue-100 code-container custom-scrollbar whitespace-pre"></pre>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="data.js"></script>
+    <script>
+        window.onload = function() {
+            if (typeof experiment_data === 'undefined') {
+                document.body.innerHTML = `<div class="p-20 text-red-500 mono bg-slate-950 h-screen">ERROR: data.js not loaded.</div>`;
+                return;
+            }
+            const select = document.getElementById('experiment-select');
+            Object.keys(experiment_data).forEach(name => {
+                const opt = document.createElement('option');
+                opt.value = name; opt.textContent = name;
+                select.appendChild(opt);
+            });
+            if (Object.keys(experiment_data).length > 0) loadExperiment(select.value);
+        };
+
+        function loadExperiment(name) {
+            const attempts = experiment_data[name];
+            const list = document.getElementById('attempt-list');
+            list.innerHTML = ""; 
+
+            // Update Stats
+            const valid = attempts.filter(a => a.status === 'Valid').length;
+            document.getElementById('stat-accuracy').textContent = ((valid / attempts.length) * 100).toFixed(1) + "%";
+            const tokens = attempts.reduce((acc, c) => acc + (c.token_total || 0), 0) / attempts.length;
+            document.getElementById('stat-tokens').textContent = Math.round(tokens).toLocaleString();
+
+            attempts.forEach(attr => {
+                const btn = document.createElement('button');
+                btn.className = "w-full text-left p-4 rounded-lg border border-slate-800 bg-slate-900/30 hover:border-blue-500 mb-2 transition-all group";
+                btn.onclick = () => selectAttempt(name, attr.id);
+                
+                const statusColor = attr.status === 'Valid' ? 'text-green-400' : 'text-red-400';
+                btn.innerHTML = `
+                    <div class="flex justify-between items-start mb-1">
+                        <span class="text-[10px] text-slate-500 mono">${attr.id}</span>
+                        <span class="text-[9px] text-slate-600 font-bold">${attr.step_count || 0} STEPS</span>
+                    </div>
+                    <div class="${statusColor} text-xs font-bold uppercase tracking-tight">${attr.status}</div>`;
+                list.appendChild(btn);
+            });
+            
+            if (attempts.length > 0) selectAttempt(name, attempts[0].id);
+        }
+
+        function selectAttempt(expName, attemptId) {
+            const attempt = experiment_data[expName].find(a => a.id === attemptId);
+            const allBtns = document.querySelectorAll('#attempt-list button');
+            allBtns.forEach(b => b.classList.remove('border-blue-500', 'bg-blue-500/10'));
+            
+            // Highlight active button
+            const activeBtn = Array.from(allBtns).find(b => b.innerText.includes(attemptId));
+            if (activeBtn) activeBtn.classList.add('border-blue-500', 'bg-blue-500/10');
+
+            renderOrchestration(attempt);
+        }
+
+function renderOrchestration(attempt) {
+    // 1. Reset Timeline
+    const timelineFlow = document.getElementById('timeline-flow');
+    timelineFlow.innerHTML = ""; 
+    
+    // 2. Update Source/Target Panels (The ones that went missing)
+    const inputPanel = document.getElementById('input-view');
+    const outputPanel = document.getElementById('output-view');
+    
+    // Ensure we handle potential nulls
+    inputPanel.textContent = attempt.slurm || "No Slurm script found.";
+    outputPanel.textContent = attempt.flux || "No Flux translation found.";
+
+    // 3. Populate Timeline
+    const fragment = document.createDocumentFragment();
+
+    (attempt.events || []).filter(e => e.event === "exit").forEach((ev) => {
+        const validSteps = ['transform', 'validate', 'validate_flux_jobspec', 'manual_validate'];
+        if (!validSteps.includes(ev.step)) return;
+
+        // Extract and normalize data
+        const data = ev.data.output || ev.data.outputs || ev.data;
+        const isValid = data.valid === true;
+        const isInvalid = data.valid === false;
+        
+        // Styling logic
+        let color, label;
+        if (ev.step.includes('validate')) {
+            if (isValid) {
+                color = "bg-green-900/30 border-green-500 text-green-400";
+                label = "PASS";
+            } else if (isInvalid) {
+                color = "bg-red-900/30 border-red-500 text-red-400";
+                label = "FAIL";
+            } else {
+                color = "bg-blue-900/30 border-blue-500 text-blue-400";
+                label = "NA";
+            }
+        } else {
+            color = "bg-slate-800 border-slate-600 text-slate-300";
+            label = "CONVERT";
+        }
+
+        const node = document.createElement('div');
+        node.className = "step-node relative flex flex-col items-center min-w-[150px] shrink-0 group cursor-pointer";
+        node.onclick = () => showModal(ev.step, data);
+
+        node.innerHTML = `
+            <div class="w-full py-3 border-2 rounded-xl text-center shadow-lg transition-all group-hover:scale-105 ${color} z-10">
+                <div class="text-[8px] font-black uppercase opacity-50 tracking-widest">${ev.step.replace('_', ' ')}</div>
+                <div class="text-xs font-bold">${label}</div>
+            </div>
+            <div class="mt-2 text-[9px] text-slate-600 mono">${new Date(ev.timestamp * 1000).toLocaleTimeString([], {hour12:false})}</div>`;
+        
+        fragment.appendChild(node);
+    });
+
+    timelineFlow.appendChild(fragment);
+}
+</script>
+<div id="step-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-10">
+    <div class="bg-slate-900 border border-slate-700 p-6 rounded-xl max-w-2xl w-full shadow-2xl">
+        <h3 id="modal-title" class="text-blue-400 font-bold uppercase tracking-widest mb-2">Step Metadata</h3>
+        <pre id="modal-content" class="bg-black p-4 rounded text-xs mono text-green-400 overflow-auto max-h-[60vh]"></pre>
+        <button onclick="closeModal()" class="mt-4 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-bold">CLOSE</button>
+    </div>
+</div>
+    <script>
+        function showModal(stepName, data) {
+            document.getElementById('step-modal').classList.remove('hidden');
+            document.getElementById('modal-title').textContent = stepName.replace('_', ' ');
+            document.getElementById('modal-content').textContent = JSON.stringify(data, null, 2);
+        }
+
+        function closeModal() {
+            document.getElementById('step-modal').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>

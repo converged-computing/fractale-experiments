@@ -1,0 +1,119 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n#FLUX --nodes=1\n#FLUX --ntasks=1\n#FLUX --cpus-per-task=2\n#FLUX --gpus-per-task=1\n#FLUX -C k80\n#FLUX --time=24:00:00\n#FLUX --mem-per-task=16G\n#FLUX --job-name=nott-AR\n# NOTE: The PBS directive '-j oe' (join stdout/stderr) is the default behavior\n# in Flux when an error file (-e) is not specified. Both streams will be\n# written to the output file.\n\n# NOTE: The --mail-user (-M) directive has been omitted as Flux\n# does not have a direct equivalent for job status email notifications.\n\nmodule purge\nmodule load node\nmodule load cmake\nmodule load python/intel/2.7.6\nmodule load numpy/intel/1.9.2\nmodule load hdf5/intel/1.8.12\nmodule load cuda/7.5.18\nmodule load cudnn/7.0\n\nRUNDIR=$SCRATCH/structuredinference/expt-polyphonic\ncd $RUNDIR\nTHEANO_FLAGS=\"lib.cnmem=1.,scan.allow_gc=False,compiledir_format=gpu0\" python2.7 train_dkf.py -vm R -infm structured -ar 5000 -dset nottingham-sorted \n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": []
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n#FLUX --nodes=1\n#FLUX --ntasks=1\n#FLUX --cpus-per-task=2\n#FLUX --gpus-per-task=1\n#FLUX -C k80\n#FLUX --time=24:00:00\n#FLUX --mem-per-task=16G\n#FLUX --job-name=nott-AR\n# NOTE: The PBS directive '-j oe' (join stdout/stderr) is the default behavior\n# in Flux when an error file (-e) is not specified. Both streams will be\n# written to the output file.\n\n# NOTE: The --mail-user (-M) directive has been omitted as Flux\n# does not have a direct equivalent for job status email notifications.\n\nmodule purge\nmodule load node\nmodule load cmake\nmodule load python/intel/2.7.6\nmodule load numpy/intel/1.9.2\nmodule load hdf5/intel/1.8.12\nmodule load cuda/7.5.18\nmodule load cudnn/7.0\n\nRUNDIR=$SCRATCH/structuredinference/expt-polyphonic\ncd $RUNDIR\nTHEANO_FLAGS=\"lib.cnmem=1.,scan.allow_gc=False,compiledir_format=gpu0\" python2.7 train_dkf.py -vm R -infm structured -ar 5000 -dset nottingham-sorted \n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "pbs",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n#PBS -l nodes=1:ppn=2:gpus=1:k80\n#PBS -l walltime=24:00:00\n#PBS -l mem=16GB\n#PBS -N nott-AR \n#PBS -M rahul@cs.nyu.edu\n#PBS -j oe\n\nmodule purge\nmodule load node\nmodule load cmake\nmodule load python/intel/2.7.6\nmodule load numpy/intel/1.9.2\nmodule load hdf5/intel/1.8.12\nmodule load cuda/7.5.18\nmodule load cudnn/7.0\n\nRUNDIR=$SCRATCH/structuredinference/expt-polyphonic\ncd $RUNDIR\nTHEANO_FLAGS=\"lib.cnmem=1.,scan.allow_gc=False,compiledir_format=gpu0\" python2.7 train_dkf.py -vm R -infm structured -ar 5000 -dset nottingham-sorted \n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

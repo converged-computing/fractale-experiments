@@ -1,0 +1,158 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n#FLUX --account=prcoe12\n#FLUX --queue=booster\n#FLUX --time 6:00:00\n#FLUX --nodes 12\n#FLUX --tasks-per-node=1\n#FLUX --gres=gpu:4\n#FLUX --gpus-per-task=4\n#FLUX --cpus-per-task=96\n# Job name\n#FLUX -J raytune\n\n# Output and error logs\n#FLUX -o logs_slurm/log_{name}_{id}.out\n#FLUX -e logs_slurm/log_{name}_{id}.err\n\n# Add jobscript to job output\necho \"#################### Job submission script. #############################\"\ncat $0\necho \"################# End of job submission script. #########################\"\n\nexport TUNE_RESULT_DIR=\"/p/project/prcoe12/wulff1/ray_results/tune_result_dir\"\n# The SLURM_NNODES variable is replaced with the Flux equivalent.\nexport TUNE_MAX_PENDING_TRIALS_PG=${FLUX_JOB_NNODES}\n\nmodule purge\nmodule load GCC/10.3.0 CUDA/11.0 cuDNN/8.0.2.39-CUDA-11.0\nexport CUDA_VISIBLE_DEVICES=0,1,2,3\njutil env activate -p prcoe12\nnvidia-smi\n\nsource /p/project/prcoe12/wulff1/miniconda3/bin/activate tf2\necho \"Python used:\"\nwhich python3\npython3 --version\n\n\n# NOTE: The manual Ray cluster startup using srun has been replaced.\n# For a Flux environment, it is recommended to use Flux's PMIx integration\n# to allow Ray to discover the allocated resources automatically.\n# This typically requires `ray start` to be called inside a `flux run` command.\n# The logic below is a simplified placeholder.\n# It assumes a `ray start` command can be launched via `flux run` and that\n# worker nodes can connect using the information provided.\n\n# Get the list of allocated nodes for this job.\nnodelist=($(flux resource list -o '{name}'))\nnode_1=${nodelist[0]}\nip=$(flux exec -r 0 hostname)\nport=6379\nip_head=$ip:$port\nexport ip_head\necho \"IP Head: $ip_head\"\n\n# Start Ray head node in the background\nflux run -N1 -n1 --nodelist=${node_1} ray start --head --port=${port} --num-gpus=4 --num-cpus=96 --block &\nsleep 30\n\n# Start Ray worker nodes\nflux run -N11 -n11 --nodelist=$(IFS=,; echo \"${nodelist[*]:1}\") ray start --address=${ip_head} --num-gpus=4 --num-cpus=96 --block &\nsleep 5\n\n\n#### call your code below\n\n# The SLURM variables are replaced with their Flux equivalents.\npython3 mlpf/pipeline.py raytune -c $1 -n $2 --cpus \"${FLUX_JOB_CPUS_PER_TASK}\" --gpus \"${FLUX_JOB_GPUS_PER_TASK}\" -r\nexit\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": false,
+                    "tool_call": true,
+                    "reasons": [
+                        "The directive '#FLUX --gres=gpu:4' is not a valid Flux option. General resource requests are not supported in this format. GPU resources should be requested using '--gpus' (total count) or '--gpus-per-task'."
+                    ],
+                    "issues": [
+                        "The script manually sets `export CUDA_VISIBLE_DEVICES=0,1,2,3`. This is a dangerous practice that bypasses the scheduler's resource assignment and isolation mechanisms. Flux will allocate specific physical GPUs to the job, and this manual override can cause the job to either use the wrong GPUs or conflict with other jobs on the node. This line should be removed.",
+                        "The launch logic for the Ray cluster is flawed. The command `flux run -N11 -n11 ...` attempts to launch 11 separate single-task jobs on the worker nodes. This is not how `ray start` works for worker nodes; it is a single command that needs to be run on each worker. The correct approach would be to use a single `flux run -N 11 -n 11 ...` command that executes `ray start ...` on all 11 worker nodes simultaneously.",
+                        "The output and error files are directed to a subdirectory (`logs_slurm/`). The script does not create this directory, which will cause the job to fail at launch if the directory does not already exist."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "failed -> transform",
+            "complete": false,
+            "state": "failed"
+        },
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n#FLUX --account=prcoe12\n#FLUX --queue=booster\n#FLUX --time=6:00:00\n#FLUX --nodes=12\n#FLUX --tasks-per-node=1\n#FLUX --gpus-per-task=4\n#FLUX --cpus-per-task=96\n# Job name\n#FLUX -J raytune\n\n# Output and error logs\n#FLUX -o logs_slurm/log_{name}_{id}.out\n#FLUX -e logs_slurm/log_{name}_{id}.err\n\n# NOTE: The SLURM --gres directive was omitted as it is redundant. The combination of\n# --tasks-per-node=1 and --gpus-per-task=4 already specifies that each node will use 4 GPUs.\n\n# Add jobscript to job output\necho \"#################### Job submission script. #############################\"\ncat $0\necho \"################# End of job submission script. #########################\"\n\nexport TUNE_RESULT_DIR=\"/p/project/prcoe12/wulff1/ray_results/tune_result_dir\"\n# The SLURM_NNODES variable is replaced with the Flux equivalent.\nexport TUNE_MAX_PENDING_TRIALS_PG=${FLUX_JOB_NNODES}\n\nmodule purge\nmodule load GCC/10.3.0 CUDA/11.0 cuDNN/8.0.2.39-CUDA-11.0\nexport CUDA_VISIBLE_DEVICES=0,1,2,3\njutil env activate -p prcoe12\nnvidia-smi\n\nsource /p/project/prcoe12/wulff1/miniconda3/bin/activate tf2\necho \"Python used:\"\nwhich python3\npython3 --version\n\n\n# NOTE: The manual Ray cluster startup using srun has been replaced.\n# For a Flux environment, it is recommended to use Flux's PMIx integration\n# to allow Ray to discover the allocated resources automatically.\n# This typically requires `ray start` to be called inside a `flux run` command.\n# The logic below is a simplified placeholder.\n# It assumes a `ray start` command can be launched via `flux run` and that\n# worker nodes can connect using the information provided.\n\n# Get the list of allocated nodes for this job.\nnodelist=($(flux resource list -o '{name}'))\nnode_1=${nodelist[0]}\nip=$(flux exec -r 0 hostname)\nport=6379\nip_head=$ip:$port\nexport ip_head\necho \"IP Head: $ip_head\"\n\n# Start Ray head node in the background\nflux run -N1 -n1 --nodelist=${node_1} ray start --head --port=${port} --num-gpus=4 --num-cpus=96 --block &\nsleep 30\n\n# Start Ray worker nodes\nflux run -N11 -n11 --nodelist=$(IFS=,; echo \"${nodelist[*]:1}\") ray start --address=${ip_head} --num-gpus=4 --num-cpus=96 --block &\nsleep 5\n\n\n#### call your code below\n\n# The SLURM variables are replaced with their Flux equivalents.\npython3 mlpf/pipeline.py raytune -c $1 -n $2 --cpus \"${FLUX_JOB_CPUS_PER_TASK}\" --gpus \"${FLUX_JOB_GPUS_PER_TASK}\" -r\nexit\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "The script manually sets `export CUDA_VISIBLE_DEVICES=0,1,2,3`. This is a dangerous practice that bypasses the scheduler's resource assignment and isolation mechanisms. Flux will allocate specific physical GPUs to the job, and this manual override can cause the job to either use the wrong GPUs or conflict with other jobs on the node. This line should be removed.",
+                        "The launch logic for the Ray cluster is flawed. The command `flux run -N11 -n11 ...` attempts to launch 11 separate single-task jobs on the worker nodes. This is not how `ray start` works for worker nodes; it is a single command that needs to be run on each worker. The correct approach would be to use a single `flux run -N 11 -n 11 ...` command that executes `ray start ...` on all 11 worker nodes simultaneously.",
+                        "The output and error files are directed to a subdirectory (`logs_slurm/`). The script does not create this directory, which will cause the job to fail at launch if the directory does not already exist."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n#FLUX --account=prcoe12\n#FLUX --queue=booster\n#FLUX --time=6:00:00\n#FLUX --nodes=12\n#FLUX --tasks-per-node=1\n#FLUX --gpus-per-task=4\n#FLUX --cpus-per-task=96\n# Job name\n#FLUX -J raytune\n\n# Output and error logs\n#FLUX -o logs_slurm/log_{name}_{id}.out\n#FLUX -e logs_slurm/log_{name}_{id}.err\n\n# NOTE: The SLURM --gres directive was omitted as it is redundant. The combination of\n# --tasks-per-node=1 and --gpus-per-task=4 already specifies that each node will use 4 GPUs.\n\n# Add jobscript to job output\necho \"#################### Job submission script. #############################\"\ncat $0\necho \"################# End of job submission script. #########################\"\n\nexport TUNE_RESULT_DIR=\"/p/project/prcoe12/wulff1/ray_results/tune_result_dir\"\n# The SLURM_NNODES variable is replaced with the Flux equivalent.\nexport TUNE_MAX_PENDING_TRIALS_PG=${FLUX_JOB_NNODES}\n\nmodule purge\nmodule load GCC/10.3.0 CUDA/11.0 cuDNN/8.0.2.39-CUDA-11.0\nexport CUDA_VISIBLE_DEVICES=0,1,2,3\njutil env activate -p prcoe12\nnvidia-smi\n\nsource /p/project/prcoe12/wulff1/miniconda3/bin/activate tf2\necho \"Python used:\"\nwhich python3\npython3 --version\n\n\n# NOTE: The manual Ray cluster startup using srun has been replaced.\n# For a Flux environment, it is recommended to use Flux's PMIx integration\n# to allow Ray to discover the allocated resources automatically.\n# This typically requires `ray start` to be called inside a `flux run` command.\n# The logic below is a simplified placeholder.\n# It assumes a `ray start` command can be launched via `flux run` and that\n# worker nodes can connect using the information provided.\n\n# Get the list of allocated nodes for this job.\nnodelist=($(flux resource list -o '{name}'))\nnode_1=${nodelist[0]}\nip=$(flux exec -r 0 hostname)\nport=6379\nip_head=$ip:$port\nexport ip_head\necho \"IP Head: $ip_head\"\n\n# Start Ray head node in the background\nflux run -N1 -n1 --nodelist=${node_1} ray start --head --port=${port} --num-gpus=4 --num-cpus=96 --block &\nsleep 30\n\n# Start Ray worker nodes\nflux run -N11 -n11 --nodelist=$(IFS=,; echo \"${nodelist[*]:1}\") ray start --address=${ip_head} --num-gpus=4 --num-cpus=96 --block &\nsleep 5\n\n\n#### call your code below\n\n# The SLURM variables are replaced with their Flux equivalents.\npython3 mlpf/pipeline.py raytune -c $1 -n $2 --cpus \"${FLUX_JOB_CPUS_PER_TASK}\" --gpus \"${FLUX_JOB_GPUS_PER_TASK}\" -r\nexit\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n\n#SBATCH --account=prcoe12\n#SBATCH --partition=booster\n#SBATCH --time 6:00:00\n#SBATCH --nodes 12\n#SBATCH --tasks-per-node=1\n#SBATCH --gres=gpu:4\n#SBATCH --gpus-per-task=4\n#SBATCH --cpus-per-task=96\n# Job name\n#SBATCH -J raytune\n\n# Output and error logs\n#SBATCH -o logs_slurm/log_%x_%j.out\n#SBATCH -e logs_slurm/log_%x_%j.err\n\n# Add jobscript to job output\necho \"#################### Job submission script. #############################\"\ncat $0\necho \"################# End of job submission script. #########################\"\n\nexport TUNE_RESULT_DIR=\"/p/project/prcoe12/wulff1/ray_results/tune_result_dir\"\nexport TUNE_MAX_PENDING_TRIALS_PG=${SLURM_NNODES}\n\nmodule purge\nmodule load GCC/10.3.0 CUDA/11.0 cuDNN/8.0.2.39-CUDA-11.0\nexport CUDA_VISIBLE_DEVICES=0,1,2,3\njutil env activate -p prcoe12\nnvidia-smi\n\nsource /p/project/prcoe12/wulff1/miniconda3/bin/activate tf2\necho \"Python used:\"\nwhich python3\npython3 --version\n\n\n################# DO NOT CHANGE THINGS HERE UNLESS YOU KNOW WHAT YOU ARE DOING ###############\n# This script is a modification to the implementation suggest by gregSchwartz18 here:\n# https://github.com/ray-project/ray/issues/826#issuecomment-522116599\nredis_password=$(uuidgen)\nexport redis_password\necho \"Redis password: ${redis_password}\"\n\nnodes=$(scontrol show hostnames $SLURM_JOB_NODELIST) # Getting the node names\nnodes_array=( $nodes )\n\nnode_1=${nodes_array[0]}\n# ip=$(srun --nodes=1 --ntasks=1 -w $node_1 hostname --ip-address) # making redis-address\nip=$(srun --nodes=1 --ntasks=1 -w $node_1 host ${node_1}i | awk '{ print $4 }') # making redis-address\nport=6379\nip_head=$ip:$port\nexport ip_head\necho \"IP Head: $ip_head\"\n\necho \"STARTING HEAD at $node_1\"\nsrun --nodes=1 --ntasks=1 -w $node_1 mlpf/raytune/start-head.sh $ip $SLURM_JOB_ID $2 \"/p/project/prcoe12/wulff1/nvidia_smi_logs/\" &\nsleep 30\n\nworker_num=$(($SLURM_JOB_NUM_NODES - 1)) #number of nodes other than the head node\nfor ((  i=1; i<=$worker_num; i++ ))\ndo\n  node_i=${nodes_array[$i]}\n  echo \"STARTING WORKER $i at $node_i\"\n  srun --nodes=1 --ntasks=1 -w ${node_i} mlpf/raytune/start-worker.sh $ip_head $SLURM_JOB_ID $i $2 \"/p/project/prcoe12/wulff1/nvidia_smi_logs/\" &\n  sleep 5\ndone\n##############################################################################################\n\n#### call your code below\n\npython3 mlpf/pipeline.py raytune -c $1 -n $2 --cpus \"${SLURM_CPUS_PER_TASK}\" --gpus \"${SLURM_GPUS_PER_TASK}\" -r\nexit\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

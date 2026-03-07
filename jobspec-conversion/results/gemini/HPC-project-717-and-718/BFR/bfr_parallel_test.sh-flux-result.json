@@ -1,0 +1,113 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n#FLUX --nodes=3\n#FLUX --ntasks-per-node=1\n#FLUX --cpus-per-task=2\n#FLUX --mem-per-node=2gb\n\n# set max execution time\n#FLUX --time=0:02:00\n\n# NOTE: The PBS directive 'place=pack:excl' has been translated to --exclusive.\n# 'pack' is the default placement behavior and does not require a specific option.\n#FLUX --exclusive\n\n# imposta la coda di esecuzione\n#FLUX --queue=short_cpuQ\n\nmodule load mpich-3.2\nmodule load valgrind-3.15.0 \n\n# 'mpirun.actual' is replaced by Flux's native launcher, 'flux run'.\n# The number of OpenMP threads is set via an environment variable.\n\n# OMP_NUM_THREADS=2 flux run -n 3 valgrind --track-origins=yes --leak-check=full --verbose CLionProjects/HPC1/BFR/tests/test_BFR_parallel.o > HPC/BFR/output.txt 2>&1 # Full debug setup\n# OMP_NUM_THREADS=2 flux run -n 3 valgrind CLionProjects/HPC1/BFR/tests/test_BFR_parallel.o > HPC/BFR/output.txt 2>&1 # Debug setup\nOMP_NUM_THREADS=2 flux run -n 8 CLionProjects/HPC1/BFR/tests/test_BFR_parallel.o\n\n# poi esegui \"flux submit bfr_parallel_test.sh\"\n# non eseguire MAI manualmente!!\n\n# mpicc tests/test_BFR_parallel.c lib/bfr_structures/bfr_structures.c lib/kmeans_wrapper/kmeans_wrapper.c lib/kmeans/kmeans.c src/BFR_parallel.c -o test/test_BFR_parallel.o -lm -fopenmp\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "content": "[SSL: SSLV3_ALERT_BAD_RECORD_MAC] sslv3 alert bad record mac (_ssl.c:2559)"
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n#FLUX --nodes=3\n#FLUX --ntasks-per-node=1\n#FLUX --cpus-per-task=2\n#FLUX --mem-per-node=2gb\n\n# set max execution time\n#FLUX --time=0:02:00\n\n# NOTE: The PBS directive 'place=pack:excl' has been translated to --exclusive.\n# 'pack' is the default placement behavior and does not require a specific option.\n#FLUX --exclusive\n\n# imposta la coda di esecuzione\n#FLUX --queue=short_cpuQ\n\nmodule load mpich-3.2\nmodule load valgrind-3.15.0 \n\n# 'mpirun.actual' is replaced by Flux's native launcher, 'flux run'.\n# The number of OpenMP threads is set via an environment variable.\n\n# OMP_NUM_THREADS=2 flux run -n 3 valgrind --track-origins=yes --leak-check=full --verbose CLionProjects/HPC1/BFR/tests/test_BFR_parallel.o > HPC/BFR/output.txt 2>&1 # Full debug setup\n# OMP_NUM_THREADS=2 flux run -n 3 valgrind CLionProjects/HPC1/BFR/tests/test_BFR_parallel.o > HPC/BFR/output.txt 2>&1 # Debug setup\nOMP_NUM_THREADS=2 flux run -n 8 CLionProjects/HPC1/BFR/tests/test_BFR_parallel.o\n\n# poi esegui \"flux submit bfr_parallel_test.sh\"\n# non eseguire MAI manualmente!!\n\n# mpicc tests/test_BFR_parallel.c lib/bfr_structures/bfr_structures.c lib/kmeans_wrapper/kmeans_wrapper.c lib/kmeans/kmeans.c src/BFR_parallel.c -o test/test_BFR_parallel.o -lm -fopenmp\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "pbs",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n\n#PBS -l select=3:ncpus=2:mem=2gb\n\n# set max execution time\n#PBS -l walltime=0:02:00 -l place=pack:excl\n\n# imposta la coda di esecuzione\n#PBS -q short_cpuQ\nmodule load mpich-3.2\nmodule load valgrind-3.15.0 \n# OMP_NUM_THREADS=2 mpirun.actual -n 3 valgrind --track-origins=yes --leak-check=full --verbose HPC/BFR/example2.o > HPC/BFR/output.txt 2>&1 # Full debug setup\n# OMP_NUM_THREADS=2 mpirun.actual -n 3 valgrind HPC/BFR/example2.o > HPC/BFR/output.txt 2>&1 # Debug setup\nOMP_NUM_THREADS=2 mpirun.actual -n 8 CLionProjects/HPC1/BFR/tests/test_BFR_parallel.o\n\n# poi esegui \"qsub bfr_parallel_test.sh\"\n# non eseguire MAI manualmente!!\n\n# mpicc tests/test_BFR_parallel.c lib/bfr_structures/bfr_structures.c lib/kmeans_wrapper/kmeans_wrapper.c lib/kmeans/kmeans.c src/BFR_parallel.c -o test/test_BFR_parallel.o -lm -fopenmp",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

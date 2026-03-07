@@ -1,0 +1,158 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/usr/bin/zsh\n#FLUX --mem=32gb\n#FLUX --ntasks=1\n#FLUX --cpus-per-task=8\n#FLUX --gpus=1\n#FLUX --partition=main\n#FLUX --job-name=udal\n\n# NOTE: The SLURM --array directive was omitted. Flux handles job arrays at\n# submission time. This script should be submitted using 'flux bulksubmit',\n# for example:\n# flux bulksubmit -n 10 --cc=1-10 --concurrent=10 --output=\"/mnt/work/dhuseljic/logs/udal/evaluation/{id}_{task[id]}__udal.log\" ./your_script_name.sh\n# The script will then execute 10 times with FLUX_JOB_ARRAY_TASK_ID set from 1 to 10.\n# The fallback output directive below is for single-job submission.\n#FLUX --output=/mnt/work/dhuseljic/logs/udal/evaluation/{id}__{name}.log\n\ndate;hostname;pwd\nsource ~/envs/dal-toolbox/bin/activate\ncd /mnt/home/dhuseljic/projects/dal-toolbox/experiments/udal/\n\ndataset=CIFAR10\nood_datasets=\\[CIFAR100,\\ SVHN\\]\nmodel=resnet18_mcdropout\nal_strat=bald\nn_init=128\nacq_size=128\nn_acq=38\n\n# The SLURM_ARRAY_TASK_ID variable is replaced with the Flux equivalent.\nrandom_seed=$FLUX_JOB_ARRAY_TASK_ID\nqueried_indices_json=/mnt/work/dhuseljic/results/udal/active_learning/${dataset}/${model}/${al_strat}/N_INIT${n_init}__ACQ_SIZE${acq_size}__N_ACQ${n_acq}/seed${random_seed}/queried_indices.json\noutput_dir=/mnt/work/dhuseljic/results/udal/evaluation/${dataset}/${model}_sngp/${al_strat}/N_INIT${n_init}__ACQ_SIZE${acq_size}__N_ACQ${n_acq}/seed${random_seed}/\n\necho \"Starting script. Writing results to ${output_dir}\"\n\n# 'srun' is replaced by 'flux run'. For a single task, direct execution is also equivalent.\nflux run python -u evaluate.py \\\n\tmodel=resnet18_sngp \\\n\tdataset=$dataset \\\n\tood_datasets=$ood_datasets \\\n\tdataset_path=/mnt/work/dhuseljic/datasets \\\n\tqueried_indices_json=$queried_indices_json \\\n\toutput_dir=$output_dir \\\n\trandom_seed=$random_seed \necho \"Finished script.\"\ndate\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": false,
+                    "tool_call": true,
+                    "reasons": [
+                        "The directive '#FLUX --partition=main' is invalid. In Flux, a queue is specified with '--queue', not '--partition'."
+                    ],
+                    "issues": [
+                        "The script is designed for job array submission and relies on the `FLUX_JOB_ARRAY_TASK_ID` variable. If a user mistakenly submits this script as a single job (e.g., with `flux submit`), the variable will be unset, causing the `random_seed` variable to be empty and paths to be constructed incorrectly, which will likely lead to a runtime error.",
+                        "The script specifies an absolute path for its output file and for various data directories. It does not ensure that the parent directories for the output file exist. If the path `/mnt/work/dhuseljic/logs/udal/evaluation/` is not present at job launch, the job will fail immediately because it cannot create its log file.",
+                        "The script uses zsh (`#!/usr/bin/zsh`), which is less common than bash for job scripts and may not be available or the default shell in all HPC environments, potentially affecting portability."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "failed -> transform",
+            "complete": false,
+            "state": "failed"
+        },
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/usr/bin/zsh\n#FLUX --mem=32gb\n#FLUX --ntasks=1\n#FLUX --cpus-per-task=8\n#FLUX --gpus=1\n#FLUX --queue=main\n#FLUX --job-name=udal\n\n# NOTE: The SLURM --array directive was omitted. Flux handles job arrays at\n# submission time. This script should be submitted using 'flux bulksubmit',\n# for example:\n# flux bulksubmit -n 10 --cc=1-10 --concurrent=10 --output=\"/mnt/work/dhuseljic/logs/udal/evaluation/{id}_{task[id]}__udal.log\" ./your_script_name.sh\n# The script will then execute 10 times with FLUX_JOB_ARRAY_TASK_ID set from 1 to 10.\n# The fallback output directive below is for single-job submission.\n#FLUX --output=/mnt/work/dhuseljic/logs/udal/evaluation/{id}__{name}.log\n\ndate;hostname;pwd\nsource ~/envs/dal-toolbox/bin/activate\ncd /mnt/home/dhuseljic/projects/dal-toolbox/experiments/udal/\n\ndataset=CIFAR10\nood_datasets=\\[CIFAR100,\\ SVHN\\]\nmodel=resnet18_mcdropout\nal_strat=bald\nn_init=128\nacq_size=128\nn_acq=38\n\n# The SLURM_ARRAY_TASK_ID variable is replaced with the Flux equivalent.\nrandom_seed=$FLUX_JOB_ARRAY_TASK_ID\nqueried_indices_json=/mnt/work/dhuseljic/results/udal/active_learning/${dataset}/${model}/${al_strat}/N_INIT${n_init}__ACQ_SIZE${acq_size}__N_ACQ${n_acq}/seed${random_seed}/queried_indices.json\noutput_dir=/mnt/work/dhuseljic/results/udal/evaluation/${dataset}/${model}_sngp/${al_strat}/N_INIT${n_init}__ACQ_SIZE${acq_size}__N_ACQ${n_acq}/seed${random_seed}/\n\necho \"Starting script. Writing results to ${output_dir}\"\n\n# 'srun' is replaced by 'flux run'. For a single task, direct execution is also equivalent.\nflux run python -u evaluate.py \\\n\tmodel=resnet18_sngp \\\n\tdataset=$dataset \\\n\tood_datasets=$ood_datasets \\\n\tdataset_path=/mnt/work/dhuseljic/datasets \\\n\tqueried_indices_json=$queried_indices_json \\\n\toutput_dir=$output_dir \\\n\trandom_seed=$random_seed \necho \"Finished script.\"\ndate\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "The script is designed for job array submission and relies on the `FLUX_JOB_ARRAY_TASK_ID` variable. If a user mistakenly submits this script as a single job (e.g., with `flux submit`), the variable will be unset, causing the `random_seed` variable to be empty and paths to be constructed incorrectly, which will likely lead to a runtime error.",
+                        "The script specifies an absolute path for its output file and for various data directories. It does not ensure that the parent directories for the output file exist. If the path `/mnt/work/dhuseljic/logs/udal/evaluation/` is not present at job launch, the job will fail immediately because it cannot create its log file.",
+                        "The script uses zsh (`#!/usr/bin/zsh`), which is less common than bash for job scripts and may not be available or the default shell in all HPC environments, potentially affecting portability."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/usr/bin/zsh\n#FLUX --mem=32gb\n#FLUX --ntasks=1\n#FLUX --cpus-per-task=8\n#FLUX --gpus=1\n#FLUX --queue=main\n#FLUX --job-name=udal\n\n# NOTE: The SLURM --array directive was omitted. Flux handles job arrays at\n# submission time. This script should be submitted using 'flux bulksubmit',\n# for example:\n# flux bulksubmit -n 10 --cc=1-10 --concurrent=10 --output=\"/mnt/work/dhuseljic/logs/udal/evaluation/{id}_{task[id]}__udal.log\" ./your_script_name.sh\n# The script will then execute 10 times with FLUX_JOB_ARRAY_TASK_ID set from 1 to 10.\n# The fallback output directive below is for single-job submission.\n#FLUX --output=/mnt/work/dhuseljic/logs/udal/evaluation/{id}__{name}.log\n\ndate;hostname;pwd\nsource ~/envs/dal-toolbox/bin/activate\ncd /mnt/home/dhuseljic/projects/dal-toolbox/experiments/udal/\n\ndataset=CIFAR10\nood_datasets=\\[CIFAR100,\\ SVHN\\]\nmodel=resnet18_mcdropout\nal_strat=bald\nn_init=128\nacq_size=128\nn_acq=38\n\n# The SLURM_ARRAY_TASK_ID variable is replaced with the Flux equivalent.\nrandom_seed=$FLUX_JOB_ARRAY_TASK_ID\nqueried_indices_json=/mnt/work/dhuseljic/results/udal/active_learning/${dataset}/${model}/${al_strat}/N_INIT${n_init}__ACQ_SIZE${acq_size}__N_ACQ${n_acq}/seed${random_seed}/queried_indices.json\noutput_dir=/mnt/work/dhuseljic/results/udal/evaluation/${dataset}/${model}_sngp/${al_strat}/N_INIT${n_init}__ACQ_SIZE${acq_size}__N_ACQ${n_acq}/seed${random_seed}/\n\necho \"Starting script. Writing results to ${output_dir}\"\n\n# 'srun' is replaced by 'flux run'. For a single task, direct execution is also equivalent.\nflux run python -u evaluate.py \\\n\tmodel=resnet18_sngp \\\n\tdataset=$dataset \\\n\tood_datasets=$ood_datasets \\\n\tdataset_path=/mnt/work/dhuseljic/datasets \\\n\tqueried_indices_json=$queried_indices_json \\\n\toutput_dir=$output_dir \\\n\trandom_seed=$random_seed \necho \"Finished script.\"\ndate\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/usr/bin/zsh\n#SBATCH --mem=32gb\n#SBATCH --ntasks=1\n#SBATCH --cpus-per-task=8\n#SBATCH --gres=gpu:1\n#SBATCH --partition=main\n#SBATCH --array=1-10%10\n#SBATCH --job-name=udal\n#SBATCH --output=/mnt/work/dhuseljic/logs/udal/evaluation/%A_%a__%x.log\ndate;hostname;pwd\nsource ~/envs/dal-toolbox/bin/activate\ncd /mnt/home/dhuseljic/projects/dal-toolbox/experiments/udal/\n\ndataset=CIFAR10\nood_datasets=\\[CIFAR100,\\ SVHN\\]\nmodel=resnet18_mcdropout\nal_strat=bald\nn_init=128\nacq_size=128\nn_acq=38\nrandom_seed=$SLURM_ARRAY_TASK_ID\nqueried_indices_json=/mnt/work/dhuseljic/results/udal/active_learning/${dataset}/${model}/${al_strat}/N_INIT${n_init}__ACQ_SIZE${acq_size}__N_ACQ${n_acq}/seed${random_seed}/queried_indices.json\noutput_dir=/mnt/work/dhuseljic/results/udal/evaluation/${dataset}/${model}_sngp/${al_strat}/N_INIT${n_init}__ACQ_SIZE${acq_size}__N_ACQ${n_acq}/seed${random_seed}/\n\necho \"Starting script. Writing results to ${output_dir}\"\nsrun python -u evaluate.py \\\n\tmodel=resnet18_sngp \\\n\tdataset=$dataset \\\n\tood_datasets=$ood_datasets \\\n\tdataset_path=/mnt/work/dhuseljic/datasets \\\n\tqueried_indices_json=$queried_indices_json \\\n\toutput_dir=$output_dir \\\n\trandom_seed=$random_seed \necho \"Finished script.\"\ndate\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}
