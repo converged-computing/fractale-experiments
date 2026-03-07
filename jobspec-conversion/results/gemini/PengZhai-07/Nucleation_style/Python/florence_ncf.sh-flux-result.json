@@ -1,0 +1,121 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/sh\n#FLUX --job-name=florence_ncf\n# NOTE: The --mail-user and --mail-type directives have been omitted as Flux\n# does not have a direct equivalent for job status email notifications.\n#FLUX --nodes=1\n#FLUX --cpus-per-task=1\n#FLUX --ntasks=1\n#FLUX --mem-per-task=6500M\n#FLUX --time=4:00:00\n#FLUX --account=zspica0\n#FLUX --queue=standard\n\n# NOTE: The SLURM --array directive was omitted. Flux handles job arrays at\n# submission time. This script should be submitted using 'flux bulksubmit',\n# for example:\n# flux bulksubmit -n 8 --cc=105-112 ./your_script_name.sh\n# The script will then execute 8 times with FLUX_JOB_ARRAY_TASK_ID set from 105 to 112.\n\nmodule load python3.9-anaconda\nsource activate eqcorrscan\n# 'srun' is replaced by 'flux run'. The SLURM_ARRAY_TASK_ID variable is\n# replaced by the Flux equivalent, FLUX_JOB_ARRAY_TASK_ID.\nflux run python3 florence_ncf.py $FLUX_JOB_ARRAY_TASK_ID\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "The script is designed to be run as part of a job array and correctly uses the `FLUX_JOB_ARRAY_TASK_ID` environment variable. However, if a user mistakenly submits this script as a single job (e.g., using `flux submit`), the `FLUX_JOB_ARRAY_TASK_ID` variable will be unset. This will cause the Python script `florence_ncf.py` to be called without a required argument, which will likely result in an error or incorrect behavior."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/sh\n#FLUX --job-name=florence_ncf\n# NOTE: The --mail-user and --mail-type directives have been omitted as Flux\n# does not have a direct equivalent for job status email notifications.\n#FLUX --nodes=1\n#FLUX --cpus-per-task=1\n#FLUX --ntasks=1\n#FLUX --mem-per-task=6500M\n#FLUX --time=4:00:00\n#FLUX --account=zspica0\n#FLUX --queue=standard\n\n# NOTE: The SLURM --array directive was omitted. Flux handles job arrays at\n# submission time. This script should be submitted using 'flux bulksubmit',\n# for example:\n# flux bulksubmit -n 8 --cc=105-112 ./your_script_name.sh\n# The script will then execute 8 times with FLUX_JOB_ARRAY_TASK_ID set from 105 to 112.\n\nmodule load python3.9-anaconda\nsource activate eqcorrscan\n# 'srun' is replaced by 'flux run'. The SLURM_ARRAY_TASK_ID variable is\n# replaced by the Flux equivalent, FLUX_JOB_ARRAY_TASK_ID.\nflux run python3 florence_ncf.py $FLUX_JOB_ARRAY_TASK_ID\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/sh\n#SBATCH --job-name florence_ncf\n#SBATCH --mail-user=yaolinm@umich.edu\n#SBATCH --mail-type=FAIL,ARRAY_TASKS\n#SBATCH --nodes=1\n#SBATCH --cpus-per-task=1\n#SBATCH --mem-per-cpu=6500\n#SBATCH --time=4:00:00\n#SBATCH --account=zspica0\n#SBATCH --partition=standard\n#SBATCH --array=105-112\n\nmodule load python3.9-anaconda\nsource activate eqcorrscan\nsrun python3 florence_ncf.py $SLURM_ARRAY_TASK_ID",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

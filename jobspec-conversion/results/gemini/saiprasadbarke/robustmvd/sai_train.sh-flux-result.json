@@ -1,0 +1,119 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n#FLUX --job-name=sai_test_mvsnet\n#FLUX --nodes=1\n#FLUX --ntasks=1\n#FLUX --gpus-per-task=1\n#FLUX -C nvidiaP100\n#FLUX --mem-per-task=50G\n#FLUX --time=23:59:59\n\n# NOTE: The PBS option 'exclusive_process' for GPUs has been omitted. However,\n# as this job requests one task and one GPU, the task will have exclusive\n# access to the GPU by default.\n\n# NOTE: The PBS option 'nice=1' was omitted as Flux does not have a direct\n# job-level directive to control process priority. This could have minor\n# performance implications if the node is shared and running other high-priority tasks.\n\n# NOTE: The --mail-user (-M) and mail-type (-m) directives have been omitted as\n# Flux does not have a direct equivalent for job status email notifications.\n\n# NOTE: The PBS directive '-j oe' (join stdout/stderr) is the default behavior\n# in Flux when an error file (-e) is not specified.\n\nsleep 10\necho \"Hello World\"\nexit 0\n\n# NOTE: The 'qsub -I' command from the original script has been removed. This\n# command attempts to start a new, separate interactive job from within the batch\n# script, which is not a valid or meaningful operation.\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": []
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n#FLUX --job-name=sai_test_mvsnet\n#FLUX --nodes=1\n#FLUX --ntasks=1\n#FLUX --gpus-per-task=1\n#FLUX -C nvidiaP100\n#FLUX --mem-per-task=50G\n#FLUX --time=23:59:59\n\n# NOTE: The PBS option 'exclusive_process' for GPUs has been omitted. However,\n# as this job requests one task and one GPU, the task will have exclusive\n# access to the GPU by default.\n\n# NOTE: The PBS option 'nice=1' was omitted as Flux does not have a direct\n# job-level directive to control process priority. This could have minor\n# performance implications if the node is shared and running other high-priority tasks.\n\n# NOTE: The --mail-user (-M) and mail-type (-m) directives have been omitted as\n# Flux does not have a direct equivalent for job status email notifications.\n\n# NOTE: The PBS directive '-j oe' (join stdout/stderr) is the default behavior\n# in Flux when an error file (-e) is not specified.\n\nsleep 10\necho \"Hello World\"\nexit 0\n\n# NOTE: The 'qsub -I' command from the original script has been removed. This\n# command attempts to start a new, separate interactive job from within the batch\n# script, which is not a valid or meaningful operation.\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "pbs",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n#PBS -N sai_test_mvsnet\n#PBS -S /bin/bash\n#PBS -l nodes=1:ppn=1:gpus=1:nvidiaP100:exclusive_process,mem=50gb,nice=1,walltime=23:59:59\n#PBS -m a\n#PBS -M <user>@informatik.uni-freiburg.de\n#PBS -j oe\nsleep 10\necho \"Hello World\"\nexit 0\n\n\nqsub -l nodes=1:ppn=1:gpus=1:nvidiaP100:exclusive_process,mem=50gb,nice=1,walltime=23:59:59 -q student -I\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

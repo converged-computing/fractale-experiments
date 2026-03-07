@@ -1,0 +1,121 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash -l\n#FLUX -N 1\n#FLUX -t 8:00:00\n#FLUX --ntasks=1\n#FLUX --cpus-per-task=12\n\nexport CRAFT=/home/ban115/craft/craft/\nexport PATH=$CRAFT/cuda-fdmt/cudafdmt/src:$CRAFT/python:$PATH:/home/ban115/bin:$CRAFT/jobs/\nexport PYTHONPATH=$CRAFT/python:$PYTHONPATH\nexport OMP_NUM_THREADS=24\n\nmodule unload PrgEnv-cray > /dev/null\nmodule unload gcc/4.9.0\nmodule load python/2.7.10 > /dev/null\nmodule load astropy > /dev/null\n\nthedir=$1\nthebase=`basename $thedir`\n\necho `date` starting fixheaders\n\nCRAFTDATA=/scratch2/askap/askapops/craft/co/\n\n# 'aprun' is a Cray-specific process launcher. 'flux run' is the equivalent in Flux.\n# The resource allocation and binding specified by 'aprun -B' is handled by\n# the job-level Flux directives (--cpus-per-task=12).\nflux run fix_headers_parallel.sh $@\n\necho `date` finished fixheaders\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "There is a resource mismatch: the job requests 12 CPUs per task ('--cpus-per-task=12') but sets 'OMP_NUM_THREADS=24'. This will cause the application to spawn twice as many OpenMP threads as available CPU cores, leading to oversubscription and likely performance degradation due to thread contention. For optimal performance, OMP_NUM_THREADS should be set to 12 to match the allocated CPUs."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash -l\n#FLUX -N 1\n#FLUX -t 8:00:00\n#FLUX --ntasks=1\n#FLUX --cpus-per-task=12\n\nexport CRAFT=/home/ban115/craft/craft/\nexport PATH=$CRAFT/cuda-fdmt/cudafdmt/src:$CRAFT/python:$PATH:/home/ban115/bin:$CRAFT/jobs/\nexport PYTHONPATH=$CRAFT/python:$PYTHONPATH\nexport OMP_NUM_THREADS=24\n\nmodule unload PrgEnv-cray > /dev/null\nmodule unload gcc/4.9.0\nmodule load python/2.7.10 > /dev/null\nmodule load astropy > /dev/null\n\nthedir=$1\nthebase=`basename $thedir`\n\necho `date` starting fixheaders\n\nCRAFTDATA=/scratch2/askap/askapops/craft/co/\n\n# 'aprun' is a Cray-specific process launcher. 'flux run' is the equivalent in Flux.\n# The resource allocation and binding specified by 'aprun -B' is handled by\n# the job-level Flux directives (--cpus-per-task=12).\nflux run fix_headers_parallel.sh $@\n\necho `date` finished fixheaders\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash -l\n#SBATCH --nodes=1\n#SBATCH --time=8:00:00\n#SBATCH --cpus-per-task=12\n\nexport CRAFT=/home/ban115/craft/craft/\nexport PATH=$CRAFT/cuda-fdmt/cudafdmt/src:$CRAFT/python:$PATH:/home/ban115/bin:$CRAFT/jobs/\nexport PYTHONPATH=$CRAFT/python:$PYTHONPATH\nexport OMP_NUM_THREADS=24\n\nmodule unload PrgEnv-cray > /dev/null\nmodule unload gcc/4.9.0\nmodule load python/2.7.10 > /dev/null\nmodule load astropy > /dev/null\n\nthedir=$1\nthebase=`basename $thedir`\n\necho `date` starting fixheaders\n\nCRAFTDATA=/scratch2/askap/askapops/craft/co/\n\naprun -B fix_headers_parallel.sh  $@\n\necho `date` finished fixheaders\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

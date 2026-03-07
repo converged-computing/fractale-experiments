@@ -1,0 +1,123 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash --login\n\n########## Flux Lines for Resource Request ##########\n#FLUX --time=5:00:00\n#FLUX -N 1 -n 1 -c 2\n# NOTE: Flux does not have a --mem-per-cpu option. The total memory for the task\n# has been calculated (2 cpus * 64G/cpu = 128G) and specified below.\n#FLUX --mem-per-task=128G\n#FLUX --job-name=scRNA_seq_inte\n\n# NOTE: The --mail-user and --mail-type directives have been omitted as Flux\n# does not have a direct equivalent for job status email notifications.\n\n########## Command Lines to Run ##########\n# module swap GNU Intel\nmodule purge\nmodule load GCCcore/10.3.0\n\n# cd ${FLUX_SUBMIT_DIR}       ### change to the directory where your code is located\n\n### call your executable\nconda activate env_\npython -u load_graph.py > output_load_graph.txt\n\n# The SLURM commands 'scontrol' and 'js' have been replaced with the Flux equivalent.\nflux job info $FLUX_JOB_ID\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "The script uses a login shell (`#!/bin/bash --login`), which can be problematic for batch jobs. Login shells source user profile scripts (e.g., `.bash_profile`), which may set environment variables or aliases that are not intended for a non-interactive environment and could cause unexpected behavior or conflicts.",
+                        "The script's success depends on the `load_graph.py` executable being present in the working directory at runtime. A `cd ${FLUX_SUBMIT_DIR}` command is present but commented out. If this is not uncommented, the job will fail if it is submitted from a directory that does not contain the script.",
+                        "The script attempts to activate a conda environment named `env_`. This command will fail if the environment has not been pre-configured or is not discoverable in the user's conda installation path."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash --login\n\n########## Flux Lines for Resource Request ##########\n#FLUX --time=5:00:00\n#FLUX -N 1 -n 1 -c 2\n# NOTE: Flux does not have a --mem-per-cpu option. The total memory for the task\n# has been calculated (2 cpus * 64G/cpu = 128G) and specified below.\n#FLUX --mem-per-task=128G\n#FLUX --job-name=scRNA_seq_inte\n\n# NOTE: The --mail-user and --mail-type directives have been omitted as Flux\n# does not have a direct equivalent for job status email notifications.\n\n########## Command Lines to Run ##########\n# module swap GNU Intel\nmodule purge\nmodule load GCCcore/10.3.0\n\n# cd ${FLUX_SUBMIT_DIR}       ### change to the directory where your code is located\n\n### call your executable\nconda activate env_\npython -u load_graph.py > output_load_graph.txt\n\n# The SLURM commands 'scontrol' and 'js' have been replaced with the Flux equivalent.\nflux job info $FLUX_JOB_ID\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash --login\n\n########## SBATCH Lines for Resource Request ##########\n#SBATCH --time=5:00:00\n#SBATCH -N 1 -n 1 -c 2\n#SBATCH --mem-per-cpu=64G            # memory required per allocated CPU (or core) - amount of memory (in bytes)        \n#SBATCH --job-name=test\n#SBATCH --mail-user=lixiaoy5@msu.edu\n#SBATCH --mail-type=ALL\n#SBATCH --job-name scRNA_seq_inte\n\n\n########## Command Lines to Run ##########\n# module swap GNU Intel\nmodule purge\nmodule load GCCcore/10.3.0\n\n# cd ${SLURM_SUBMIT_DIR}       ### change to the directory where your code is located\n\n### call your executable (similar to mpirun)\nconda activate env_\npython -u load_graph.py > output_load_graph.txt\n\n\nscontrol show job $SLURM_JOB_ID           ### write job information to output file\njs -j $SLURM_JOB_ID ",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

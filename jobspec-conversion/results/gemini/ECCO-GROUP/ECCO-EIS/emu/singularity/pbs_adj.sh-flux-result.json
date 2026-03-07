@@ -1,0 +1,155 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash \n\n#FLUX --nodes=3\n#FLUX --ntasks-per-node=32\n#FLUX -C sky_ele\n#FLUX --time=WHOURS_EMU:00:00\n#FLUX -o ./{name}.{id}.out\n\n# NOTE: The PBS directive '-j oe' (join stdout/stderr) is the default behavior\n# in Flux when an error file (-e) is not specified. The output file specified\n# with -o will contain both streams.\n\n# NOTE: The PBS mail notification directive '-m bea' has been omitted, as\n# Flux does not have a direct equivalent for job status email notifications.\n\n#CHOOSE_DEVEL\n\n#=================================\n# Shell script for V4r4 Adjoint Tool (singularity)\n#=================================\n\n##=================================\n## Set running environment \n#ulimit -s unlimited\n#\n#export FORT_BUFFERED=1\n#export MPI_BUFS_PER_PROC=128\n#export MPI_DISPLAY_SETTINGS=\"\"\n\n#=================================\n# Set program specific parameters \nnprocs=96\nnative_setup=NATIVE_SETUP\nnative_singularity=NATIVE_SINGULARITY\nsingularity_image=SINGULARITY_IMAGE\nnative_mpiexec=NATIVE_MPIEXEC\n\nrundir=YOURDIR\n\n#=================================\n# cd to directory to run rundir\ncd ${rundir}\n \n#=================================\n# NOTE: The block of code that manually created a hostfile from PBS_NODEFILE\n# has been removed. Flux's native launcher 'flux run' automatically handles\n# task placement across the allocated nodes based on the job-level directives\n# (--nodes=3, --ntasks-per-node=32), making manual hostfile creation unnecessary.\n\n# ================================\n# build Singularity script \n/bin/rm -f my_commands.sh \necho '#!/bin/bash'     > my_commands.sh && chmod +x my_commands.sh \necho 'cd /inside_out' >> my_commands.sh\necho './mitgcmuv_ad'     >> my_commands.sh\n\n# 'mpiexec' with a hostfile is replaced by 'flux run', which uses the resources\n# allocated by the scheduler for this job.\nflux run -n ${nprocs} \\\n    ${native_singularity} exec --bind ${native_setup}:/emu_outside:ro --bind ${rundir}:/inside_out ${singularity_image} /inside_out/my_commands.sh\n\n#=================================\n# Save adjoint gradients \n\nadoutdir=../output\nmkdir ${adoutdir}\n\ncp -p adxx_empmr.0*.* ${adoutdir}\ncp -p adxx_pload.0*.* ${adoutdir}\ncp -p adxx_qnet.0*.* ${adoutdir}\ncp -p adxx_qsw.0*.* ${adoutdir}\ncp -p adxx_saltflux.0*.* ${adoutdir}\ncp -p adxx_spflx.0*.* ${adoutdir}\ncp -p adxx_tauu.0*.* ${adoutdir}\ncp -p adxx_tauv.0*.* ${adoutdir}\n\ncp -p `realpath objf_*_mask*` ${adoutdir}\ncp -p data.ecco ${adoutdir}\ncp -p data ${adoutdir}\ncp -p adj.info ${adoutdir}\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": false,
+                    "tool_call": true,
+                    "reasons": [
+                        "The time format 'WHOURS_EMU:00:00' in the directive '#FLUX --time' is invalid. Flux directives are parsed at submission time and do not expand shell variables; a concrete time value such as '10:00:00' or '2d' is required."
+                    ],
+                    "issues": [
+                        "The script is a template and contains multiple placeholder variables (e.g., 'WHOURS_EMU', 'YOURDIR', 'NATIVE_SETUP', 'NATIVE_SINGULARITY', 'SINGULARITY_IMAGE') that must be replaced with actual values before the job can be successfully submitted and run."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "failed -> transform",
+            "complete": false,
+            "state": "failed"
+        },
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash \n\n#FLUX --nodes=3\n#FLUX --ntasks-per-node=40\n#FLUX -C sky_ele\n# NOTE: The original script used a placeholder 'WHOURS_EMU' for walltime.\n# This has been replaced with a default of 1 hour. You must edit this value.\n#FLUX --time=01:00:00\n#FLUX -o ./{name}.{id}.out\n\n# NOTE: The PBS directive '-j oe' (join stdout/stderr) is the default behavior\n# in Flux when an error file (-e) is not specified. The output file specified\n# with -o will contain both streams.\n\n# NOTE: The PBS mail notification directive '-m bea' has been omitted, as\n# Flux does not have a direct equivalent for job status email notifications.\n\n#CHOOSE_DEVEL\n\n#=================================\n# Shell script for V4r4 Adjoint Tool (singularity)\n#=================================\n\n##=================================\n## Set running environment \n#ulimit -s unlimited\n#\n#export FORT_BUFFERED=1\n#export MPI_BUFS_PER_PROC=128\n#export MPI_DISPLAY_SETTINGS=\"\"\n\n#=================================\n# Set program specific parameters \nnprocs=96\nnative_setup=NATIVE_SETUP\nnative_singularity=NATIVE_SINGULARITY\nsingularity_image=SINGULARITY_IMAGE\nnative_mpiexec=NATIVE_MPIEXEC\n\nrundir=YOURDIR\n\n#=================================\n# cd to directory to run rundir\ncd ${rundir}\n \n#=================================\n# NOTE: The block of code that manually created a hostfile from PBS_NODEFILE\n# has been removed. Flux's native launcher 'flux run' automatically handles\n# task placement across the allocated nodes based on the job-level directives,\n# making manual hostfile creation unnecessary.\n\n# ================================\n# build Singularity script \n/bin/rm -f my_commands.sh \necho '#!/bin/bash'     > my_commands.sh && chmod +x my_commands.sh \necho 'cd /inside_out' >> my_commands.sh\necho './mitgcmuv_ad'     >> my_commands.sh\n\n# 'mpiexec' with a hostfile is replaced by 'flux run'. Flux will automatically\n# launch the requested 96 tasks across the 3 allocated nodes (32 tasks per node).\nflux run -n ${nprocs} \\\n    ${native_singularity} exec --bind ${native_setup}:/emu_outside:ro --bind ${rundir}:/inside_out ${singularity_image} /inside_out/my_commands.sh\n\n#=================================\n# Save adjoint gradients \n\nadoutdir=../output\nmkdir ${adoutdir}\n\ncp -p adxx_empmr.0*.* ${adoutdir}\ncp -p adxx_pload.0*.* ${adoutdir}\ncp -p adxx_qnet.0*.* ${adoutdir}\ncp -p adxx_qsw.0*.* ${adoutdir}\ncp -p adxx_saltflux.0*.* ${adoutdir}\ncp -p adxx_spflx.0*.* ${adoutdir}\ncp -p adxx_tauu.0*.* ${adoutdir}\ncp -p adxx_tauv.0*.* ${adoutdir}\n\ncp -p `realpath objf_*_mask*` ${adoutdir}\ncp -p data.ecco ${adoutdir}\ncp -p data ${adoutdir}\ncp -p adj.info ${adoutdir}\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "The job requests resources for 120 tasks (3 nodes * 40 tasks/node) but the application is launched with only 96 tasks (`nprocs=96`). This leads to a significant over-allocation of resources, where 24 tasks (and their associated CPUs/memory) will be reserved but remain completely idle for the duration of the job. The resource request should be adjusted to match the workload, for example by requesting 3 nodes with 32 tasks per node (`--ntasks-per-node=32`).",
+                        "The script is a template and contains multiple placeholder variables (e.g., 'YOURDIR', 'NATIVE_SETUP', 'NATIVE_SINGULARITY', 'SINGULARITY_IMAGE') that must be replaced with actual values before the job can be successfully submitted and run."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash \n\n#FLUX --nodes=3\n#FLUX --ntasks-per-node=40\n#FLUX -C sky_ele\n# NOTE: The original script used a placeholder 'WHOURS_EMU' for walltime.\n# This has been replaced with a default of 1 hour. You must edit this value.\n#FLUX --time=01:00:00\n#FLUX -o ./{name}.{id}.out\n\n# NOTE: The PBS directive '-j oe' (join stdout/stderr) is the default behavior\n# in Flux when an error file (-e) is not specified. The output file specified\n# with -o will contain both streams.\n\n# NOTE: The PBS mail notification directive '-m bea' has been omitted, as\n# Flux does not have a direct equivalent for job status email notifications.\n\n#CHOOSE_DEVEL\n\n#=================================\n# Shell script for V4r4 Adjoint Tool (singularity)\n#=================================\n\n##=================================\n## Set running environment \n#ulimit -s unlimited\n#\n#export FORT_BUFFERED=1\n#export MPI_BUFS_PER_PROC=128\n#export MPI_DISPLAY_SETTINGS=\"\"\n\n#=================================\n# Set program specific parameters \nnprocs=96\nnative_setup=NATIVE_SETUP\nnative_singularity=NATIVE_SINGULARITY\nsingularity_image=SINGULARITY_IMAGE\nnative_mpiexec=NATIVE_MPIEXEC\n\nrundir=YOURDIR\n\n#=================================\n# cd to directory to run rundir\ncd ${rundir}\n \n#=================================\n# NOTE: The block of code that manually created a hostfile from PBS_NODEFILE\n# has been removed. Flux's native launcher 'flux run' automatically handles\n# task placement across the allocated nodes based on the job-level directives,\n# making manual hostfile creation unnecessary.\n\n# ================================\n# build Singularity script \n/bin/rm -f my_commands.sh \necho '#!/bin/bash'     > my_commands.sh && chmod +x my_commands.sh \necho 'cd /inside_out' >> my_commands.sh\necho './mitgcmuv_ad'     >> my_commands.sh\n\n# 'mpiexec' with a hostfile is replaced by 'flux run'. Flux will automatically\n# launch the requested 96 tasks across the 3 allocated nodes (32 tasks per node).\nflux run -n ${nprocs} \\\n    ${native_singularity} exec --bind ${native_setup}:/emu_outside:ro --bind ${rundir}:/inside_out ${singularity_image} /inside_out/my_commands.sh\n\n#=================================\n# Save adjoint gradients \n\nadoutdir=../output\nmkdir ${adoutdir}\n\ncp -p adxx_empmr.0*.* ${adoutdir}\ncp -p adxx_pload.0*.* ${adoutdir}\ncp -p adxx_qnet.0*.* ${adoutdir}\ncp -p adxx_qsw.0*.* ${adoutdir}\ncp -p adxx_saltflux.0*.* ${adoutdir}\ncp -p adxx_spflx.0*.* ${adoutdir}\ncp -p adxx_tauu.0*.* ${adoutdir}\ncp -p adxx_tauv.0*.* ${adoutdir}\n\ncp -p `realpath objf_*_mask*` ${adoutdir}\ncp -p data.ecco ${adoutdir}\ncp -p data ${adoutdir}\ncp -p adj.info ${adoutdir}\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "pbs",
+                    "to_manager": "flux",
+                    "script": "#PBS -S /bin/bash \n#PBS -l select=3:ncpus=40:model=sky_ele\n#PBS -l walltime=WHOURS_EMU:00:00\n#PBS -j oe\n#PBS -o ./\n#PBS -m bea\n#CHOOSE_DEVEL\n\n#=================================\n# Shell script for V4r4 Adjoint Tool (singularity)\n#=================================\n\n##=================================\n## Set running environment \n#ulimit -s unlimited\n#\n#export FORT_BUFFERED=1\n#export MPI_BUFS_PER_PROC=128\n#export MPI_DISPLAY_SETTINGS=\"\"\n\n#=================================\n# Set program specific parameters \nnprocs=96\nnative_setup=NATIVE_SETUP\nnative_singularity=NATIVE_SINGULARITY\nsingularity_image=SINGULARITY_IMAGE\nnative_mpiexec=NATIVE_MPIEXEC\n\nrundir=YOURDIR\n\n#=================================\n# cd to directory to run rundir\ncd ${rundir}\n \n#=================================\n# ID nodes for MPI \n/bin/rm -f my_machine_file\ncat  $PBS_NODEFILE > my_machine_file\nsort -u my_machine_file > my_machine_file_uniq\n\n## Test if Singularity is available \n#while IFS= read -r RECORD; do  # make sure node has Singularity \n#    ssh_output=$(ssh \"$RECORD\" \"ls -ld ${native_singularity}\" 2>&1)  # Capture both stdout and stderr\n#    if [[ $ssh_output == *\"No such file or directory\"* ]]; then\n#        echo \"Error: Singularity not available for $RECORD\"\n#        exit 1  # Abort the PBS job\n#    fi\n#done < \"my_machine_file_uniq\" \n\n## Remove excess cores from top of the list \n#num_core=$(wc -l < my_machine_file)\n#num_node=$(wc -l < my_machine_file_uniq)\n#num_kill=$((num_core-nprocs))\n#if [ ${num_kill} -gt 0 ]; then \n#    sed -i '1,${num_kill}d' my_machine_file\n#fi \n\n# Distribute processes evenly across nodes \nnum_core=$(wc -l < my_machine_file)\nnum_node=$(wc -l < my_machine_file_uniq)\nnum_even=$((nprocs / num_node))\nif [ $((num_even * num_node)) -lt $nprocs ]; then \n    num_even=$((num_even + 1))\nfi \n\n# Initialize new my_machine_file \n> my_machine_file2\n\n# Read each node and repeat it num_even times\nwhile IFS= read -r record; do\n    for ((i = 1; i <= $num_even; i++)); do\n        echo $record >> my_machine_file2\n    done\ndone < my_machine_file_uniq\n\n# Remove excess processes from the top of the new list\nnum_core2=$(wc -l < my_machine_file2)\nnum_kill2=$((num_core2-nprocs))\nif [ ${num_kill2} -gt 0 ]; then \n    sed -i \"1,${num_kill2}d\" my_machine_file2\nfi \n\n# ================================\n# build Singularity script \n/bin/rm -f my_commands.sh \necho '#!/bin/bash'     > my_commands.sh & chmod +x my_commands.sh \necho 'cd /inside_out' >> my_commands.sh\necho './mitgcmuv_ad'     >> my_commands.sh\n\n${native_mpiexec} -np ${nprocs} --hostfile ./my_machine_file2 \\\n    ${native_singularity} exec --bind ${native_setup}:/emu_outside:ro --bind ${rundir}:/inside_out ${singularity_image} /inside_out/my_commands.sh\n\n#=================================\n# Save adjoint gradients \n\nadoutdir=../output\nmkdir ${adoutdir}\n\ncp -p adxx_empmr.0*.* ${adoutdir}\ncp -p adxx_pload.0*.* ${adoutdir}\ncp -p adxx_qnet.0*.* ${adoutdir}\ncp -p adxx_qsw.0*.* ${adoutdir}\ncp -p adxx_saltflux.0*.* ${adoutdir}\ncp -p adxx_spflx.0*.* ${adoutdir}\ncp -p adxx_tauu.0*.* ${adoutdir}\ncp -p adxx_tauv.0*.* ${adoutdir}\n\ncp -p `realpath objf_*_mask*` ${adoutdir}\ncp -p data.ecco ${adoutdir}\ncp -p data ${adoutdir}\ncp -p adj.info ${adoutdir}\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

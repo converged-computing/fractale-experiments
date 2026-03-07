@@ -1,0 +1,122 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n#FLUX --queue=long\n#FLUX -n 1\n#FLUX --time=72:00:00\n# NOTE: Flux does not have a --mem-per-cpu option. Since cpus-per-task defaults to 1,\n# this is equivalent to --mem-per-task.\n#FLUX --mem-per-task=4G\n\n# NOTE: The SLURM directive '--ntasks-per-core=1' was omitted. Flux does not\n# have a direct equivalent for this placement option as a job directive. This\n# could have performance implications if the workload is sensitive to SMT/\n# hyper-threading.\n\n# NOTE: This script uses the SLURM_ARRAY_TASK_ID variable, which implies it's\n# intended to be run as a job array. Flux handles arrays at submission time.\n# This script should be submitted with 'flux bulksubmit'. For example:\n# flux bulksubmit -n 10 --env=PARAMS='<your_params>' ./your_script_name.sh\n\nmodule load gcc\nmodule load python3\nmodule load bright/7.3  # for hdf5_18\nmodule load hdf5_18\n\n# The SLURM_SUBMIT_DIR variable is replaced with the Flux equivalent.\ncd $FLUX_SUBMIT_DIR\n\n: ${PARAMS?Must define PARAMS}\nif [ -z \"$PARAMS\" ]\nthen\n    echo \"Must define PARAMS (is empty).\"\n    exit 1\nfi\n\nSEED=$(printf \"%06d\" $RANDOM); \n\n# The SLURM_ARRAY_TASK_ID variable is replaced with the Flux equivalent.\necho \"Chrom number $FLUX_JOB_ARRAY_TASK_ID - seed $SEED\"\nALL_PARAMS=\"$PARAMS -d $SEED\"\necho \"$ALL_PARAMS\"\n\n/usr/bin/time --format='elapsed: %E / kernel: %S / user: %U / mem: %M' \\\n     ./msp-sim.py $ALL_PARAMS | grep -v REJECTING\n\necho \"Done!\"\n\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "The script relies on an environment variable `PARAMS` being set at submission time, but it includes redundant checks. The line `: ${PARAMS?Must define PARAMS}` will cause the shell to exit with an error if `PARAMS` is not set, making the subsequent `if [ -z \"$PARAMS\" ]` block unreachable and unnecessary.",
+                        "The script is designed for job array submission and relies on the `FLUX_JOB_ARRAY_TASK_ID` variable. If a user mistakenly submits this script as a single job (e.g., using `flux submit`), the variable will be unset, and the log message 'Chrom number ...' will be incomplete, although the script may still run."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n#FLUX --queue=long\n#FLUX -n 1\n#FLUX --time=72:00:00\n# NOTE: Flux does not have a --mem-per-cpu option. Since cpus-per-task defaults to 1,\n# this is equivalent to --mem-per-task.\n#FLUX --mem-per-task=4G\n\n# NOTE: The SLURM directive '--ntasks-per-core=1' was omitted. Flux does not\n# have a direct equivalent for this placement option as a job directive. This\n# could have performance implications if the workload is sensitive to SMT/\n# hyper-threading.\n\n# NOTE: This script uses the SLURM_ARRAY_TASK_ID variable, which implies it's\n# intended to be run as a job array. Flux handles arrays at submission time.\n# This script should be submitted with 'flux bulksubmit'. For example:\n# flux bulksubmit -n 10 --env=PARAMS='<your_params>' ./your_script_name.sh\n\nmodule load gcc\nmodule load python3\nmodule load bright/7.3  # for hdf5_18\nmodule load hdf5_18\n\n# The SLURM_SUBMIT_DIR variable is replaced with the Flux equivalent.\ncd $FLUX_SUBMIT_DIR\n\n: ${PARAMS?Must define PARAMS}\nif [ -z \"$PARAMS\" ]\nthen\n    echo \"Must define PARAMS (is empty).\"\n    exit 1\nfi\n\nSEED=$(printf \"%06d\" $RANDOM); \n\n# The SLURM_ARRAY_TASK_ID variable is replaced with the Flux equivalent.\necho \"Chrom number $FLUX_JOB_ARRAY_TASK_ID - seed $SEED\"\nALL_PARAMS=\"$PARAMS -d $SEED\"\necho \"$ALL_PARAMS\"\n\n/usr/bin/time --format='elapsed: %E / kernel: %S / user: %U / mem: %M' \\\n     ./msp-sim.py $ALL_PARAMS | grep -v REJECTING\n\necho \"Done!\"\n\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n#SBATCH -p long\n#SBATCH -n 1\n#SBATCH -t 72:00:00\n#SBATCH --mem-per-cpu=4G\n#SBATCH --ntasks-per-core=1\n\n\nmodule load gcc\nmodule load python3\nmodule load bright/7.3  # for hdf5_18\nmodule load hdf5_18\n\ncd $SLURM_SUBMIT_DIR\n\n: ${PARAMS?Must define PARAMS}\nif [ -z \"$PARAMS\" ]\nthen\n    echo \"Must define PARAMS (is empty).\"\n    exit 1\nfi\n\nSEED=$(printf \"%06d\" $RANDOM); \n\necho \"Chrom number $SLURM_ARRAY_TASK_ID - seed $SEED\"\nALL_PARAMS=\"$PARAMS -d $SEED\"\necho \"$ALL_PARAMS\"\n\n/usr/bin/time --format='elapsed: %E / kernel: %S / user: %U / mem: %M' \\\n     ./msp-sim.py $ALL_PARAMS | grep -v REJECTING\n\necho \"Done!\"\n\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

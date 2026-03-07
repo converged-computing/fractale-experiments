@@ -1,0 +1,119 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n#FLUX --job-name=memcpy_all\n#FLUX --error=memcpy_all.{id}.err\n#FLUX --output=memcpy_all.{id}.out\n#FLUX --nodes=1\n#FLUX --queue=pdebug\n#FLUX --time=00:15:00\n\n# The jsrun command requests 1 resource set with 10 tasks, 10 cpus, and 1 gpu.\n# This translates to 10 tasks total, each with 1 cpu, sharing 1 gpu on the node.\n#FLUX --ntasks=10\n#FLUX --cpus-per-task=1\n#FLUX --gpus=1\n\n# NOTE: The jsrun option '--latency_priority=gpu-cpu' was omitted. This is a\n# system-specific affinity hint. Flux provides its own resource-aware task\n# placement which should yield good performance, but this could have\n# implications if the application is highly sensitive to a specific NUMA\n# layout not automatically chosen by Flux.\n\nmodule load hwloc\n\ncd /g/g14/bienz1/nodecomm\n\n# 'jsrun' is the LSF job launcher. 'flux run' is the Flux equivalent.\n# The resource options from jsrun are now specified in the job-level directives.\nflux run ./time_memcpy_all\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": []
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n#FLUX --job-name=memcpy_all\n#FLUX --error=memcpy_all.{id}.err\n#FLUX --output=memcpy_all.{id}.out\n#FLUX --nodes=1\n#FLUX --queue=pdebug\n#FLUX --time=00:15:00\n\n# The jsrun command requests 1 resource set with 10 tasks, 10 cpus, and 1 gpu.\n# This translates to 10 tasks total, each with 1 cpu, sharing 1 gpu on the node.\n#FLUX --ntasks=10\n#FLUX --cpus-per-task=1\n#FLUX --gpus=1\n\n# NOTE: The jsrun option '--latency_priority=gpu-cpu' was omitted. This is a\n# system-specific affinity hint. Flux provides its own resource-aware task\n# placement which should yield good performance, but this could have\n# implications if the application is highly sensitive to a specific NUMA\n# layout not automatically chosen by Flux.\n\nmodule load hwloc\n\ncd /g/g14/bienz1/nodecomm\n\n# 'jsrun' is the LSF job launcher. 'flux run' is the Flux equivalent.\n# The resource options from jsrun are now specified in the job-level directives.\nflux run ./time_memcpy_all\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "lsf",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n#BSUB -J memcpy_all\n#BSUB -e memcpy_all.%J.err\n#BSUB -o memcpy_all.%J.out\n#BSUB -nnodes 1\n#BSUB -q pdebug\n#BSUB -W 00:15\n\nmodule load hwloc\n\ncd /g/g14/bienz1/nodecomm\njsrun -a10 -c10 -g1 -r1 -n1 -M \"-gpu\" --latency_priority=gpu-cpu --print_placement=1 ./time_memcpy_all\n\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

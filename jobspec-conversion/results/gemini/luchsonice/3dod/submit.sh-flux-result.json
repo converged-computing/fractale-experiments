@@ -1,0 +1,123 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/sh\n#FLUX --job-name=omni3d_example_run\n#FLUX -o hpc_logs/{id}.out\n#FLUX -e hpc_logs/{id}.err\n#FLUX --ntasks=4\n#FLUX --queue=gpua100\n#FLUX --gpus=1\n#FLUX --time=4:00\n#FLUX --mem=5G\n#FLUX --nodes=1\n\n# NOTE: LSF's GPU 'shared' mode allows multiple tasks to access the same GPU.\n# In Flux, this is the default behavior when multiple tasks are allocated on a\n# node with fewer GPUs than tasks. Here, 4 tasks share 1 GPU.\n\n# NOTE: The LSF mail-at-start directive '-B' has been omitted, as Flux does not\n# have a direct equivalent for job status email notifications.\n\nsource /work3/s194369/3dod_hpc_env/bin/activate\nexport PYTHONPATH=/work3/s194369/3dod\n\n# Run evaluation\n# NOTE: Manually setting CUDA_VISIBLE_DEVICES is not recommended. Flux will\n# allocate a GPU and set this variable automatically. The original command is\n# preserved for compatibility, but it subverts the scheduler's resource management.\nCUDA_VISIBLE_DEVICES=0 python tools/eval_boxes.py --eval-only \\\n    --config-file configs/BoxNet.yaml \\\n    PLOT.EVAL AP \\\n    PLOT.MODE2D PRED \\\n    PLOT.PROPOSAL_FUNC propose \\\n    MODEL.WEIGHTS output/Baseline_sgd/model_final.pth \\\n    OUTPUT_DIR output/propose\n\n# Run baseline\n#CUDA_VISIBLE_DEVICES=0 python tools/train_net.py \\\n#  --config-file configs/Base_Omni3D.yaml \\\n#  OUTPUT_DIR output/Baseline_trial\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "The job requests 4 tasks (`--ntasks=4`) but launches a single, serial Python script (`python tools/eval_boxes.py`). This results in 3 of the 4 allocated tasks remaining idle, which is an inefficient use of resources. If the application is multi-threaded, the resource request should be changed to `--ntasks=1 --cpus-per-task=4`. If it is serial, the request should be reduced to `--ntasks=1`.",
+                        "The script manually sets `CUDA_VISIBLE_DEVICES=0`. This forces the single Python process to use a specific GPU, which is acceptable in this case since only one GPU is requested. However, this is not a portable practice and bypasses the scheduler's resource management. It is better to let the application use the GPU assigned by Flux via the environment.",
+                        "The output and error files are directed to a subdirectory (`hpc_logs/`). The script does not create this directory, which will cause the job to fail at launch if the directory does not exist."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/sh\n#FLUX --job-name=omni3d_example_run\n#FLUX -o hpc_logs/{id}.out\n#FLUX -e hpc_logs/{id}.err\n#FLUX --ntasks=4\n#FLUX --queue=gpua100\n#FLUX --gpus=1\n#FLUX --time=4:00\n#FLUX --mem=5G\n#FLUX --nodes=1\n\n# NOTE: LSF's GPU 'shared' mode allows multiple tasks to access the same GPU.\n# In Flux, this is the default behavior when multiple tasks are allocated on a\n# node with fewer GPUs than tasks. Here, 4 tasks share 1 GPU.\n\n# NOTE: The LSF mail-at-start directive '-B' has been omitted, as Flux does not\n# have a direct equivalent for job status email notifications.\n\nsource /work3/s194369/3dod_hpc_env/bin/activate\nexport PYTHONPATH=/work3/s194369/3dod\n\n# Run evaluation\n# NOTE: Manually setting CUDA_VISIBLE_DEVICES is not recommended. Flux will\n# allocate a GPU and set this variable automatically. The original command is\n# preserved for compatibility, but it subverts the scheduler's resource management.\nCUDA_VISIBLE_DEVICES=0 python tools/eval_boxes.py --eval-only \\\n    --config-file configs/BoxNet.yaml \\\n    PLOT.EVAL AP \\\n    PLOT.MODE2D PRED \\\n    PLOT.PROPOSAL_FUNC propose \\\n    MODEL.WEIGHTS output/Baseline_sgd/model_final.pth \\\n    OUTPUT_DIR output/propose\n\n# Run baseline\n#CUDA_VISIBLE_DEVICES=0 python tools/train_net.py \\\n#  --config-file configs/Base_Omni3D.yaml \\\n#  OUTPUT_DIR output/Baseline_trial\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "lsf",
+                    "to_manager": "flux",
+                    "script": "#!/bin/sh\n#BSUB -J omni3d_example_run\n#BSUB -o hpc_logs/%J.out\n#BSUB -e hpc_logs/%J.err\n#BSUB -n 4\n#BSUB -q gpua100\n#BSUB -gpu 'num=1:mode=shared' ###:mode=exclusive_process\n#BSUB -W 4:00\n#BSUB -R 'rusage[mem=5GB]'\n#BSUB -R 'span[hosts=1]'\n#BSUB -B\n\nsource /work3/s194369/3dod_hpc_env/bin/activate\nexport PYTHONPATH=/work3/s194369/3dod\n\n# Run evaluation\nCUDA_VISIBLE_DEVICES=0 python tools/eval_boxes.py --eval-only \\\n    --config-file configs/BoxNet.yaml \\\n    PLOT.EVAL AP \\\n    PLOT.MODE2D PRED \\\n    PLOT.PROPOSAL_FUNC propose \\\n    MODEL.WEIGHTS output/Baseline_sgd/model_final.pth \\\n    OUTPUT_DIR output/propose\n\n# Run baseline\n#CUDA_VISIBLE_DEVICES=0 python tools/train_net.py \\\n#  --config-file configs/Base_Omni3D.yaml \\\n#  OUTPUT_DIR output/Baseline_trial\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

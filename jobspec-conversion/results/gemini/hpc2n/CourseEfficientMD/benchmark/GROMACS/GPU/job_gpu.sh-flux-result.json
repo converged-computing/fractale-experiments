@@ -1,0 +1,122 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n#FLUX -A SNICyyyy-xx-yy\n#FLUX -t 00:20:00\n#FLUX -N 1\n#FLUX -n 4\n#FLUX -c 7\n#K80 cards\n# To request a specific GPU type, Flux uses a combination of gpu count and constraints.\n# This requests a total of 2 GPUs for the job, and the nodes must have the 'k80' feature.\n#FLUX --gpus=2\n#FLUX -C k80\n#V100 cards\n##FLUX --gpus=2\n##FLUX -C v100\n#FLUX -o job_str.out\n#FLUX -e job_str.err\n#FLUX --exclusive\n\nml purge  > /dev/null 2>&1 \nml GCC/8.3.0  CUDA/10.1.243  OpenMPI/3.1.4\nml GROMACS/2021-Python-3.7.4\n\n# Flux provides the number of CPUs per task in the FLUX_JOB_CPUS_PER_TASK variable.\nexport OMP_NUM_THREADS=$FLUX_JOB_CPUS_PER_TASK\nexport reset_counters=\"-resetstep 10000 -nsteps 20000\"\n\ngmx grompp -f step4.1_equilibration.mdp -o step4.1_equilibration.tpr -c step4.0_minimization.gro -r step3_charmm2gmx.pdb -n index.ndx -p topol.top\n\n#Running with default options (MPI-Threaded version)\n# FLUX_JOB_CPUS_PER_TASK and FLUX_JOB_NUM_TASKS are the Flux equivalents.\ngmx mdrun -ntomp $FLUX_JOB_CPUS_PER_TASK -ntmpi $FLUX_JOB_NUM_TASKS $reset_counters -dlb yes  -v -deffnm step4.1_equilibration\n\n#Using 1 rank for PME and offloading NB and PME to the GPUs (MPI-Threaded version)\ngmx mdrun -nb gpu -pme gpu -npme 1 -ntomp $FLUX_JOB_CPUS_PER_TASK -ntmpi $FLUX_JOB_NUM_TASKS $reset_counters -dlb yes  -v -deffnm step4.1_equilibration\n\n#Running with default options (MPI version)\n# 'flux run' is the equivalent of 'srun' for launching parallel tasks.\nflux run gmx_mpi mdrun -ntomp $FLUX_JOB_CPUS_PER_TASK $reset_counters -dlb yes  -v -deffnm step4.1_equilibration\n\n#Using 1 rank for PME and offloading NB and PME to the GPUs (MPI version)\nflux run gmx_mpi mdrun -nb gpu -pme gpu -npme 1 -ntomp $FLUX_JOB_CPUS_PER_TASK  $reset_counters -dlb yes  -v -deffnm step4.1_equilibration\n\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "The script sequentially executes four different GROMACS `mdrun` commands that all write to the same output files (based on `-deffnm step4.1_equilibration`). Each subsequent run will overwrite the results of the previous one. This is likely an error; the user probably intended to either comment out all but one of these commands or to specify different output file names for each execution.",
+                        "The first two `gmx mdrun` commands are executed without a parallel launcher like `flux run`. While some applications can auto-detect an MPI environment, this is not a reliable way to launch parallel tasks. These commands may run serially on a single task, failing to use the 4 tasks requested by the job. The correct approach, as used for the `gmx_mpi` commands later in the script, is to prefix the command with `flux run` to ensure it is launched across the allocated tasks."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n#FLUX -A SNICyyyy-xx-yy\n#FLUX -t 00:20:00\n#FLUX -N 1\n#FLUX -n 4\n#FLUX -c 7\n#K80 cards\n# To request a specific GPU type, Flux uses a combination of gpu count and constraints.\n# This requests a total of 2 GPUs for the job, and the nodes must have the 'k80' feature.\n#FLUX --gpus=2\n#FLUX -C k80\n#V100 cards\n##FLUX --gpus=2\n##FLUX -C v100\n#FLUX -o job_str.out\n#FLUX -e job_str.err\n#FLUX --exclusive\n\nml purge  > /dev/null 2>&1 \nml GCC/8.3.0  CUDA/10.1.243  OpenMPI/3.1.4\nml GROMACS/2021-Python-3.7.4\n\n# Flux provides the number of CPUs per task in the FLUX_JOB_CPUS_PER_TASK variable.\nexport OMP_NUM_THREADS=$FLUX_JOB_CPUS_PER_TASK\nexport reset_counters=\"-resetstep 10000 -nsteps 20000\"\n\ngmx grompp -f step4.1_equilibration.mdp -o step4.1_equilibration.tpr -c step4.0_minimization.gro -r step3_charmm2gmx.pdb -n index.ndx -p topol.top\n\n#Running with default options (MPI-Threaded version)\n# FLUX_JOB_CPUS_PER_TASK and FLUX_JOB_NUM_TASKS are the Flux equivalents.\ngmx mdrun -ntomp $FLUX_JOB_CPUS_PER_TASK -ntmpi $FLUX_JOB_NUM_TASKS $reset_counters -dlb yes  -v -deffnm step4.1_equilibration\n\n#Using 1 rank for PME and offloading NB and PME to the GPUs (MPI-Threaded version)\ngmx mdrun -nb gpu -pme gpu -npme 1 -ntomp $FLUX_JOB_CPUS_PER_TASK -ntmpi $FLUX_JOB_NUM_TASKS $reset_counters -dlb yes  -v -deffnm step4.1_equilibration\n\n#Running with default options (MPI version)\n# 'flux run' is the equivalent of 'srun' for launching parallel tasks.\nflux run gmx_mpi mdrun -ntomp $FLUX_JOB_CPUS_PER_TASK $reset_counters -dlb yes  -v -deffnm step4.1_equilibration\n\n#Using 1 rank for PME and offloading NB and PME to the GPUs (MPI version)\nflux run gmx_mpi mdrun -nb gpu -pme gpu -npme 1 -ntomp $FLUX_JOB_CPUS_PER_TASK  $reset_counters -dlb yes  -v -deffnm step4.1_equilibration\n\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n#SBATCH -A SNICyyyy-xx-yy\n#SBATCH -t 00:20:00\n#SBATCH -N 1\n#SBATCH -n 4\n#SBATCH -c 7\n#K80 cards\n#SBATCH --gres=gpu:k80:2\n#V100 cards\n##SBATCH --gres=gpu:v100:2\n#SBATCH --output=job_str.out\n#SBATCH --error=job_str.err\n#SBATCH --exclusive\n\nml purge  > /dev/null 2>&1 \nml GCC/8.3.0  CUDA/10.1.243  OpenMPI/3.1.4\nml GROMACS/2021-Python-3.7.4\n\nexport OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK\nexport reset_counters=\"-resetstep 10000 -nsteps 20000\"\n\ngmx grompp -f step4.1_equilibration.mdp -o step4.1_equilibration.tpr -c step4.0_minimization.gro -r step3_charmm2gmx.pdb -n index.ndx -p topol.top\n\n#Running with default options (MPI-Threaded version)\ngmx mdrun -ntomp $SLURM_CPUS_PER_TASK -ntmpi $SLURM_NTASKS $reset_counters -dlb yes  -v -deffnm step4.1_equilibration\n\n#Using 1 rank for PME and offloading NB and PME to the GPUs (MPI-Threaded version)\ngmx mdrun -nb gpu -pme gpu -npme 1 -ntomp $SLURM_CPUS_PER_TASK -ntmpi $SLURM_NTASKS $reset_counters -dlb yes  -v -deffnm step4.1_equilibration\n\n#Running with default options (MPI version)\nsrun gmx_mpi mdrun -ntomp $SLURM_CPUS_PER_TASK $reset_counters -dlb yes  -v -deffnm step4.1_equilibration\n\n#Using 1 rank for PME and offloading NB and PME to the GPUs (MPI version)\nsrun gmx_mpi mdrun -nb gpu -pme gpu -npme 1 -ntomp $SLURM_CPUS_PER_TASK  $reset_counters -dlb yes  -v -deffnm step4.1_equilibration\n\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

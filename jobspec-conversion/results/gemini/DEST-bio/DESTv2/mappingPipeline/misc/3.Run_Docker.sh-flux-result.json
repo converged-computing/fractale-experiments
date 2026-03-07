@@ -1,0 +1,122 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/usr/bin/env bash\n#\n#FLUX --job-name=dockerMap # A single job name for the array\n#FLUX --cpus-per-task=7\n#FLUX --ntasks=1 # This script is a template for one task of a job array\n#FLUX --nodes=1 # on one node\n#FLUX --time=24:00:00\n#FLUX --mem-per-task=60G\n#FLUX --queue=standard\n#FLUX --account=berglandlab\n\n# NOTE: The SLURM --array directive was omitted. Flux handles job arrays at\n# submission time. This script should be submitted using 'flux bulksubmit',\n# for example:\n# flux bulksubmit -n 16 --cc=1-16 --output=./slurmOutput/RunDest.{id}_{task[id]}.out --error=./slurmOutput/RunDest.{id}_{task[id]}.err ./your_script_name.sh\n# The script will then execute 16 times with FLUX_JOB_ARRAY_TASK_ID set from 1 to 16.\n# The output/error directives below are a fallback for single-job submission.\n#FLUX -o ./slurmOutput/RunDest.{id}.out # Standard output\n#FLUX -e ./slurmOutput/RunDest.{id}.err # Standard error\n\npwd\n# The SLURM variable $SLURM_CPUS_PER_TASK is replaced by the Flux equivalent.\necho $FLUX_JOB_CPUS_PER_TASK \n\n### modules\nmodule load singularity\n\n###################################\n# Part  0. Get Sample information #\n###################################\n\n# The SLURM variable $SLURM_ARRAY_TASK_ID is replaced by the Flux equivalent.\nsampleid=$( cat mapping.data.only.collapsed.txt  | sed '1d' | awk '{ print $1 }' | sed \"${FLUX_JOB_ARRAY_TASK_ID}q;d\" )\n\nnumFlies=$( cat mapping.data.only.collapsed.txt  | sed '1d' | awk '{ print $2 }' | sed \"${FLUX_JOB_ARRAY_TASK_ID}q;d\" )\n\necho $sampleid\necho $numFlies\n\n###################################\n# Part  2. Run Docker             #\n###################################\n\nsingularity run \\\n/scratch/yey2sn/DEST/dest_freeze1_latest.sif \\\n${sampleid}/${sampleid}.joint_1.fastq \\\n${sampleid}/${sampleid}.joint_2.fastq \\\n${sampleid} \\\n/project/berglandlab/DEST/dest_mapped/RECENT_OUTPUTS \\\n--cores $FLUX_JOB_CPUS_PER_TASK \\\n--max-cov 0.95 \\\n--min-cov 4 \\\n--base-quality-threshold 25 \\\n--num-flies ${numFlies} \\\n--do_poolsnp \\\n--do_snape\n\necho \"done\"\ndate\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "The script specifies output and error files to be written to a subdirectory (`./slurmOutput/`). However, the script does not contain a command to create this directory (e.g., `mkdir -p ./slurmOutput`). If the directory does not exist at job launch time, the job will fail because it cannot open its log files.",
+                        "The script is designed for job array submission and relies on the `FLUX_JOB_ARRAY_TASK_ID` variable. If a user mistakenly submits this script as a single job (e.g., using `flux submit`), the variable will be unset. This will cause the `sed \"${FLUX_JOB_ARRAY_TASK_ID}q;d\"` command to behave incorrectly, likely resulting in all jobs processing the same first line of the input file."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/usr/bin/env bash\n#\n#FLUX --job-name=dockerMap # A single job name for the array\n#FLUX --cpus-per-task=7\n#FLUX --ntasks=1 # This script is a template for one task of a job array\n#FLUX --nodes=1 # on one node\n#FLUX --time=24:00:00\n#FLUX --mem-per-task=60G\n#FLUX --queue=standard\n#FLUX --account=berglandlab\n\n# NOTE: The SLURM --array directive was omitted. Flux handles job arrays at\n# submission time. This script should be submitted using 'flux bulksubmit',\n# for example:\n# flux bulksubmit -n 16 --cc=1-16 --output=./slurmOutput/RunDest.{id}_{task[id]}.out --error=./slurmOutput/RunDest.{id}_{task[id]}.err ./your_script_name.sh\n# The script will then execute 16 times with FLUX_JOB_ARRAY_TASK_ID set from 1 to 16.\n# The output/error directives below are a fallback for single-job submission.\n#FLUX -o ./slurmOutput/RunDest.{id}.out # Standard output\n#FLUX -e ./slurmOutput/RunDest.{id}.err # Standard error\n\npwd\n# The SLURM variable $SLURM_CPUS_PER_TASK is replaced by the Flux equivalent.\necho $FLUX_JOB_CPUS_PER_TASK \n\n### modules\nmodule load singularity\n\n###################################\n# Part  0. Get Sample information #\n###################################\n\n# The SLURM variable $SLURM_ARRAY_TASK_ID is replaced by the Flux equivalent.\nsampleid=$( cat mapping.data.only.collapsed.txt  | sed '1d' | awk '{ print $1 }' | sed \"${FLUX_JOB_ARRAY_TASK_ID}q;d\" )\n\nnumFlies=$( cat mapping.data.only.collapsed.txt  | sed '1d' | awk '{ print $2 }' | sed \"${FLUX_JOB_ARRAY_TASK_ID}q;d\" )\n\necho $sampleid\necho $numFlies\n\n###################################\n# Part  2. Run Docker             #\n###################################\n\nsingularity run \\\n/scratch/yey2sn/DEST/dest_freeze1_latest.sif \\\n${sampleid}/${sampleid}.joint_1.fastq \\\n${sampleid}/${sampleid}.joint_2.fastq \\\n${sampleid} \\\n/project/berglandlab/DEST/dest_mapped/RECENT_OUTPUTS \\\n--cores $FLUX_JOB_CPUS_PER_TASK \\\n--max-cov 0.95 \\\n--min-cov 4 \\\n--base-quality-threshold 25 \\\n--num-flies ${numFlies} \\\n--do_poolsnp \\\n--do_snape\n\necho \"done\"\ndate\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/usr/bin/env bash\n#\n#SBATCH -J dockerMap # A single job name for the array\n#SBATCH -c 7\n#SBATCH -N 1 # on one node\n#SBATCH -t 24:00:00\n#SBATCH --mem 60G\n#SBATCH -o ./slurmOutput/RunDest.%A_%a.out # Standard output\n#SBATCH -e ./slurmOutput/RunDest.%A_%a.err # Standard error\n#SBATCH -p standard\n#SBATCH --account berglandlab\n#SBATCH --array=1-16\n\npwd\necho $SLURM_CPUS_PER_TASK \n\n### modules\nmodule load singularity\n\n###################################\n# Part  0. Get Sample information #\n###################################\n\nsampleid=$( cat mapping.data.only.collapsed.txt  | sed '1d' | awk '{ print $1 }' | sed \"${SLURM_ARRAY_TASK_ID}q;d\" )\n\nnumFlies=$( cat mapping.data.only.collapsed.txt  | sed '1d' | awk '{ print $2 }' | sed \"${SLURM_ARRAY_TASK_ID}q;d\" )\n\necho $sampleid\necho $numFlies\n\n###################################\n# Part  2. Run Docker             #\n###################################\n\nsingularity run \\\n/scratch/yey2sn/DEST/dest_freeze1_latest.sif \\\n${sampleid}/${sampleid}.joint_1.fastq \\\n${sampleid}/${sampleid}.joint_2.fastq \\\n${sampleid} \\\n/project/berglandlab/DEST/dest_mapped/RECENT_OUTPUTS \\\n--cores $SLURM_CPUS_PER_TASK \\\n--max-cov 0.95 \\\n--min-cov 4 \\\n--base-quality-threshold 25 \\\n--num-flies ${numFlies} \\\n--do_poolsnp \\\n--do_snape\n\necho \"done\"\ndate\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

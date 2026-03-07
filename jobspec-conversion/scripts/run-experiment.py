@@ -295,6 +295,8 @@ def main():
                     + f"  ✅ Success: Saved to {os.path.basename(outfile_path)}"
                     + Style.RESET_ALL
                 )
+                # Reset database for next run
+                engine.database.reset()
 
             except Exception as e:
                 # Log failure

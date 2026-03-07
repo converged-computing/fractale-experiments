@@ -1,0 +1,113 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n#FLUX --job-name=itrust-complement_naive_bayes\n# NOTE: Flux does not have a --mem-per-cpu option. The total memory for the task\n# has been calculated (4 cpus * 4G/cpu = 16G) and specified below.\n#FLUX --mem-per-task=16G\n#FLUX --cpus-per-task=4\n#FLUX --ntasks=1\n#FLUX --time=1:00:00\n\n# NOTE: The SLURM --array directive with a specific list of task IDs was omitted.\n# Flux handles job arrays at submission time. To replicate this behavior, one could submit\n# the job multiple times with different task IDs set in the environment, for example:\n# for id in 34 37 39 40 44 48; do\n#   flux submit --env=FLUX_JOB_ARRAY_TASK_ID=$id --output=... --error=... ./your_script.sh\n# done\n# The output/error directives below are a fallback for a single-job submission.\n#FLUX --output=outputs/complement_naive_bayes-{id}.out\n#FLUX --error=errors/complement_naive_bayes-{id}.err\n\nsource ../.experiments_env/bin/activate\n\n# 'srun' is replaced by 'flux run'. Since only one task is requested, this is\n# equivalent to direct execution. The SLURM_ARRAY_TASK_ID variable is replaced\n# by the Flux equivalent, which must be set at submission time.\nflux run python complement_naive_bayes.py ${FLUX_JOB_ARRAY_TASK_ID} context2_ONLY-ACTION-SPREAD20_K3_H4_P12-BINARY\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "content": "[SSL: SSLV3_ALERT_BAD_RECORD_MAC] sslv3 alert bad record mac (_ssl.c:2559)"
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n#FLUX --job-name=itrust-complement_naive_bayes\n# NOTE: Flux does not have a --mem-per-cpu option. The total memory for the task\n# has been calculated (4 cpus * 4G/cpu = 16G) and specified below.\n#FLUX --mem-per-task=16G\n#FLUX --cpus-per-task=4\n#FLUX --ntasks=1\n#FLUX --time=1:00:00\n\n# NOTE: The SLURM --array directive with a specific list of task IDs was omitted.\n# Flux handles job arrays at submission time. To replicate this behavior, one could submit\n# the job multiple times with different task IDs set in the environment, for example:\n# for id in 34 37 39 40 44 48; do\n#   flux submit --env=FLUX_JOB_ARRAY_TASK_ID=$id --output=... --error=... ./your_script.sh\n# done\n# The output/error directives below are a fallback for a single-job submission.\n#FLUX --output=outputs/complement_naive_bayes-{id}.out\n#FLUX --error=errors/complement_naive_bayes-{id}.err\n\nsource ../.experiments_env/bin/activate\n\n# 'srun' is replaced by 'flux run'. Since only one task is requested, this is\n# equivalent to direct execution. The SLURM_ARRAY_TASK_ID variable is replaced\n# by the Flux equivalent, which must be set at submission time.\nflux run python complement_naive_bayes.py ${FLUX_JOB_ARRAY_TASK_ID} context2_ONLY-ACTION-SPREAD20_K3_H4_P12-BINARY\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n#SBATCH --job-name=itrust-complement_naive_bayes\n#SBATCH --mem-per-cpu=4G\n#SBATCH --cpus-per-task=4\n#SBATCH --array=34,37,39,40,44,48\n#SBATCH --time=00-01:00:00\n#SBATCH --output=outputs/complement_naive_bayes-%A-%a.out\n#SBATCH --error=errors/complement_naive_bayes-%A-%a.err\n\nsource ../.experiments_env/bin/activate\n\nsrun python complement_naive_bayes.py ${SLURM_ARRAY_TASK_ID} context2_ONLY-ACTION-SPREAD20_K3_H4_P12-BINARY\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

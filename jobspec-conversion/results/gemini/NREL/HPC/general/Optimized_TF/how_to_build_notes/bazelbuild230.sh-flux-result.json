@@ -1,0 +1,124 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n#FLUX --ntasks=1 # Tasks to be run\n#FLUX --nodes=1  # Run the tasks on the same node\n#FLUX --time=00:01:00   # Required, 1 minute\n#FLUX --account=<update_this_field> # Required Talk to Wes about what you should use\n#FLUX -o output.txt\n#FLUX -e errors.txt\n#FLUX --queue=debug\n\n\ncd /scratch/$USER/tensorflow/\nmodule use /nopt/nrel/apps/modules/centos74/modulefiles/\nmodule load conda\nmodule load gcc/7.4.0\nmodule load cuda/10.0.130\nmodule load cudnn/7.4.2/cuda-10.0\nsleep 3\nsource activate py38tf23\nsleep 5\nexport TMP=/scratch/$USER/bazel_build\nexport TEST_TMPDIR=/scratch/$USER/bazel_build\nexport TMPDIR=/scratch/$USER/bazel_build\nunset LD_PRELOAD\nbazel --output_base=/scratch/$USER/bazel_build build -c opt --copt=-O3 --copt=-march=skylake-avx512 --copt=-mtune=skylake-avx512 --copt=-Wno-sign-compare --copt=-Wno-unused  -k //tensorflow/tools/pip_package:build_pip_package\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "The script loads CUDA and CUDNN modules, which indicates the `bazel build` process requires a GPU. However, no GPU is requested in the job's resource directives. The job will fail if it is scheduled on a CPU-only node. A directive such as '#FLUX --gpus=1' should be added.",
+                        "The account is set to a placeholder value ('#FLUX --account=<update_this_field>'). The job submission will fail until this is replaced with a valid account name.",
+                        "The job requests only a single CPU for a potentially intensive build process. `bazel` can often leverage multiple cores. Requesting more CPUs (e.g., '#FLUX --cpus-per-task=8') would likely speed up the compilation significantly.",
+                        "The script attempts to change into a directory (`/scratch/$USER/tensorflow/`) and sets several environment variables to point to another directory (`/scratch/$USER/bazel_build`). It does not contain commands to create these directories. If they do not exist, the script will fail."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n#FLUX --ntasks=1 # Tasks to be run\n#FLUX --nodes=1  # Run the tasks on the same node\n#FLUX --time=00:01:00   # Required, 1 minute\n#FLUX --account=<update_this_field> # Required Talk to Wes about what you should use\n#FLUX -o output.txt\n#FLUX -e errors.txt\n#FLUX --queue=debug\n\n\ncd /scratch/$USER/tensorflow/\nmodule use /nopt/nrel/apps/modules/centos74/modulefiles/\nmodule load conda\nmodule load gcc/7.4.0\nmodule load cuda/10.0.130\nmodule load cudnn/7.4.2/cuda-10.0\nsleep 3\nsource activate py38tf23\nsleep 5\nexport TMP=/scratch/$USER/bazel_build\nexport TEST_TMPDIR=/scratch/$USER/bazel_build\nexport TMPDIR=/scratch/$USER/bazel_build\nunset LD_PRELOAD\nbazel --output_base=/scratch/$USER/bazel_build build -c opt --copt=-O3 --copt=-march=skylake-avx512 --copt=-mtune=skylake-avx512 --copt=-Wno-sign-compare --copt=-Wno-unused  -k //tensorflow/tools/pip_package:build_pip_package\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n\n#SBATCH --ntasks=1 # Tasks to be run\n#SBATCH --nodes=1  # Run the tasks on the same node\n#SBATCH --time=60   # Required, estimate 5 minutes\n#SBATCH --account=<update_this_field> # Required Talk to Wes about what you should use\n#SBATCH -o output.txt\n#SBATCH -e errors.txt\n#SBATCH --partition=debug\n\n\ncd /scratch/$USER/tensorflow/\nmodule use /nopt/nrel/apps/modules/centos74/modulefiles/\nmodule load conda\nmodule load gcc/7.4.0\nmodule load cuda/10.0.130\nmodule load cudnn/7.4.2/cuda-10.0\nsleep 3\nsource activate py38tf23\nsleep 5\nexport TMP=/scratch/$USER/bazel_build\nexport TEST_TMPDIR=/scratch/$USER/bazel_build\nexport TMPDIR=/scratch/$USER/bazel_build\nunset LD_PRELOAD\nbazel --output_base=/scratch/$USER/bazel_build build -c opt --copt=-O3 --copt=-march=skylake-avx512 --copt=-mtune=skylake-avx512 --copt=-Wno-sign-compare --copt=-Wno-unused  -k //tensorflow/tools/pip_package:build_pip_package\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

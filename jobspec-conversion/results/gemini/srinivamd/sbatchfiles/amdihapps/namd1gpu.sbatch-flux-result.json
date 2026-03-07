@@ -1,0 +1,122 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n#FLUX --nodes=1\n#FLUX --ntasks=1\n#FLUX --cpus-per-task=16\n#FLUX --mem=64G\n#FLUX --gpus=1\n# NOTE: Flux does not have a token for nodename in the output/error file paths.\n# The SLURM %N token has been omitted.\n#FLUX -o {name}-{id}.out\n#FLUX -e {name}-{id}.err\n\nsource /etc/profile.d/modules.sh\n\n# Use partition/queue name to load OS-specific modulespath to use to override\n# login node environment. The SLURM variable $SLURM_JOB_PARTITION has been\n# replaced with the Flux equivalent, $FLUX_JOB_QUEUE.\nif [[ $(echo $FLUX_JOB_QUEUE | grep -i ubuntu) = *Ubuntu* ]]; then\n    module use /shared/apps/modules/ubuntu/modulefiles\n    module unuse /shared/apps/modules/rhel8/modulefiles\n    module unuse /shared/apps/modules/rhel9/modulefiles\n    module unuse /shared/apps/modules/sles15sp4/modulefiles\n    module unuse /shared/apps/modules/centos8/modulefiles\n    module unuse /shared/apps/modules/rocky9/modulefiles\nelif [[ $(echo $FLUX_JOB_QUEUE | grep -i rhel8) = *RHEL8* ]]; then\n    module unuse /shared/apps/modules/ubuntu/modulefiles\n    module use /shared/apps/modules/rhel8/modulefiles\n    module unuse /shared/apps/modules/rhel9/modulefiles\n    module unuse /shared/apps/modules/sles15sp4/modulefiles\n    module unuse /shared/apps/modules/centos8/modulefiles\n    module unuse /shared/apps/modules/rocky9/modulefiles\nelif [[ $(echo $FLUX_JOB_QUEUE | grep -i rhel9) = *RHEL9* ]]; then\n    module unuse /shared/apps/modules/ubuntu/modulefiles\n    module unuse /shared/apps/modules/rhel8/modulefiles\n    module use /shared/apps/modules/rhel9/modulefiles\n    module unuse /shared/apps/modules/sles15sp4/modulefiles\n    module unuse /shared/apps/modules/centos8/modulefiles\n    module unuse /shared/apps/modules/rocky9/modulefiles\nelif [[ $(echo $FLUX_JOB_QUEUE | grep -i sles15) = *SLES15* ]]; then\n    module unuse /shared/apps/modules/ubuntu/modulefiles\n    module unuse /shared/apps/modules/rhel8/modulefiles\n    module unuse /shared/apps/modules/rhel9/modulefiles\n    module use /shared/apps/modules/sles15sp4/modulefiles\n    module unuse /shared/apps/modules/centos8/modulefiles\n    module unuse /shared/apps/modules/rocky9/modulefiles\nelif [[ $(echo $FLUX_JOB_QUEUE | grep -i centos8) = *CentOS8* ]]; then\n    module unuse /shared/apps/modules/ubuntu/modulefiles\n    module unuse /shared/apps/modules/rhel8/modulefiles\n    module unuse /shared/apps/modules/rhel9/modulefiles\n    module unuse /shared/apps/modules/sles15sp4/modulefiles\n    module use /shared/apps/modules/centos8/modulefiles\n    module unuse /shared/apps/modules/rocky9/modulefiles\nelif [[ $(echo $FLUX_JOB_QUEUE | grep -i rocky9) = *Rocky9* ]]; then\n    module unuse /shared/apps/modules/ubuntu/modulefiles\n    module unuse /shared/apps/modules/rhel8/modulefiles\n    module unuse /shared/apps/modules/rhel9/modulefiles\n    module unuse /shared/apps/modules/sles15sp4/modulefiles\n    module unuse /shared/apps/modules/centos8/modulefiles\n    module use /shared/apps/modules/rocky9/modulefiles\nfi\n\n\nmodule purge\nmodule load rocm-5.4.2/ucx-1.13.1/ompi/4.1.4\n\ntmp=/tmp/$USER/tmp-$$ \nmkdir -p $tmp\n\nsingularity run /shared/apps/bin/namd2.15a2-20211101.sif cp -r /examples ./examples-$$ \n\nsingularity run --bind ./examples-$$:/examples-$$ --pwd /examples-$$ /shared/apps/bin/namd2.15a2-20211101.sif /opt/namd/bin/namd2 jac/jac.namd +p64 +setcpuaffinity +devices 0 \n\nsingularity run --bind ./examples-$$:/examples-$$ --pwd /examples-$$ /shared/apps/bin/namd2.15a2-20211101.sif /opt/namd/bin/namd2 apoa1/apoa1.namd +p64 +setcpuaffinity +devices 0 \n\nsingularity run --bind ./examples-$$:/examples-$$ --pwd /examples-$$ /shared/apps/bin/namd2.15a2-20211101.sif /opt/namd/bin/namd2 f1atpase/f1atpase.namd +p64 +setcpuaffinity +devices 0 \n\nsingularity run --bind ./examples-$$:/examples-$$ --pwd /examples-$$ /shared/apps/bin/namd2.15a2-20211101.sif /opt/namd/bin/namd2 stmv/stmv.namd +p64 +setcpuaffinity +devices 0 \n\n# The SLURM variables have been replaced with their Flux equivalents.\ncp -r ./examples-$$   $PWD/gpu1-$$-$FLUX_JOB_NODELIST-$FLUX_JOB_ID\n\nrm -rf examples-$$/\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "The script requests only 16 CPUs (`--cpus-per-task=16`), but all of the NAMD application runs are configured to use 64 threads (`+p64`). This will cause severe oversubscription, with 64 threads competing for 16 CPU cores, which will lead to a significant performance degradation due to context switching. The number of CPUs requested should be increased to at least 64.",
+                        "The script hardcodes the GPU device to be used (`+devices 0`). This bypasses the scheduler's resource assignment and isolation mechanisms. Flux will allocate a specific physical GPU to the job and make it visible as device 0 through the `CUDA_VISIBLE_DEVICES` or `ROCR_VISIBLE_DEVICES` environment variables. While this may work for a single-GPU job, it is not a robust practice and can cause issues on multi-GPU nodes if a different physical device is assigned. The application should ideally be configured to use the GPU assigned by the scheduler automatically."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n#FLUX --nodes=1\n#FLUX --ntasks=1\n#FLUX --cpus-per-task=16\n#FLUX --mem=64G\n#FLUX --gpus=1\n# NOTE: Flux does not have a token for nodename in the output/error file paths.\n# The SLURM %N token has been omitted.\n#FLUX -o {name}-{id}.out\n#FLUX -e {name}-{id}.err\n\nsource /etc/profile.d/modules.sh\n\n# Use partition/queue name to load OS-specific modulespath to use to override\n# login node environment. The SLURM variable $SLURM_JOB_PARTITION has been\n# replaced with the Flux equivalent, $FLUX_JOB_QUEUE.\nif [[ $(echo $FLUX_JOB_QUEUE | grep -i ubuntu) = *Ubuntu* ]]; then\n    module use /shared/apps/modules/ubuntu/modulefiles\n    module unuse /shared/apps/modules/rhel8/modulefiles\n    module unuse /shared/apps/modules/rhel9/modulefiles\n    module unuse /shared/apps/modules/sles15sp4/modulefiles\n    module unuse /shared/apps/modules/centos8/modulefiles\n    module unuse /shared/apps/modules/rocky9/modulefiles\nelif [[ $(echo $FLUX_JOB_QUEUE | grep -i rhel8) = *RHEL8* ]]; then\n    module unuse /shared/apps/modules/ubuntu/modulefiles\n    module use /shared/apps/modules/rhel8/modulefiles\n    module unuse /shared/apps/modules/rhel9/modulefiles\n    module unuse /shared/apps/modules/sles15sp4/modulefiles\n    module unuse /shared/apps/modules/centos8/modulefiles\n    module unuse /shared/apps/modules/rocky9/modulefiles\nelif [[ $(echo $FLUX_JOB_QUEUE | grep -i rhel9) = *RHEL9* ]]; then\n    module unuse /shared/apps/modules/ubuntu/modulefiles\n    module unuse /shared/apps/modules/rhel8/modulefiles\n    module use /shared/apps/modules/rhel9/modulefiles\n    module unuse /shared/apps/modules/sles15sp4/modulefiles\n    module unuse /shared/apps/modules/centos8/modulefiles\n    module unuse /shared/apps/modules/rocky9/modulefiles\nelif [[ $(echo $FLUX_JOB_QUEUE | grep -i sles15) = *SLES15* ]]; then\n    module unuse /shared/apps/modules/ubuntu/modulefiles\n    module unuse /shared/apps/modules/rhel8/modulefiles\n    module unuse /shared/apps/modules/rhel9/modulefiles\n    module use /shared/apps/modules/sles15sp4/modulefiles\n    module unuse /shared/apps/modules/centos8/modulefiles\n    module unuse /shared/apps/modules/rocky9/modulefiles\nelif [[ $(echo $FLUX_JOB_QUEUE | grep -i centos8) = *CentOS8* ]]; then\n    module unuse /shared/apps/modules/ubuntu/modulefiles\n    module unuse /shared/apps/modules/rhel8/modulefiles\n    module unuse /shared/apps/modules/rhel9/modulefiles\n    module unuse /shared/apps/modules/sles15sp4/modulefiles\n    module use /shared/apps/modules/centos8/modulefiles\n    module unuse /shared/apps/modules/rocky9/modulefiles\nelif [[ $(echo $FLUX_JOB_QUEUE | grep -i rocky9) = *Rocky9* ]]; then\n    module unuse /shared/apps/modules/ubuntu/modulefiles\n    module unuse /shared/apps/modules/rhel8/modulefiles\n    module unuse /shared/apps/modules/rhel9/modulefiles\n    module unuse /shared/apps/modules/sles15sp4/modulefiles\n    module unuse /shared/apps/modules/centos8/modulefiles\n    module use /shared/apps/modules/rocky9/modulefiles\nfi\n\n\nmodule purge\nmodule load rocm-5.4.2/ucx-1.13.1/ompi/4.1.4\n\ntmp=/tmp/$USER/tmp-$$ \nmkdir -p $tmp\n\nsingularity run /shared/apps/bin/namd2.15a2-20211101.sif cp -r /examples ./examples-$$ \n\nsingularity run --bind ./examples-$$:/examples-$$ --pwd /examples-$$ /shared/apps/bin/namd2.15a2-20211101.sif /opt/namd/bin/namd2 jac/jac.namd +p64 +setcpuaffinity +devices 0 \n\nsingularity run --bind ./examples-$$:/examples-$$ --pwd /examples-$$ /shared/apps/bin/namd2.15a2-20211101.sif /opt/namd/bin/namd2 apoa1/apoa1.namd +p64 +setcpuaffinity +devices 0 \n\nsingularity run --bind ./examples-$$:/examples-$$ --pwd /examples-$$ /shared/apps/bin/namd2.15a2-20211101.sif /opt/namd/bin/namd2 f1atpase/f1atpase.namd +p64 +setcpuaffinity +devices 0 \n\nsingularity run --bind ./examples-$$:/examples-$$ --pwd /examples-$$ /shared/apps/bin/namd2.15a2-20211101.sif /opt/namd/bin/namd2 stmv/stmv.namd +p64 +setcpuaffinity +devices 0 \n\n# The SLURM variables have been replaced with their Flux equivalents.\ncp -r ./examples-$$   $PWD/gpu1-$$-$FLUX_JOB_NODELIST-$FLUX_JOB_ID\n\nrm -rf examples-$$/\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n\n#SBATCH --nodes=1\n#SBATCH --ntasks-per-node=1\n#SBATCH --cpus-per-task=16\n#SBATCH --mem=64GB\n#SBATCH --gres=gpu:1\n#SBATCH -o %x-%N-%j.out\n#SBATCH -e %x-%N-%j.err\n\nsource /etc/profile.d/modules.sh\n\n# Use partition name to load OS-specific modulespath to use to override\n# login node environment\nif [[ $(echo $SLURM_JOB_PARTITION | grep -i ubuntu) = *Ubuntu* ]]; then\n    module use /shared/apps/modules/ubuntu/modulefiles\n    module unuse /shared/apps/modules/rhel8/modulefiles\n    module unuse /shared/apps/modules/rhel9/modulefiles\n    module unuse /shared/apps/modules/sles15sp4/modulefiles\n    module unuse /shared/apps/modules/centos8/modulefiles\n    module unuse /shared/apps/modules/rocky9/modulefiles\nelif [[ $(echo $SLURM_JOB_PARTITION | grep -i rhel8) = *RHEL8* ]]; then\n    module unuse /shared/apps/modules/ubuntu/modulefiles\n    module use /shared/apps/modules/rhel8/modulefiles\n    module unuse /shared/apps/modules/rhel9/modulefiles\n    module unuse /shared/apps/modules/sles15sp4/modulefiles\n    module unuse /shared/apps/modules/centos8/modulefiles\n    module unuse /shared/apps/modules/rocky9/modulefiles\nelif [[ $(echo $SLURM_JOB_PARTITION | grep -i rhel9) = *RHEL9* ]]; then\n    module unuse /shared/apps/modules/ubuntu/modulefiles\n    module unuse /shared/apps/modules/rhel8/modulefiles\n    module use /shared/apps/modules/rhel9/modulefiles\n    module unuse /shared/apps/modules/sles15sp4/modulefiles\n    module unuse /shared/apps/modules/centos8/modulefiles\n    module unuse /shared/apps/modules/rocky9/modulefiles\nelif [[ $(echo $SLURM_JOB_PARTITION | grep -i sles15) = *SLES15* ]]; then\n    module unuse /shared/apps/modules/ubuntu/modulefiles\n    module unuse /shared/apps/modules/rhel8/modulefiles\n    module unuse /shared/apps/modules/rhel9/modulefiles\n    module use /shared/apps/modules/sles15sp4/modulefiles\n    module unuse /shared/apps/modules/centos8/modulefiles\n    module unuse /shared/apps/modules/rocky9/modulefiles\nelif [[ $(echo $SLURM_JOB_PARTITION | grep -i centos8) = *CentOS8* ]]; then\n    module unuse /shared/apps/modules/ubuntu/modulefiles\n    module unuse /shared/apps/modules/rhel8/modulefiles\n    module unuse /shared/apps/modules/rhel9/modulefiles\n    module unuse /shared/apps/modules/sles15sp4/modulefiles\n    module use /shared/apps/modules/centos8/modulefiles\n    module unuse /shared/apps/modules/rocky9/modulefiles\nelif [[ $(echo $SLURM_JOB_PARTITION | grep -i rocky9) = *Rocky9* ]]; then\n    module unuse /shared/apps/modules/ubuntu/modulefiles\n    module unuse /shared/apps/modules/rhel8/modulefiles\n    module unuse /shared/apps/modules/rhel9/modulefiles\n    module unuse /shared/apps/modules/sles15sp4/modulefiles\n    module unuse /shared/apps/modules/centos8/modulefiles\n    module use /shared/apps/modules/rocky9/modulefiles\nfi\n\n\nmodule purge\nmodule load rocm-5.4.2/ucx-1.13.1/ompi/4.1.4\n\ntmp=/tmp/$USER/tmp-$$\nmkdir -p $tmp\n\nsingularity run /shared/apps/bin/namd2.15a2-20211101.sif cp -r /examples ./examples-$$\n\nsingularity run --bind ./examples-$$:/examples-$$ --pwd /examples-$$ /shared/apps/bin/namd2.15a2-20211101.sif /opt/namd/bin/namd2 jac/jac.namd +p64 +setcpuaffinity +devices 0 \n\nsingularity run --bind ./examples-$$:/examples-$$ --pwd /examples-$$ /shared/apps/bin/namd2.15a2-20211101.sif /opt/namd/bin/namd2 apoa1/apoa1.namd +p64 +setcpuaffinity +devices 0 \n\nsingularity run --bind ./examples-$$:/examples-$$ --pwd /examples-$$ /shared/apps/bin/namd2.15a2-20211101.sif /opt/namd/bin/namd2 f1atpase/f1atpase.namd +p64 +setcpuaffinity +devices 0 \n\nsingularity run --bind ./examples-$$:/examples-$$ --pwd /examples-$$ /shared/apps/bin/namd2.15a2-20211101.sif /opt/namd/bin/namd2 stmv/stmv.namd +p64 +setcpuaffinity +devices 0 \n\ncp -r ./examples-$$   $PWD/gpu1-$$-$SLURM_JOB_NODELIST-$SLURM_JOB_ID\n\nrm -rf examples-$$/\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

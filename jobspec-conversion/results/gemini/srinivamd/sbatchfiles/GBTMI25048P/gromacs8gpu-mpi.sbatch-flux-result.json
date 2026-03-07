@@ -1,0 +1,122 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n#FLUX --nodes=1\n#FLUX --ntasks-per-node=8\n#FLUX --cpus-per-task=12\n# NOTE: SLURM's '--mem=0' requests all available memory on the node. This is\n# the equivalent behavior in Flux.\n#FLUX --mem-per-node=0\n#FLUX --gpus=8\n\n# NOTE: Flux does not have a token for nodename in the output/error file paths.\n# The SLURM %N token has been omitted. Also, the output and error streams were\n# swapped in the original script; this has been corrected.\n#FLUX -o {name}-{id}.out\n#FLUX -e {name}-{id}.err\n\nsource /etc/profile.d/modules.sh\n\n# Use partition/queue name to load OS-specific modulespath to use to override\n# login node environment. The SLURM variable $SLURM_JOB_PARTITION has been\n# replaced with the Flux equivalent, $FLUX_JOB_QUEUE.\nif [[ $(echo $FLUX_JOB_QUEUE | grep -i ubuntu) = *Ubuntu* ]]; then\n    module use /shared/apps/modules/ubuntu/modulefiles\n    module unuse /shared/apps/modules/rhel8/modulefiles\n    module unuse /shared/apps/modules/rhel9/modulefiles\n    module unuse /shared/apps/modules/sles15sp4/modulefiles\n    module unuse /shared/apps/modules/centos8/modulefiles\n    module unuse /shared/apps/modules/rocky9/modulefiles\nelif [[ $(echo $FLUX_JOB_QUEUE | grep -i rhel8) = *RHEL8* ]]; then\n    module unuse /shared/apps/modules/ubuntu/modulefiles\n    module use /shared/apps/modules/rhel8/modulefiles\n    module unuse /shared/apps/modules/rhel9/modulefiles\n    module unuse /shared/apps/modules/sles15sp4/modulefiles\n    module unuse /shared/apps/modules/centos8/modulefiles\n    module unuse /shared/apps/modules/rocky9/modulefiles\nelif [[ $(echo $FLUX_JOB_QUEUE | grep -i rhel9) = *RHEL9* ]]; then\n    module unuse /shared/apps/modules/ubuntu/modulefiles\n    module unuse /shared/apps/modules/rhel8/modulefiles\n    module use /shared/apps/modules/rhel9/modulefiles\n    module unuse /shared/apps/modules/sles15sp4/modulefiles\n    module unuse /shared/apps/modules/centos8/modulefiles\n    module unuse /shared/apps/modules/rocky9/modulefiles\nelif [[ $(echo $FLUX_JOB_QUEUE | grep -i sles15) = *SLES15* ]]; then\n    module unuse /shared/apps/modules/ubuntu/modulefiles\n    module unuse /shared/apps/modules/rhel8/modulefiles\n    module unuse /shared/apps/modules/rhel9/modulefiles\n    module use /shared/apps/modules/sles15sp4/modulefiles\n    module unuse /shared/apps/modules/centos8/modulefiles\n    module unuse /shared/apps/modules/rocky9/modulefiles\nelif [[ $(echo $FLUX_JOB_QUEUE | grep -i centos8) = *CentOS8* ]]; then\n    module unuse /shared/apps/modules/ubuntu/modulefiles\n    module unuse /shared/apps/modules/rhel8/modulefiles\n    module unuse /shared/apps/modules/rhel9/modulefiles\n    module unuse /shared/apps/modules/sles15sp4/modulefiles\n    module use /shared/apps/modules/centos8/modulefiles\n    module unuse /shared/apps/modules/rocky9/modulefiles\nelif [[ $(echo $FLUX_JOB_QUEUE | grep -i rocky9) = *Rocky9* ]]; then\n    module unuse /shared/apps/modules/ubuntu/modulefiles\n    module unuse /shared/apps/modules/rhel8/modulefiles\n    module unuse /shared/apps/modules/rhel9/modulefiles\n    module unuse /shared/apps/modules/sles15sp4/modulefiles\n    module unuse /shared/apps/modules/centos8/modulefiles\n    module use /shared/apps/modules/rocky9/modulefiles\nfi\n\n\nmodule purge\nmodule load rocm/5.4.2\n\ntmp=/tmp/$USER/gpu8-$$\nmkdir -p $tmp\n\n# Example with MPI: STMV Benchmark\nmkdir -p /tmp/$USER/gpu8-$$/stmv\nsingularity run /shared/apps/bin/gromacs_2022.3.amd1_161.sif tar -xvf /benchmarks/stmv/stmv.tar.gz -C /tmp/$USER/gpu8-$$/stmv 1>/dev/null\n\n# The singularity command is now launched with 'flux run' instead of the container's mpirun.\n# Flux will manage the MPI launch across the 8 allocated tasks.\nsingularity run /shared/apps/bin/gromacs_2022.3.amd1_161.sif flux run gmx_mpi mdrun -pin on -nsteps 100000 -resetstep 90000 -ntomp 8 -noconfout -nb gpu -bonded cpu -pme gpu -npme 1 -v -nstlist 400 -gpu_id 01234567 -s /tmp/$USER/gpu8-$$/stmv/topol.tpr -g /tmp/$USER/gpu8-$$/stmv/md.log -e /tmp/$USER/gpu8-$$/stmv/ener.eder -cpo /tmp/$USER/gpu8-$$/stmv/state.cpt\n\n# The SLURM variables have been replaced with the Flux equivalents.\ncp -r /tmp/$USER/gpu8-$$   $PWD/gpu8-$$-$FLUX_JOB_NODELIST-$FLUX_JOB_ID\n\n# Do the clean-up\n/bin/rm -rf $tmp\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "The GROMACS application is launched with the `-gpu_id 01234567` flag, which hardcodes the physical GPU device IDs. This practice subverts the scheduler's resource assignment. Flux allocates a specific GPU to each of the 8 tasks and uses environment variables (e.g., `ROCR_VISIBLE_DEVICES`) to ensure each task has exclusive access to its assigned device. By hardcoding the IDs, the script will likely cause all 8 tasks to conflict over the same physical devices instead of using their dedicated resources, leading to severe performance degradation or failure. The `-gpu_id` flag should be removed.",
+                        "There is a resource mismatch between allocated CPUs and utilized threads. The job requests 12 CPUs per task (`--cpus-per-task=12`), but the application is configured to use only 8 OpenMP threads (`-ntomp 8`). This leaves 4 CPUs per task (32 CPUs total) allocated but idle, wasting a significant amount of compute resources. The request should be reduced to `--cpus-per-task=8` to match the application's needs."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n#FLUX --nodes=1\n#FLUX --ntasks-per-node=8\n#FLUX --cpus-per-task=12\n# NOTE: SLURM's '--mem=0' requests all available memory on the node. This is\n# the equivalent behavior in Flux.\n#FLUX --mem-per-node=0\n#FLUX --gpus=8\n\n# NOTE: Flux does not have a token for nodename in the output/error file paths.\n# The SLURM %N token has been omitted. Also, the output and error streams were\n# swapped in the original script; this has been corrected.\n#FLUX -o {name}-{id}.out\n#FLUX -e {name}-{id}.err\n\nsource /etc/profile.d/modules.sh\n\n# Use partition/queue name to load OS-specific modulespath to use to override\n# login node environment. The SLURM variable $SLURM_JOB_PARTITION has been\n# replaced with the Flux equivalent, $FLUX_JOB_QUEUE.\nif [[ $(echo $FLUX_JOB_QUEUE | grep -i ubuntu) = *Ubuntu* ]]; then\n    module use /shared/apps/modules/ubuntu/modulefiles\n    module unuse /shared/apps/modules/rhel8/modulefiles\n    module unuse /shared/apps/modules/rhel9/modulefiles\n    module unuse /shared/apps/modules/sles15sp4/modulefiles\n    module unuse /shared/apps/modules/centos8/modulefiles\n    module unuse /shared/apps/modules/rocky9/modulefiles\nelif [[ $(echo $FLUX_JOB_QUEUE | grep -i rhel8) = *RHEL8* ]]; then\n    module unuse /shared/apps/modules/ubuntu/modulefiles\n    module use /shared/apps/modules/rhel8/modulefiles\n    module unuse /shared/apps/modules/rhel9/modulefiles\n    module unuse /shared/apps/modules/sles15sp4/modulefiles\n    module unuse /shared/apps/modules/centos8/modulefiles\n    module unuse /shared/apps/modules/rocky9/modulefiles\nelif [[ $(echo $FLUX_JOB_QUEUE | grep -i rhel9) = *RHEL9* ]]; then\n    module unuse /shared/apps/modules/ubuntu/modulefiles\n    module unuse /shared/apps/modules/rhel8/modulefiles\n    module use /shared/apps/modules/rhel9/modulefiles\n    module unuse /shared/apps/modules/sles15sp4/modulefiles\n    module unuse /shared/apps/modules/centos8/modulefiles\n    module unuse /shared/apps/modules/rocky9/modulefiles\nelif [[ $(echo $FLUX_JOB_QUEUE | grep -i sles15) = *SLES15* ]]; then\n    module unuse /shared/apps/modules/ubuntu/modulefiles\n    module unuse /shared/apps/modules/rhel8/modulefiles\n    module unuse /shared/apps/modules/rhel9/modulefiles\n    module use /shared/apps/modules/sles15sp4/modulefiles\n    module unuse /shared/apps/modules/centos8/modulefiles\n    module unuse /shared/apps/modules/rocky9/modulefiles\nelif [[ $(echo $FLUX_JOB_QUEUE | grep -i centos8) = *CentOS8* ]]; then\n    module unuse /shared/apps/modules/ubuntu/modulefiles\n    module unuse /shared/apps/modules/rhel8/modulefiles\n    module unuse /shared/apps/modules/rhel9/modulefiles\n    module unuse /shared/apps/modules/sles15sp4/modulefiles\n    module use /shared/apps/modules/centos8/modulefiles\n    module unuse /shared/apps/modules/rocky9/modulefiles\nelif [[ $(echo $FLUX_JOB_QUEUE | grep -i rocky9) = *Rocky9* ]]; then\n    module unuse /shared/apps/modules/ubuntu/modulefiles\n    module unuse /shared/apps/modules/rhel8/modulefiles\n    module unuse /shared/apps/modules/rhel9/modulefiles\n    module unuse /shared/apps/modules/sles15sp4/modulefiles\n    module unuse /shared/apps/modules/centos8/modulefiles\n    module use /shared/apps/modules/rocky9/modulefiles\nfi\n\n\nmodule purge\nmodule load rocm/5.4.2\n\ntmp=/tmp/$USER/gpu8-$$\nmkdir -p $tmp\n\n# Example with MPI: STMV Benchmark\nmkdir -p /tmp/$USER/gpu8-$$/stmv\nsingularity run /shared/apps/bin/gromacs_2022.3.amd1_161.sif tar -xvf /benchmarks/stmv/stmv.tar.gz -C /tmp/$USER/gpu8-$$/stmv 1>/dev/null\n\n# The singularity command is now launched with 'flux run' instead of the container's mpirun.\n# Flux will manage the MPI launch across the 8 allocated tasks.\nsingularity run /shared/apps/bin/gromacs_2022.3.amd1_161.sif flux run gmx_mpi mdrun -pin on -nsteps 100000 -resetstep 90000 -ntomp 8 -noconfout -nb gpu -bonded cpu -pme gpu -npme 1 -v -nstlist 400 -gpu_id 01234567 -s /tmp/$USER/gpu8-$$/stmv/topol.tpr -g /tmp/$USER/gpu8-$$/stmv/md.log -e /tmp/$USER/gpu8-$$/stmv/ener.eder -cpo /tmp/$USER/gpu8-$$/stmv/state.cpt\n\n# The SLURM variables have been replaced with the Flux equivalents.\ncp -r /tmp/$USER/gpu8-$$   $PWD/gpu8-$$-$FLUX_JOB_NODELIST-$FLUX_JOB_ID\n\n# Do the clean-up\n/bin/rm -rf $tmp\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n\n#SBATCH --nodes=1\n#SBATCH --ntasks-per-node=8\n#SBATCH --cpus-per-task=12\n#SBATCH --mem=0\n#SBATCH --gres=gpu:8\n\n#SBATCH -o %x-%N-%j.err\n#SBATCH -e %x-%N-%j.out\n\nsource /etc/profile.d/modules.sh\n\n# Use partition name to load OS-specific modulespath to use to override\n# login node environment\nif [[ $(echo $SLURM_JOB_PARTITION | grep -i ubuntu) = *Ubuntu* ]]; then\n    module use /shared/apps/modules/ubuntu/modulefiles\n    module unuse /shared/apps/modules/rhel8/modulefiles\n    module unuse /shared/apps/modules/rhel9/modulefiles\n    module unuse /shared/apps/modules/sles15sp4/modulefiles\n    module unuse /shared/apps/modules/centos8/modulefiles\n    module unuse /shared/apps/modules/rocky9/modulefiles\nelif [[ $(echo $SLURM_JOB_PARTITION | grep -i rhel8) = *RHEL8* ]]; then\n    module unuse /shared/apps/modules/ubuntu/modulefiles\n    module use /shared/apps/modules/rhel8/modulefiles\n    module unuse /shared/apps/modules/rhel9/modulefiles\n    module unuse /shared/apps/modules/sles15sp4/modulefiles\n    module unuse /shared/apps/modules/centos8/modulefiles\n    module unuse /shared/apps/modules/rocky9/modulefiles\nelif [[ $(echo $SLURM_JOB_PARTITION | grep -i rhel9) = *RHEL9* ]]; then\n    module unuse /shared/apps/modules/ubuntu/modulefiles\n    module unuse /shared/apps/modules/rhel8/modulefiles\n    module use /shared/apps/modules/rhel9/modulefiles\n    module unuse /shared/apps/modules/sles15sp4/modulefiles\n    module unuse /shared/apps/modules/centos8/modulefiles\n    module unuse /shared/apps/modules/rocky9/modulefiles\nelif [[ $(echo $SLURM_JOB_PARTITION | grep -i sles15) = *SLES15* ]]; then\n    module unuse /shared/apps/modules/ubuntu/modulefiles\n    module unuse /shared/apps/modules/rhel8/modulefiles\n    module unuse /shared/apps/modules/rhel9/modulefiles\n    module use /shared/apps/modules/sles15sp4/modulefiles\n    module unuse /shared/apps/modules/centos8/modulefiles\n    module unuse /shared/apps/modules/rocky9/modulefiles\nelif [[ $(echo $SLURM_JOB_PARTITION | grep -i centos8) = *CentOS8* ]]; then\n    module unuse /shared/apps/modules/ubuntu/modulefiles\n    module unuse /shared/apps/modules/rhel8/modulefiles\n    module unuse /shared/apps/modules/rhel9/modulefiles\n    module unuse /shared/apps/modules/sles15sp4/modulefiles\n    module use /shared/apps/modules/centos8/modulefiles\n    module unuse /shared/apps/modules/rocky9/modulefiles\nelif [[ $(echo $SLURM_JOB_PARTITION | grep -i rocky9) = *Rocky9* ]]; then\n    module unuse /shared/apps/modules/ubuntu/modulefiles\n    module unuse /shared/apps/modules/rhel8/modulefiles\n    module unuse /shared/apps/modules/rhel9/modulefiles\n    module unuse /shared/apps/modules/sles15sp4/modulefiles\n    module unuse /shared/apps/modules/centos8/modulefiles\n    module use /shared/apps/modules/rocky9/modulefiles\nfi\n\n\nmodule purge\nmodule load rocm/5.4.2\n\ntmp=/tmp/$USER/gpu8-$$\nmkdir -p $tmp\n\n# Example with MPI: STMV Benchmark\nmkdir -p /tmp/$USER/gpu8-$$/stmv\nsingularity run /shared/apps/bin/gromacs_2022.3.amd1_161.sif tar -xvf /benchmarks/stmv/stmv.tar.gz -C /tmp/$USER/gpu8-$$/stmv 1>/dev/null\n\nsingularity run /shared/apps/bin/gromacs_2022.3.amd1_161.sif mpirun -np 8 gmx_mpi mdrun -pin on -nsteps 100000 -resetstep 90000 -ntomp 8 -noconfout -nb gpu -bonded cpu -pme gpu -npme 1 -v -nstlist 400 -gpu_id 01234567 -s /tmp/$USER/gpu8-$$/stmv/topol.tpr -g /tmp/$USER/gpu8-$$/stmv/md.log -e /tmp/$USER/gpu8-$$/stmv/ener.eder -cpo /tmp/$USER/gpu8-$$/stmv/state.cpt\n\ncp -r /tmp/$USER/gpu8-$$   $PWD/gpu8-$$-$SLURM_JOB_NODELIST-$SLURM_JOB_ID\n\n# Do the clean-up\n/bin/rm -rf $tmp\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

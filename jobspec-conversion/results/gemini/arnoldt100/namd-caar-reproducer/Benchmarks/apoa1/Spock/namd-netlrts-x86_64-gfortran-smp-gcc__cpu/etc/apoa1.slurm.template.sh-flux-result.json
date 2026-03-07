@@ -1,0 +1,218 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n#FLUX --job-name=apoa1benchmark\n#FLUX --nodes=2\n#FLUX --account=__ACCOUNTID__\n#FLUX --time=00:30:00\n\n# NOTE: This script is a template. Placeholders like '__ACCOUNTID__', '__SCRATCHSPACE__',\n# etc., must be replaced with actual values before submission.\n\n# NOTE: The launch logic for NAMD using charmrun with specific PE and comm thread\n# mappings is highly complex and specific to the underlying hardware and SLURM setup.\n# A direct, equivalent translation to Flux is not straightforward. The following is a\n# simplified translation that captures the high-level resource requests (e.g., tasks\n# and nodes) but omits the detailed affinity settings. Performance may be impacted\n# without retuning these settings for the Flux environment.\n\n# The charmrun command implies 2 tasks per node.\n#FLUX --ntasks-per-node=2\n\n# Each charmrun process appears to use 15+1=16 CPUs. This is a best-guess translation.\n#FLUX --cpus-per-task=16\n\n# -----------------------------------------------------\n# Set the scratch dir.\n# \n# -----------------------------------------------------\ndeclare -r SCRATCH_DIR=__SCRATCHSPACE__\n\n# ----------------------------------------------------\n# Set the fully qualified path to the NAMD binary.\n#\n# -----------------------------------------------------\ndeclare -r NAMD_BINARY=__NAMDBINARY__\n\n#-----------------------------------------------------\n# Set the fully qualified path to the results        -\n# directory.                                         -\n#                                                    -\n#-----------------------------------------------------\ndeclare -r NAMD_RESULTS_DIR=__NAMDRESULTSDIR__\n\n#-----------------------------------------------------\n# Set the fully qualified path the the input files   -\n# parent directory.                                  -\n#                                                    -\n#-----------------------------------------------------\ndeclare -r INPUT_FILES_PARENT_DIR=__APOA1_INPUT_FILES_PARENT_DIR__\n\n#-----------------------------------------------------\n# Set the number of physical nodes.                  -\n# The SLURM variable is replaced by the Flux equivalent.\n#-----------------------------------------------------\ndeclare -ri number_physical_nodes=${FLUX_JOB_NNODES}\n\n\n# ----------------------------------------------------\n# Copy the NAMD binary to the scratch directory.\n#\n# ----------------------------------------------------\ncp ${NAMD_BINARY} ${SCRATCH_DIR}/\n\n# ----------------------------------------------------\n# Copy all input files to the scratch directory.     -\n#                                                    -\n# ----------------------------------------------------\ninput_files=( \"apoa1.namd\" \n              \"apoa1.pdb\"\n              \"apoa1.psf\"\n              \"par_all22_popc.xplor\"\n              \"par_all22_prot_lipid.xplor\" ) \n\nfor tmp_input_file in \"${input_files[@]}\";do\n    cp -f \"${INPUT_FILES_PARENT_DIR}/${tmp_input_file}\" \"${SCRATCH_DIR}\"\ndone\n\n#-----------------------------------------------------\n# Now run namd with charmrun.                        -\n#                                                    -\n#-----------------------------------------------------\ncd ${SCRATCH_DIR}/\n\n# The complex charmrun/srun launch is replaced with a more standard launch.\n# It is assumed charmrun can discover the resources allocated by Flux.\n# The total number of processes `++p` is set to the total number of tasks (4).\ncharmrun ./namd2 ++p 4 ./apoa1.namd\n\n\n#-----------------------------------------------------\n# Copy all files back to the results directory.      -\n#                                                    -\n#-----------------------------------------------------\ncp -rf ${SCRATCH_DIR}/* ${NAMD_RESULTS_DIR}/ \n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": false,
+                    "tool_call": true,
+                    "reasons": [
+                        "The job specification is a template and uses unexpanded placeholder variables (e.g., '__ACCOUNTID__') directly in resource directives. Flux parses these directives at submission time and requires concrete values. Submitting this script without replacing these placeholders will result in a parsing error."
+                    ],
+                    "issues": [
+                        "The script is a template that requires several placeholders (`__ACCOUNTID__`, `__SCRATCHSPACE__`, `__NAMDBINARY__`, etc.) to be replaced before submission. Failure to replace these will cause the script to fail at runtime.",
+                        "The script's workload (`namd2`) is launched using `charmrun`, a legacy launcher that may not integrate correctly with Flux. This could lead to all 4 processes being launched on a single core instead of being distributed across the 4 allocated task slots, causing severe oversubscription and leaving other allocated resources idle. The recommended approach is to use the scheduler's native launcher, e.g., `flux run namd2 ...`.",
+                        "The script does not create the scratch directory (`SCRATCH_DIR`) or the results directory (`NAMD_RESULTS_DIR`). If these directories do not exist, the `cp` and `cd` commands will fail, causing the job to terminate."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "failed -> transform",
+            "complete": false,
+            "state": "failed"
+        },
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n#FLUX --job-name=apoa1benchmark\n#FLUX --nodes=2\n#FLUX --account=__ACCOUNTID__\n#FLUX --time=00:30:00\n\n# NOTE: This script is a template. Placeholders like '__ACCOUNTID__', '__SCRATCHSPACE__',\n# etc., must be replaced with actual values before submission.\n\n# NOTE: The launch logic for NAMD using charmrun with specific PE and comm thread\n# mappings is highly complex and specific to the underlying hardware and SLURM setup.\n# A direct, equivalent translation to Flux is not straightforward. The following is a\n# simplified translation that captures the high-level resource requests (e.g., tasks\n# and nodes) but omits the detailed affinity settings. Performance may be impacted\n# without retuning these settings for the Flux environment.\n\n# The charmrun command implies 2 tasks per node.\n#FLUX --ntasks-per-node=2\n\n# Each charmrun process appears to use 15+1=16 CPUs. This is a best-guess translation.\n#FLUX --cpus-per-task=16\n\n# -----------------------------------------------------\n# Set the scratch dir.\n# \n# -----------------------------------------------------\ndeclare -r SCRATCH_DIR=__SCRATCHSPACE__\n\n# ----------------------------------------------------\n# Set the fully qualified path to the NAMD binary.\n#\n# -----------------------------------------------------\ndeclare -r NAMD_BINARY=__NAMDBINARY__\n\n#-----------------------------------------------------\n# Set the fully qualified path to the results        -\n# directory.                                         -\n#                                                    -\n#-----------------------------------------------------\ndeclare -r NAMD_RESULTS_DIR=__NAMDRESULTSDIR__\n\n#-----------------------------------------------------\n# Set the fully qualified path the the input files   -\n# parent directory.                                  -\n#                                                    -\n#-----------------------------------------------------\ndeclare -r INPUT_FILES_PARENT_DIR=__APOA1_INPUT_FILES_PARENT_DIR__\n\n#-----------------------------------------------------\n# Set the number of physical nodes.                  -\n# The SLURM variable is replaced by the Flux equivalent.\n#-----------------------------------------------------\ndeclare -ri number_physical_nodes=${FLUX_JOB_NNODES}\n\n\n# ----------------------------------------------------\n# Copy the NAMD binary to the scratch directory.\n#\n# ----------------------------------------------------\ncp ${NAMD_BINARY} ${SCRATCH_DIR}/\n\n# ----------------------------------------------------\n# Copy all input files to the scratch directory.     -\n#                                                    -\n# ----------------------------------------------------\ninput_files=( \"apoa1.namd\" \n              \"apoa1.pdb\"\n              \"apoa1.psf\"\n              \"par_all22_popc.xplor\"\n              \"par_all22_prot_lipid.xplor\" ) \n\nfor tmp_input_file in \"${input_files[@]}\";do\n    cp -f \"${INPUT_FILES_PARENT_DIR}/${tmp_input_file}\" \"${SCRATCH_DIR}\"\ndone\n\n#-----------------------------------------------------\n# Now run namd with charmrun.                        -\n#                                                    -\n#-----------------------------------------------------\ncd ${SCRATCH_DIR}/\n\n# The complex charmrun/srun launch is replaced with a more standard launch.\n# It is assumed charmrun can discover the resources allocated by Flux.\n# The total number of processes `++p` is set to the total number of tasks (4).\ncharmrun ./namd2 ++p 4 ./apoa1.namd\n\n\n#-----------------------------------------------------\n# Copy all files back to the results directory.      -\n#                                                    -\n#-----------------------------------------------------\ncp -rf ${SCRATCH_DIR}/* ${NAMD_RESULTS_DIR}/ \n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": false,
+                    "tool_call": true,
+                    "reasons": [
+                        "The job specification is a template and uses unexpanded placeholder variables (e.g., '__ACCOUNTID__') directly in resource directives. Flux parses these directives at submission time and requires concrete values. Submitting this script without replacing these placeholders will result in a parsing error."
+                    ],
+                    "issues": [
+                        "The script is a template that requires several placeholders (`__ACCOUNTID__`, `__SCRATCHSPACE__`, `__NAMDBINARY__`, etc.) to be replaced before submission. Failure to replace these will cause the script to fail at runtime.",
+                        "The script's workload (`namd2`) is launched using `charmrun`, a legacy launcher that may not integrate correctly with Flux. This could lead to all 4 processes being launched on a single core instead of being distributed across the 4 allocated task slots, causing severe oversubscription and leaving other allocated resources idle. The recommended approach is to use the scheduler's native launcher, e.g., `flux run namd2 ...`.",
+                        "The script does not create the scratch directory (`SCRATCH_DIR`) or the results directory (`NAMD_RESULTS_DIR`). If these directories do not exist, the `cp` and `cd` commands will fail, causing the job to terminate."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "failed -> transform",
+            "complete": false,
+            "state": "failed"
+        },
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n#FLUX --job-name=apoa1benchmark\n#FLUX --nodes=2\n#FLUX --account=__ACCOUNTID__\n#FLUX --time=00:30:00\n\n# NOTE: This script is a template. Placeholders like '__ACCOUNTID__', '__SCRATCHSPACE__',\n# etc., must be replaced with actual values before submission.\n\n# NOTE: The launch logic for NAMD using charmrun with specific PE and comm thread\n# mappings is highly complex and specific to the underlying hardware and SLURM setup.\n# A direct, equivalent translation to Flux is not straightforward. The following is a\n# simplified translation that captures the high-level resource requests (e.g., tasks\n# and nodes) but omits the detailed affinity settings. Performance may be impacted\n# without retuning these settings for the Flux environment.\n\n# The charmrun command implies 2 tasks per node.\n#FLUX --ntasks-per-node=2\n\n# Each charmrun process appears to use 15+1=16 CPUs. This is a best-guess translation.\n#FLUX --cpus-per-task=16\n\n# -----------------------------------------------------\n# Set the scratch dir.\n# \n# -----------------------------------------------------\ndeclare -r SCRATCH_DIR=__SCRATCHSPACE__\n\n# ----------------------------------------------------\n# Set the fully qualified path to the NAMD binary.\n#\n# -----------------------------------------------------\ndeclare -r NAMD_BINARY=__NAMDBINARY__\n\n#-----------------------------------------------------\n# Set the fully qualified path to the results        -\n# directory.                                         -\n#                                                    -\n#-----------------------------------------------------\ndeclare -r NAMD_RESULTS_DIR=__NAMDRESULTSDIR__\n\n#-----------------------------------------------------\n# Set the fully qualified path the the input files   -\n# parent directory.                                  -\n#                                                    -\n#-----------------------------------------------------\ndeclare -r INPUT_FILES_PARENT_DIR=__APOA1_INPUT_FILES_PARENT_DIR__\n\n#-----------------------------------------------------\n# Set the number of physical nodes.                  -\n# The SLURM variable is replaced by the Flux equivalent.\n#-----------------------------------------------------\ndeclare -ri number_physical_nodes=${FLUX_JOB_NNODES}\n\n\n# ----------------------------------------------------\n# Copy the NAMD binary to the scratch directory.\n#\n# ----------------------------------------------------\ncp ${NAMD_BINARY} ${SCRATCH_DIR}/\n\n# ----------------------------------------------------\n# Copy all input files to the scratch directory.     -\n#                                                    -\n# ----------------------------------------------------\ninput_files=( \"apoa1.namd\" \n              \"apoa1.pdb\"\n              \"apoa1.psf\"\n              \"par_all22_popc.xplor\"\n              \"par_all22_prot_lipid.xplor\" ) \n\nfor tmp_input_file in \"${input_files[@]}\";do\n    cp -f \"${INPUT_FILES_PARENT_DIR}/${tmp_input_file}\" \"${SCRATCH_DIR}\"\ndone\n\n#-----------------------------------------------------\n# Now run namd with charmrun.                        -\n#                                                    -\n#-----------------------------------------------------\ncd ${SCRATCH_DIR}/\n\n# The complex charmrun/srun launch is replaced with a more standard launch.\n# It is assumed charmrun can discover the resources allocated by Flux.\n# The total number of processes `++p` is set to the total number of tasks (4).\ncharmrun ./namd2 ++p 4 ./apoa1.namd\n\n\n#-----------------------------------------------------\n# Copy all files back to the results directory.      -\n#                                                    -\n#-----------------------------------------------------\ncp -rf ${SCRATCH_DIR}/* ${NAMD_RESULTS_DIR}/ \n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": false,
+                    "tool_call": true,
+                    "reasons": [
+                        "The job specification is a template and uses unexpanded placeholder variables (e.g., '__ACCOUNTID__') directly in resource directives. Flux parses these directives at submission time and requires concrete values. Submitting this script without replacing these placeholders will result in a parsing error."
+                    ],
+                    "issues": [
+                        "The script is a template that requires several placeholders (`__ACCOUNTID__`, `__SCRATCHSPACE__`, `__NAMDBINARY__`, etc.) to be replaced before submission. Failure to replace these will cause the script to fail at runtime.",
+                        "The script's workload (`namd2`) is launched using `charmrun`, a legacy launcher that may not integrate correctly with Flux. This could lead to all 4 processes being launched on a single core instead of being distributed across the 4 allocated task slots, causing severe oversubscription and leaving other allocated resources idle. The recommended approach is to use the scheduler's native launcher, e.g., `flux run namd2 ...`.",
+                        "The script does not create the scratch directory (`SCRATCH_DIR`) or the results directory (`NAMD_RESULTS_DIR`). If these directories do not exist, the `cp` and `cd` commands will fail, causing the job to terminate."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "failed -> transform",
+            "complete": false,
+            "state": "failed"
+        },
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n#FLUX --job-name=apoa1benchmark\n#FLUX --nodes=2\n#FLUX --account=__ACCOUNTID__\n#FLUX --time=00:30:00\n\n# NOTE: This script is a template. Placeholders like '__ACCOUNTID__', '__SCRATCHSPACE__',\n# etc., must be replaced with actual values before submission.\n\n# NOTE: The launch logic for NAMD using charmrun with specific PE and comm thread\n# mappings is highly complex and specific to the underlying hardware and SLURM setup.\n# A direct, equivalent translation to Flux is not straightforward. The following is a\n# simplified translation that captures the high-level resource requests (e.g., tasks\n# and nodes) but omits the detailed affinity settings. Performance may be impacted\n# without retuning these settings for the Flux environment.\n\n# The charmrun command implies 2 tasks per node.\n#FLUX --ntasks-per-node=2\n\n# Each charmrun process appears to use 15+1=16 CPUs. This is a best-guess translation.\n#FLUX --cpus-per-task=16\n\n# -----------------------------------------------------\n# Set the scratch dir.\n# \n# -----------------------------------------------------\ndeclare -r SCRATCH_DIR=__SCRATCHSPACE__\n\n# ----------------------------------------------------\n# Set the fully qualified path to the NAMD binary.\n#\n# -----------------------------------------------------\ndeclare -r NAMD_BINARY=__NAMDBINARY__\n\n#-----------------------------------------------------\n# Set the fully qualified path to the results        -\n# directory.                                         -\n#                                                    -\n#-----------------------------------------------------\ndeclare -r NAMD_RESULTS_DIR=__NAMDRESULTSDIR__\n\n#-----------------------------------------------------\n# Set the fully qualified path the the input files   -\n# parent directory.                                  -\n#                                                    -\n#-----------------------------------------------------\ndeclare -r INPUT_FILES_PARENT_DIR=__APOA1_INPUT_FILES_PARENT_DIR__\n\n#-----------------------------------------------------\n# Set the number of physical nodes.                  -\n# The SLURM variable is replaced by the Flux equivalent.\n#-----------------------------------------------------\ndeclare -ri number_physical_nodes=${FLUX_JOB_NNODES}\n\n\n# ----------------------------------------------------\n# Copy the NAMD binary to the scratch directory.\n#\n# ----------------------------------------------------\ncp ${NAMD_BINARY} ${SCRATCH_DIR}/\n\n# ----------------------------------------------------\n# Copy all input files to the scratch directory.     -\n#                                                    -\n# ----------------------------------------------------\ninput_files=( \"apoa1.namd\" \n              \"apoa1.pdb\"\n              \"apoa1.psf\"\n              \"par_all22_popc.xplor\"\n              \"par_all22_prot_lipid.xplor\" ) \n\nfor tmp_input_file in \"${input_files[@]}\";do\n    cp -f \"${INPUT_FILES_PARENT_DIR}/${tmp_input_file}\" \"${SCRATCH_DIR}\"\ndone\n\n#-----------------------------------------------------\n# Now run namd with charmrun.                        -\n#                                                    -\n#-----------------------------------------------------\ncd ${SCRATCH_DIR}/\n\n# The complex charmrun/srun launch is replaced with a more standard launch.\n# It is assumed charmrun can discover the resources allocated by Flux.\n# The total number of processes `++p` is set to the total number of tasks (4).\ncharmrun ./namd2 ++p 4 ./apoa1.namd\n\n\n#-----------------------------------------------------\n# Copy all files back to the results directory.      -\n#                                                    -\n#-----------------------------------------------------\ncp -rf ${SCRATCH_DIR}/* ${NAMD_RESULTS_DIR}/ \n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "content": "[SSL: SSLV3_ALERT_BAD_RECORD_MAC] sslv3 alert bad record mac (_ssl.c:2559)"
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n#FLUX --job-name=apoa1benchmark\n#FLUX --nodes=2\n#FLUX --account=__ACCOUNTID__\n#FLUX --time=00:30:00\n\n# NOTE: This script is a template. Placeholders like '__ACCOUNTID__', '__SCRATCHSPACE__',\n# etc., must be replaced with actual values before submission.\n\n# NOTE: The launch logic for NAMD using charmrun with specific PE and comm thread\n# mappings is highly complex and specific to the underlying hardware and SLURM setup.\n# A direct, equivalent translation to Flux is not straightforward. The following is a\n# simplified translation that captures the high-level resource requests (e.g., tasks\n# and nodes) but omits the detailed affinity settings. Performance may be impacted\n# without retuning these settings for the Flux environment.\n\n# The charmrun command implies 2 tasks per node.\n#FLUX --ntasks-per-node=2\n\n# Each charmrun process appears to use 15+1=16 CPUs. This is a best-guess translation.\n#FLUX --cpus-per-task=16\n\n# -----------------------------------------------------\n# Set the scratch dir.\n# \n# -----------------------------------------------------\ndeclare -r SCRATCH_DIR=__SCRATCHSPACE__\n\n# ----------------------------------------------------\n# Set the fully qualified path to the NAMD binary.\n#\n# -----------------------------------------------------\ndeclare -r NAMD_BINARY=__NAMDBINARY__\n\n#-----------------------------------------------------\n# Set the fully qualified path to the results        -\n# directory.                                         -\n#                                                    -\n#-----------------------------------------------------\ndeclare -r NAMD_RESULTS_DIR=__NAMDRESULTSDIR__\n\n#-----------------------------------------------------\n# Set the fully qualified path the the input files   -\n# parent directory.                                  -\n#                                                    -\n#-----------------------------------------------------\ndeclare -r INPUT_FILES_PARENT_DIR=__APOA1_INPUT_FILES_PARENT_DIR__\n\n#-----------------------------------------------------\n# Set the number of physical nodes.                  -\n# The SLURM variable is replaced by the Flux equivalent.\n#-----------------------------------------------------\ndeclare -ri number_physical_nodes=${FLUX_JOB_NNODES}\n\n\n# ----------------------------------------------------\n# Copy the NAMD binary to the scratch directory.\n#\n# ----------------------------------------------------\ncp ${NAMD_BINARY} ${SCRATCH_DIR}/\n\n# ----------------------------------------------------\n# Copy all input files to the scratch directory.     -\n#                                                    -\n# ----------------------------------------------------\ninput_files=( \"apoa1.namd\" \n              \"apoa1.pdb\"\n              \"apoa1.psf\"\n              \"par_all22_popc.xplor\"\n              \"par_all22_prot_lipid.xplor\" ) \n\nfor tmp_input_file in \"${input_files[@]}\";do\n    cp -f \"${INPUT_FILES_PARENT_DIR}/${tmp_input_file}\" \"${SCRATCH_DIR}\"\ndone\n\n#-----------------------------------------------------\n# Now run namd with charmrun.                        -\n#                                                    -\n#-----------------------------------------------------\ncd ${SCRATCH_DIR}/\n\n# The complex charmrun/srun launch is replaced with a more standard launch.\n# It is assumed charmrun can discover the resources allocated by Flux.\n# The total number of processes `++p` is set to the total number of tasks (4).\ncharmrun ./namd2 ++p 4 ./apoa1.namd\n\n\n#-----------------------------------------------------\n# Copy all files back to the results directory.      -\n#                                                    -\n#-----------------------------------------------------\ncp -rf ${SCRATCH_DIR}/* ${NAMD_RESULTS_DIR}/ \n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n\n#SBATCH --job-name=apoa1benchmark\n#SBATCH --nodes=2\n#SBATCH -A __ACCOUNTID__\n#SBATCH --time=00:30:00\n\n# ----------------------------------------------------\n# Set the scratch dir.\n# \n# ----------------------------------------------------\ndeclare -r SCRATCH_DIR=__SCRATCHSPACE__\n\n# ----------------------------------------------------\n# Set the fully qualified path to the NAMD binary.\n#\n# ----------------------------------------------------\ndeclare -r NAMD_BINARY=__NAMDBINARY__\n\n#-----------------------------------------------------\n# Set the fully qualified path to the results        -\n# directory.                                         -\n#                                                    -\n#-----------------------------------------------------\ndeclare -r NAMD_RESULTS_DIR=__NAMDRESULTSDIR__\n\n#-----------------------------------------------------\n# Set the fully qualified path the the input files   -\n# parent directory.                                  -\n#                                                    -\n#-----------------------------------------------------\ndeclare -r INPUT_FILES_PARENT_DIR=__APOA1_INPUT_FILES_PARENT_DIR__\n\n#-----------------------------------------------------\n# Set the number of physical nodes.                  -\n# SLURM_JOB_NUM_NODES is the number of nodes         -\n# requested:                                         -\n#   SBATCH --nodes=2                                 -\n#                                                    -\n#-----------------------------------------------------\ndeclare -ri number_physical_nodes=${SLURM_JOB_NUM_NODES}\n\n#-----------------------------------------------------\n# A Spock compute node has 4 NUMA domains.           -\n#                                                    -         \n# NUMA 0: hardware threads 000-015, 064-079 | GPU 0  -\n# NUMA 1: hardware threads 016-031, 080-095 | GPU 1  -\n# NUMA 2: hardware threads 032-047, 096-111 | GPU 2  -\n# NUMA 3: hardware threads 048-063, 112-127 | GPU 3  -\n#                                                    -\n# We map the charm++ logical node to a NUMA          -\n# domain. This implies a maximum of 4 charm++        -\n# logical nodes per physical node.                   -\n#                                                    -\n#-----------------------------------------------------\ndeclare -ri max_number_charm_logical_nodes_per_physical_node=4\n\n#-----------------------------------------------------\n# We now set the mapping of PEs and COMM.            -\n#                                                    -\n# For NUMA 0, we reserve hardware thread 0 for comm. -\n# and 1-15 for PE.                                   -\n#\n# For NUMA 1, we reserve hardware thread 16 for comm.-\n# and 17-31 for PE.                                  -\n# \n# For NUMA 2, we reserve hardware thread 32 for comm.-\n# and 33-47 for PE.                                  -\n#                                                    -\n# For NUMA 3, we reserve hardware thread 48 for comm.-\n# and 49-63 for PE.                                  -\n#                                                    -\n#-----------------------------------------------------\ndeclare -r pe_com_map=\"+commap 0,16,32,48 +pemap 1-15+16+32+48\"\n\n# ----------------------------------------------------\n# Copy the NAMD binary to the scratch directory.\n#\n# ----------------------------------------------------\ncp ${NAMD_BINARY} ${SCRATCH_DIR}/\n\n# ----------------------------------------------------\n# Copy all input files to the scratch directory.     -\n#                                                    -\n# ----------------------------------------------------\ninput_files=( \"apoa1.namd\" \n              \"apoa1.pdb\"\n              \"apoa1.psf\"\n              \"par_all22_popc.xplor\"\n              \"par_all22_prot_lipid.xplor\" ) \n\nfor tmp_input_file in \"${input_files[@]}\";do\n    cp -f \"${INPUT_FILES_PARENT_DIR}/${tmp_input_file}\" \"${SCRATCH_DIR}\"\ndone\n\n#-----------------------------------------------------\n# Now run namd with charmrun.                        -\n#                                                    -\n#-----------------------------------------------------\ncd ${SCRATCH_DIR}/\n# srun -n 4 -N 2 ./namd2 ++p 2 ++ppn 2 ${pe_com_map} ./apoa1.namd\ndeclare -r nm_charm_process=2\ndeclare -r charm_process_per_node=2\ndeclare -r max_tasks_per_core=2\ndeclare -r ntasks=4\necho 'charmrun ++mpiexec ++remote-shell \"srun\" ./namd2 ++n 6 ++ppn 2 ${pe_com_map} ./apoa1.namd ' \ncharmrun ++mpiexec ++remote-shell \"srun\" ./namd2 ++n 6 ++ppn 2 ${pe_com_map} ./apoa1.namd  \n\n#-----------------------------------------------------\n# Copy all files back to the results directory.      -\n#                                                    -\n#-----------------------------------------------------\ncp -rf ${SCRATCH_DIR}/* ${NAMD_RESULTS_DIR}/ \n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

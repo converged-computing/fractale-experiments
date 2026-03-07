@@ -1,0 +1,122 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n#FLUX -A phillipslab\n#FLUX --queue=phillips       ### Partition\n#FLUX --job-name=trim    ### Job Name\n#FLUX --time=10:00:00        ### WallTime\n#FLUX --nodes=1              ### Number of Nodes\n#FLUX --ntasks=1             ### Number of tasks per array job\n# NOTE: A SLURM array of a single index (--array=0) is equivalent to a regular job.\n# The directive has been omitted.\n#FLUX --cpus-per-task=24            ### Number of CPU cores per task\n\n# The SLURM variable is replaced with the Flux equivalent.\nexport OMP_NUM_THREADS=$FLUX_JOB_CPUS_PER_TASK\n\n##### Removes barcodes from fastq files\n\nmodule load easybuild  icc/2017.1.132-GCC-6.3.0-2.27  impi/2017.1.132 skewer\n\noutd=\"/projects/phillipslab/ateterina/CR_map/FINAL\"\nrepair=\"/projects/phillipslab/ateterina/scripts/bbmap/repair.sh\"\n\n#####create individual barcode files\n\ncd /projects/phillipslab/ateterina/CR_map/FINAL\ncat Barcodes_Well_EcoR1_Stacks_names.txt |cut -f1 - >ALL_ECOI_BARCODES.txt\n\n#split all barcodes by 1 line\nsplit -l 1  ALL_ECOI_BARCODES.txt indbarcode --additional-suffix=.txt\n\n#rename the files\n# NOTE: This loop has a potential bug. It re-evaluates `ls ind*` in every iteration,\n# which could lead to unexpected behavior if files are renamed or moved inside the loop.\nfor i in {0..96};do\n\tbarc=$(ls ind*);\n\tid=$(echo {A..H}{01..12}.barcode.fasta);\n\tarr=($barc);\n\tarr2=($id);\n\techo ${arr2[$i]};cp ${arr[$i]} ${arr2[$i]};\ndone\n\nfor i in *barcode.fasta;do\n\tname=${i/.fasta//};\n\tsed -i \"1 i\\>$name\" $i;\ndone\n\n\nmkdir BARCODES\nmv *barcode.fasta BARCODES/\nrm indbarcode*\n\n\n###this script removes bacrodes from files and returnes paired filtered files\n\nfor DIR in A1 A2 B1 B2;do\n\tcd $outd/stacks/$DIR;\n\n\tfor i in {A..H}{01..12};do\n\t\techo \"skewer removes barcodes from ...\";\n\t\techo $i;\n\t\tskewer -y $outd/BARCODES/$i.barcode.fasta -t 24 -l 36 -r 0.01 -d 0.01  -o ${i}.filt ${i}.1.fq ${i}.2.fq;\n\t\techo \"done!\";\n\tdone\n\n\tfor i in *fastq;do\n\t\t mv $i ${i/filt-trimmed-pair/fp};\n\tdone\n\n\tmkdir -p RAW\n\tmv *fq RAW\n\ndone\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "The first `for` loop, intended to rename barcode files, has a potential bug. It re-evaluates `barc=$(ls ind*)` and `id=$(echo {A..H}{01..12}.barcode.fasta)` in every iteration. A safer and more efficient approach would be to assign the lists to arrays once before the loop begins. As written, it may work, but it's fragile.",
+                        "The script's execution logic depends entirely on hardcoded, user-specific absolute paths (e.g., `outd`, `repair`, initial `cd`). This makes the script non-portable, and it will fail if the directory structure changes or if it is run by another user."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n#FLUX -A phillipslab\n#FLUX --queue=phillips       ### Partition\n#FLUX --job-name=trim    ### Job Name\n#FLUX --time=10:00:00        ### WallTime\n#FLUX --nodes=1              ### Number of Nodes\n#FLUX --ntasks=1             ### Number of tasks per array job\n# NOTE: A SLURM array of a single index (--array=0) is equivalent to a regular job.\n# The directive has been omitted.\n#FLUX --cpus-per-task=24            ### Number of CPU cores per task\n\n# The SLURM variable is replaced with the Flux equivalent.\nexport OMP_NUM_THREADS=$FLUX_JOB_CPUS_PER_TASK\n\n##### Removes barcodes from fastq files\n\nmodule load easybuild  icc/2017.1.132-GCC-6.3.0-2.27  impi/2017.1.132 skewer\n\noutd=\"/projects/phillipslab/ateterina/CR_map/FINAL\"\nrepair=\"/projects/phillipslab/ateterina/scripts/bbmap/repair.sh\"\n\n#####create individual barcode files\n\ncd /projects/phillipslab/ateterina/CR_map/FINAL\ncat Barcodes_Well_EcoR1_Stacks_names.txt |cut -f1 - >ALL_ECOI_BARCODES.txt\n\n#split all barcodes by 1 line\nsplit -l 1  ALL_ECOI_BARCODES.txt indbarcode --additional-suffix=.txt\n\n#rename the files\n# NOTE: This loop has a potential bug. It re-evaluates `ls ind*` in every iteration,\n# which could lead to unexpected behavior if files are renamed or moved inside the loop.\nfor i in {0..96};do\n\tbarc=$(ls ind*);\n\tid=$(echo {A..H}{01..12}.barcode.fasta);\n\tarr=($barc);\n\tarr2=($id);\n\techo ${arr2[$i]};cp ${arr[$i]} ${arr2[$i]};\ndone\n\nfor i in *barcode.fasta;do\n\tname=${i/.fasta//};\n\tsed -i \"1 i\\>$name\" $i;\ndone\n\n\nmkdir BARCODES\nmv *barcode.fasta BARCODES/\nrm indbarcode*\n\n\n###this script removes bacrodes from files and returnes paired filtered files\n\nfor DIR in A1 A2 B1 B2;do\n\tcd $outd/stacks/$DIR;\n\n\tfor i in {A..H}{01..12};do\n\t\techo \"skewer removes barcodes from ...\";\n\t\techo $i;\n\t\tskewer -y $outd/BARCODES/$i.barcode.fasta -t 24 -l 36 -r 0.01 -d 0.01  -o ${i}.filt ${i}.1.fq ${i}.2.fq;\n\t\techo \"done!\";\n\tdone\n\n\tfor i in *fastq;do\n\t\t mv $i ${i/filt-trimmed-pair/fp};\n\tdone\n\n\tmkdir -p RAW\n\tmv *fq RAW\n\ndone\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n#SBATCH -A phillipslab\n#SBATCH --partition=phillips       ### Partition\n#SBATCH --job-name=trim    ### Job Name\n#SBATCH --time=10:00:00        ### WallTime\n#SBATCH --nodes=1              ### Number of Nodes\n#SBATCH --ntasks=1             ### Number of tasks per array job\n#SBATCH --array=0           ### Array index\n#SBATCH --cpus-per-task=24            ### Number of CPU cores per task\n\nexport OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK\n\n##### Removes barcodes from fastq files\n\nmodule load easybuild  icc/2017.1.132-GCC-6.3.0-2.27  impi/2017.1.132 skewer\n\noutd=\"/projects/phillipslab/ateterina/CR_map/FINAL\"\nrepair=\"/projects/phillipslab/ateterina/scripts/bbmap/repair.sh\"\n\n#####create individual barcode files\n\ncd /projects/phillipslab/ateterina/CR_map/FINAL\ncat Barcodes_Well_EcoR1_Stacks_names.txt |cut -f1 - >ALL_ECOI_BARCODES.txt\n\n#split all barcodes by 1 line\nsplit -l 1  ALL_ECOI_BARCODES.txt indbarcode --additional-suffix=.txt\n\n#rename the files\nfor i in {0..96};do\n\tbarc=$(ls ind*);\n\tid=$(echo {A..H}{01..12}.barcode.fasta);\n\tarr=($barc);\n\tarr2=($id);\n\techo ${arr2[$i]};cp ${arr[$i]} ${arr2[$i]};\ndone\n\nfor i in *barcode.fasta;do\n\tname=${i/.fasta//};\n\tsed -i \"1 i\\>$name\" $i;\ndone\n\n\nmkdir BARCODES\nmv *barcode.fasta BARCODES/\nrm indbarcode*\n\n\n###this script removes bacrodes from files and returnes paired filtered files\n\nfor DIR in A1 A2 B1 B2;do\n\tcd $outd/stacks/$DIR;\n\n\tfor i in {A..H}{01..12};do\n\t\techo \"skewer removes barcodes from ...\";\n\t\techo $i;\n\t\tskewer -y $outd/BARCODES/$i.barcode.fasta -t 24 -l 36 -r 0.01 -d 0.01  -o ${i}.filt ${i}.1.fq ${i}.2.fq;\n\t\techo \"done!\";\n\tdone\n\n\tfor i in *fastq;do\n\t\t mv $i ${i/filt-trimmed-pair/fp};\n\tdone\n\n\tmkdir -p RAW\n\tmv *fq RAW\n\ndone\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}
