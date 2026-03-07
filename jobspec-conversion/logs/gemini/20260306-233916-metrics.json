@@ -1,0 +1,34 @@
+[
+    {
+        "timestamp": 1772869144.2092414,
+        "data": {
+            "use_tools": null,
+            "metrics": {
+                "cached_content_token_count": 48738,
+                "candidates_token_count": 857,
+                "prompt_token_count": 49704,
+                "thoughts_token_count": 1962,
+                "total_token_count": 52523
+            },
+            "memory": true,
+            "tools": null,
+            "prompt": "### PERSONA\nYou are a job specification generation expert.\n\n### CONTEXT\nWe need to convert between workload manager job specification formats.\n\n### GOAL\nI need to convert the provided job specification from 'lsf' to 'flux'. The desired output format is a 'batch' script.\n\n### REQUIREMENTS & CONSTRAINTS\nYou MUST not make up directives that do not exist.\nYou MUST preserve as many options as possible from the original.\nIf there is a directive that does not translate, you MUST leave it out and add a comment about the performance implications of the omission.\n\n### INSTRUCTIONS\n1. Analyze the provided script below.\n2. Write a new script and return in a json structure with a \"jobspec\"\n3. If the input script is not a workload manager batch file, you MUST return the json jobspec structure as \"noop\"\n\n#!/usr/bin/env bash\n\n#BSUB -J RNAseq\n#BSUB -o logs/snakemake_%J.out\n#BSUB -e logs/snakemake_%J.err\n#BSUB -R \"select[mem>4] rusage[mem=4] \" \n#BSUB -q rna\n\nset -o nounset -o pipefail -o errexit -x\n\n# Load modules\n# Use locally installed packages for Majiq\n# module load fastqc/0.11.7\n# module load samtools/1.12\n# module load STAR/2.7.9a\n# module load subread/1.6.2\n# module load bbtools/38.86\nmodule load singularity/3.9.2\n\n# LSF arguments\nargs=' \n  -q rna \n  -o {log}.out \n  -e {log}.err \n  -J {params.job_name} \n  -R \"{params.memory} span[hosts=1] \" \n  -n {threads} ' \n\n# Run snakemake pipeline\nsnakemake \\\n    --drmaa \"$args\" \\\n    --snakefile Snakefile \\\n    --configfile config.yaml \\\n    --jobs 12 \\\n    --latency-wait 60 \\\n    --rerun-incomplete \\\n    --use-singularity \\\n    --singularity-args \"--bind /beevol/home/rbilab --bind /beevol/home/wellskri --bind /beevol/home/wellskri/packages/bin --bind /tmp:/tmp\"\n    \n"
+        }
+    },
+    {
+        "timestamp": 1772869156.355259,
+        "data": {
+            "use_tools": null,
+            "metrics": {
+                "cached_content_token_count": 48745,
+                "candidates_token_count": 334,
+                "prompt_token_count": 51586,
+                "thoughts_token_count": 998,
+                "total_token_count": 52918
+            },
+            "memory": true,
+            "tools": null,
+            "prompt": "### PERSONA\nYou are a job validation expert.\n\n### CONTEXT\nWe need to validate a job specification for correctness.\n\n### GOAL\nI need to validate if the following job specification is correct:\n\n```\n#!/usr/bin/env bash\n\n# Flux directives translated from LSF\n#FLUX: -q rna\n#FLUX: -o logs/snakemake_%J.out\n\n#\n# --- Omitted LSF options and explanations ---\n#\n# -J RNAseq\n#   Omitted. The job name in Flux is generally set during submission (e.g.,\n#   'flux submit --job-name=RNAseq ...') or via the FLUX_JOB_NAME\n#   environment variable, not through a script directive.\n#\n# -e logs/snakemake_%J.err\n#   Omitted. Flux combines stdout and stderr into the single output file\n#   specified by the -o directive. To redirect stderr separately, you can\n#   use shell redirection in your command, e.g., 'command 2> logs/snakemake_%J.err'.\n#\n# -R \"select[mem>4] rusage[mem=4] \"\n#   Omitted. This LSF directive requests 4 units of memory for the main job. Flux\n#   does not have a direct batch script directive for memory.\n#   Performance implication: The main snakemake driver script will run without a\n#   memory constraint. This is usually fine for a driver, but if it performs\n#   heavy processing itself, it could fail with an out-of-memory error.\n#\n# Note: This driver script requests no specific time limit or core count. Consider\n# adding directives like '#FLUX: -t 1:00:00' and '#FLUX: -n 1' to ensure it has\n# a defined lifetime and allocation.\n#\n\nset -o nounset -o pipefail -o errexit -x\n\n# Load modules\n# Use locally installed packages for Majiq\n# module load fastqc/0.11.7\n# module load samtools/1.12\n# module load STAR/2.7.9a\n# module load subread/1.6.2\n# module load bbtools/38.86\nmodule load singularity/3.9.2\n\n# CRITICAL: The following Snakemake configuration is for LSF and WILL FAIL under Flux.\n# The '--drmaa' flag and the LSF-specific arguments ('-q', '-R', '-n') must be\n# replaced with a Flux-compatible submission method. A common approach is to use the\n# '--cluster' flag with a 'flux submit' command. For example:\n# --cluster \"flux submit -n {threads} --requires=mem={params.memory} ...\"\n\n# LSF arguments (INCOMPATIBLE WITH FLUX)\nargs=' \n  -q rna \n  -o {log}.out \n  -e {log}.err \n  -J {params.job_name} \n  -R \"{params.memory} span[hosts=1] \" \n  -n {threads} ' \n\n# Run snakemake pipeline\nsnakemake \\\n    --drmaa \"$args\" \\\n    --snakefile Snakefile \\\n    --configfile config.yaml \\\n    --jobs 12 \\\n    --latency-wait 60 \\\n    --rerun-incomplete \\\n    --use-singularity \\\n    --singularity-args \"--bind /beevol/home/rbilab --bind /beevol/home/wellskri --bind /beevol/home/wellskri/packages/bin --bind /tmp:/tmp\"\n    \n\n```\n\n### REQUIREMENTS & CONSTRAINTS\nYou MUST return a JSON structure with fields for 'valid' (bool) and a list of string 'reasons'. You MAY optionally add a field `issues` with a list of debugging or critique of any code.\n\n### INSTRUCTIONS\n1. Analyze the provided script above.\n2. Use MUST use a jobspec validation tool for the manager if one is available otherwise use your knowledge.\n3. Determine validity based on the resource section ONLY\n4. The 'reasons' should ONLY be specific to resources\n5. If the script includes problematic code, please include in 'issues'\n6. You MUST include a 'tool_call' boolean, true or false, to indicate if you used a validation tool for validation.\n7. Return a json structure with 'valid' and 'tool_call' and 'reasons' (if not valid) and 'issues'\n"
+        }
+    }
+]
