@@ -97,13 +97,13 @@ def main():
     sample = []
     for filename in files:
         original_script = utils.read_file(filename)
-        if len(original_script) < 5000:
+        if len(original_script) < 1000:
             sample.append(filename)
             if len(sample) >= 200:
                 break
 
     sample = [os.path.relpath(x, root) for x in sample]
-    print(f"⭐️ Sampled {len(sample)} files under 5000 tokens.")
+    print(f"⭐️ Sampled {len(sample)} files under 1000 tokens.")
     write_json(sample, os.path.join(args.output, "sample-200.json"))
 
 
