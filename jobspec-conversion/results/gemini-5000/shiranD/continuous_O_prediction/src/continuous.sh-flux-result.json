@@ -1,0 +1,110 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "content": "429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_paid_tier_3_input_token_count, limit: 8000000, model: gemini-2.5-pro\\nPlease retry in 1.923593736s.', 'status': 'RESOURCE_EXHAUSTED', 'details': [{'@type': 'type.googleapis.com/google.rpc.Help', 'links': [{'description': 'Learn more about Gemini API quotas', 'url': 'https://ai.google.dev/gemini-api/docs/rate-limits'}]}, {'@type': 'type.googleapis.com/google.rpc.QuotaFailure', 'violations': [{'quotaMetric': 'generativelanguage.googleapis.com/generate_content_paid_tier_3_input_token_count', 'quotaId': 'GenerateContentPaidTierInputTokensPerModelPerMinute-PaidTier3', 'quotaDimensions': {'location': 'global', 'model': 'gemini-2.5-pro'}, 'quotaValue': '8000000'}]}, {'@type': 'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay': '1s'}]}}"
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "content": "429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_paid_tier_3_input_token_count, limit: 8000000, model: gemini-2.5-pro\\nPlease retry in 59.897135606s.', 'status': 'RESOURCE_EXHAUSTED', 'details': [{'@type': 'type.googleapis.com/google.rpc.Help', 'links': [{'description': 'Learn more about Gemini API quotas', 'url': 'https://ai.google.dev/gemini-api/docs/rate-limits'}]}, {'@type': 'type.googleapis.com/google.rpc.QuotaFailure', 'violations': [{'quotaMetric': 'generativelanguage.googleapis.com/generate_content_paid_tier_3_input_token_count', 'quotaId': 'GenerateContentPaidTierInputTokensPerModelPerMinute-PaidTier3', 'quotaDimensions': {'location': 'global', 'model': 'gemini-2.5-pro'}, 'quotaValue': '8000000'}]}, {'@type': 'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay': '59s'}]}}"
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n\n### --------  SLURM  ----------- ###\n#SBATCH --job-name=continuous\n#SBATCH --nodes=1\n#SBATCH --ntasks=1\n#SBATCH --time=312:00:00\n#SBATCH --output=\"out/continuous_train_%A_%a_%j.out\"\n#SBATCH --error=\"error/continuous_train_%A_%a_%j.err\"\n### -------------------------- ###\necho \"job name: $SLURM_JOB_NAME\"\necho \"SLURM_JOBID:  $SLURM_JOBID\"\necho \"SLURM_ARRAY_TASK_ID: $SLURM_ARRAY_TASK_ID\"\necho \"SLURM_ARRAY_JOB_ID: $SLURM_ARRAY_JOB_ID\"\n\nexport LD_LIBRARY_PATH=/usr/local/cuda-9.0/lib64:/usr/local/lib\nexport CFLAGS=-I/usr/local/cuda-9.0/include\nexport LDFLAGS=-L/usr/local/cuda-9.0/lib64\nexport PATH=$PATH:/usr/local/cuda-9.0/bin\nexport CUDA_HOME=/usr/local/cuda-9.0\nexport LIBRARY_PATH=/usr/local/cuda-9.0/lib64\n\nsets=$1\npretrained=$2\nbl=$3\nemdim=$4\nname=$5\ntyppe=$6\nnlayer=$7\ntbrd=$8\npre_pos=$9\nloss=${10}\npre_more=${11}\nsrc=${12}\norig=${13}\n\nif [ \"$pre_pos\" == \"True\" ]\nthen\n  pos=--pos\nfi\n\nif [ \"$pre_more\" == \"True\" ] \nthen\n  more=--more\nfi\n\npython ${src}/continuous.py --data ${sets}/set_${SLURM_ARRAY_TASK_ID}/\\\n                            --pretrained ${pretrained}\\\n                            --save ${bl}_${SLURM_ARRAY_TASK_ID}.pt\\\n                            --emdim ${emdim}\\\n                            --log out/${name}_train_${SLURM_ARRAY_TASK_ID}\\\n                            --name $name\\\n                            --rnn_type ${typpe}\\\n                            --nlayers ${nlayer}\\\n                            --tbrd ${tbrd}\\\n                            --jobnum ${SLURM_ARRAY_JOB_ID}\\\n                            --loss ${loss}\\\n                              ${pos}\\\n                              ${more}\\\n                            --orig ${orig}_${SLURM_ARRAY_TASK_ID}.pt\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

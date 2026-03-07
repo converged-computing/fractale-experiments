@@ -1,0 +1,123 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n# Flux directives translated from SLURM\n#FLUX: -n 1\n#FLUX: -c 32\n#FLUX: -t 8:00:00\n#FLUX: -q shared\n\n#\n# --- Omitted SLURM options and explanations ---\n#\n# --job-name=\"glotzerlab-software build\"\n#   Omitted. The job name in Flux is generally set during submission (e.g.,\n#   'flux submit --job-name=...') or via the FLUX_JOB_NAME\n#   environment variable, not through a script directive.\n#\n# --account=dmr140129\n#   Omitted. Flux accounting is typically managed through system configuration or job\n#   submission options, not a standard batch directive.\n#\n# Note: The original SLURM script did not request a specific amount of memory.\n# This job will receive the default memory allocation from the scheduler, which\n# could cause it to fail if the build process is memory-intensive.\n#\n\nexport OUTPUT_FOLDER=$PROJECT/software/conda\nunset CMAKE_PREFIX_PATH\n\n# Load modules used to build packages with native MPI support (no CUDA).\nmodule reset\nmodule load gcc/11.2.0 openmpi/4.1.6\n\nexport CC=$GCC_HOME/bin/gcc\nexport CXX=$GCC_HOME/bin/g++\n\n./build.sh \"$@\" \\\n    --skip-existing \\\n    --variants \"{'cluster': ['anvil'], 'device': ['cpu'], 'gpu_platform': ['none']}\" \\\n    --output-folder $OUTPUT_FOLDER\n\nchmod g-w $OUTPUT_FOLDER -R\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "The most significant resource-related issue is the lack of an explicit memory request. The original SLURM script also omitted this. A build job using 32 cores can be highly memory-intensive, and running for up to 8 hours without a memory limit creates a high risk of failure due to out-of-memory errors or being killed by the system.",
+                        "The script's functionality is heavily dependent on environment variables (`$PROJECT`, `$GCC_HOME`) being correctly set, either by the user at submission time or by the module system. If these are not available, the script will fail.",
+                        "The script executes `./build.sh` using a relative path, which requires that the job be submitted from the directory where the build script is located. This is a fragile practice and a common source of 'file not found' errors."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n# Flux directives translated from SLURM\n#FLUX: -n 1\n#FLUX: -c 32\n#FLUX: -t 8:00:00\n#FLUX: -q shared\n\n#\n# --- Omitted SLURM options and explanations ---\n#\n# --job-name=\"glotzerlab-software build\"\n#   Omitted. The job name in Flux is generally set during submission (e.g.,\n#   'flux submit --job-name=...') or via the FLUX_JOB_NAME\n#   environment variable, not through a script directive.\n#\n# --account=dmr140129\n#   Omitted. Flux accounting is typically managed through system configuration or job\n#   submission options, not a standard batch directive.\n#\n# Note: The original SLURM script did not request a specific amount of memory.\n# This job will receive the default memory allocation from the scheduler, which\n# could cause it to fail if the build process is memory-intensive.\n#\n\nexport OUTPUT_FOLDER=$PROJECT/software/conda\nunset CMAKE_PREFIX_PATH\n\n# Load modules used to build packages with native MPI support (no CUDA).\nmodule reset\nmodule load gcc/11.2.0 openmpi/4.1.6\n\nexport CC=$GCC_HOME/bin/gcc\nexport CXX=$GCC_HOME/bin/g++\n\n./build.sh \"$@\" \\\n    --skip-existing \\\n    --variants \"{'cluster': ['anvil'], 'device': ['cpu'], 'gpu_platform': ['none']}\" \\\n    --output-folder $OUTPUT_FOLDER\n\nchmod g-w $OUTPUT_FOLDER -R\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n\n#SBATCH --job-name=\"glotzerlab-software build\"\n#SBATCH --account=dmr140129\n#SBATCH --partition=shared\n#SBATCH --ntasks=1\n#SBATCH --cpus-per-task=32\n#SBATCH --time=8:00:00\n\nexport OUTPUT_FOLDER=$PROJECT/software/conda\nunset CMAKE_PREFIX_PATH\n\n# Load modules used to build packages with native MPI support (no CUDA).\nmodule reset\nmodule load gcc/11.2.0 openmpi/4.1.6\n\nexport CC=$GCC_HOME/bin/gcc\nexport CXX=$GCC_HOME/bin/g++\n\n./build.sh \"$@\" \\\n    --skip-existing \\\n    --variants \"{'cluster': ['anvil'], 'device': ['cpu'], 'gpu_platform': ['none']}\" \\\n    --output-folder $OUTPUT_FOLDER\n\nchmod g-w $OUTPUT_FOLDER -R\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

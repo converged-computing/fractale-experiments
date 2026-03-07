@@ -1,0 +1,123 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/sh\n\n# Flux directives translated from SLURM\n#FLUX: -N 1\n#FLUX: -n 1\n#FLUX: -t 01:00:00\n#FLUX: -o tools.eo%J\n\n#\n# --- Omitted SLURM options and explanations ---\n#\n# -J tools\n#   Omitted. The job name in Flux is generally set during submission (e.g.,\n#   'flux submit --job-name=tools ...') or via the FLUX_JOB_NAME\n#   environment variable, not through a script directive.\n#\n# -e tools.eo%j\n#   Omitted. Flux combines stdout and stderr into the single output file\n#   specified by the -o directive by default. This behavior matches the original request.\n#\n\n# Echo des commandes\nulimit -c 0\nulimit -s unlimited\n# Arrete du job des la premiere erreur\nset -e\n\n. ~rodierq/DEV_57/MNH-PHYEX070-b95d84d7/conf/profile_mesonh-LXifort-R8I4-MNH-V5-6-2-ECRAD140-MPIAUTO-O2\n\n# The original script relies on an environment variable, ${SRC_MESONH}, which must\n# be set in the submission environment for this command to work.\nln -sf ${SRC_MESONH}/src/LIB/Python/* .\n\nmodule purge\nmodule load python/3.7.6\n\npython3 plot_16JAN.py\nconvert *.png 16JAN.pdf\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "The most significant resource-related issue is the lack of explicit requests for memory or cores-per-task (`-c`). The job will receive a small default allocation (typically 1 core and minimal memory), which might be insufficient if the Python plotting script is resource-intensive, leading to poor performance or out-of-memory errors.",
+                        "The script is extremely non-portable. It sources a profile script from a hardcoded, user-specific path (`~rodierq/...`), which will fail for any other user.",
+                        "The script's logic is fragile. It relies on an environment variable `${SRC_MESONH}` being set in the submission environment. If not, the `ln` command will fail. It also executes `python3 plot_16JAN.py` using a relative path, requiring the job to be submitted from a specific directory."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/sh\n\n# Flux directives translated from SLURM\n#FLUX: -N 1\n#FLUX: -n 1\n#FLUX: -t 01:00:00\n#FLUX: -o tools.eo%J\n\n#\n# --- Omitted SLURM options and explanations ---\n#\n# -J tools\n#   Omitted. The job name in Flux is generally set during submission (e.g.,\n#   'flux submit --job-name=tools ...') or via the FLUX_JOB_NAME\n#   environment variable, not through a script directive.\n#\n# -e tools.eo%j\n#   Omitted. Flux combines stdout and stderr into the single output file\n#   specified by the -o directive by default. This behavior matches the original request.\n#\n\n# Echo des commandes\nulimit -c 0\nulimit -s unlimited\n# Arrete du job des la premiere erreur\nset -e\n\n. ~rodierq/DEV_57/MNH-PHYEX070-b95d84d7/conf/profile_mesonh-LXifort-R8I4-MNH-V5-6-2-ECRAD140-MPIAUTO-O2\n\n# The original script relies on an environment variable, ${SRC_MESONH}, which must\n# be set in the submission environment for this command to work.\nln -sf ${SRC_MESONH}/src/LIB/Python/* .\n\nmodule purge\nmodule load python/3.7.6\n\npython3 plot_16JAN.py\nconvert *.png 16JAN.pdf\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/sh\n#SBATCH -J tools\n#SBATCH -N 1            # nodes number\n#SBATCH -n 1            # CPUs number (on all nodes) \n#SBATCH -o tools.eo%j   #\n#SBATCH -e tools.eo%j   #\n#SBATCH -t 01:00:00    # time limit\n# Echo des commandes\nulimit -c 0\nulimit -s unlimited\n# Arrete du job des la premiere erreur\nset -e\n\n. ~rodierq/DEV_57/MNH-PHYEX070-b95d84d7/conf/profile_mesonh-LXifort-R8I4-MNH-V5-6-2-ECRAD140-MPIAUTO-O2\n\nln -sf ${SRC_MESONH}/src/LIB/Python/* .\n\nmodule purge\nmodule load python/3.7.6\n\npython3 plot_16JAN.py\nconvert *.png 16JAN.pdf\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

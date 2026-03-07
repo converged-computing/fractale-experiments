@@ -1,0 +1,122 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n# Flux job script translated from Slurm\n\n#flux: -q qcpu_exp\n#flux: -n 1\n#flux: -t 0:10:00\n#flux: --job-name=AVS-vtune\n\n# The following Slurm directives for account, comments, and email could not be translated\n# as they are not standard Flux options. These are typically handled by site-specific policies or plugins.\n# #SBATCH -A DD-23-135\n# #SBATCH --comment \"use:vtune=2022.2.0\"\n# #SBATCH --mail-type END\n\n# The original script did not specify cpus-per-task, but the loop inside runs up to 36 threads.\n# To support this, we request 36 CPUs for the single task.\n#flux: -c 36\n\n# The Flux equivalent of $SLURM_SUBMIT_DIR is $FLUX_SUBMIT_DIR\ncd $FLUX_SUBMIT_DIR\n\nml intel-compilers/2022.1.0 CMake/3.23.1-GCCcore-11.3.0 VTune/2022.2.0-intel-2021b\n\n[ -d build_vtune ] && rm -rf build_vtune\n[ -d build_vtune ] || mkdir build_vtune\ncd build_vtune\n\nCC=icc CXX=icpc cmake ..\nmake\n\n# The for-loop and commands are preserved. The application will have access to the 36 CPUs requested.\nfor threads in 18 36; do\n    for builder in \"ref\" \"loop\" \"tree\"; do\n        rm -rf vtune-${builder}-${threads}\n        vtune -collect threading -r vtune-${builder}-${threads} -app-working-dir . -- ./PMC --builder ${builder} -t ${threads} --grid 128 ../data/bun_zipper_res3.pts\n    done\ndone\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "The script runs the `vtune` command with `-t 18` and then with `-t 36`. The job requests 36 CPUs (`-c 36`), which correctly accommodates the maximum thread count. The 18-thread run will under-utilize the allocated resources, but this is acceptable for a performance-scaling test like this one.",
+                        "The script builds the application (`make`) and then immediately runs it within the same job. This is a common pattern for development and testing but is not ideal for production, as compilation can be time-consuming and is better done once, interactively or in a separate build job."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n# Flux job script translated from Slurm\n\n#flux: -q qcpu_exp\n#flux: -n 1\n#flux: -t 0:10:00\n#flux: --job-name=AVS-vtune\n\n# The following Slurm directives for account, comments, and email could not be translated\n# as they are not standard Flux options. These are typically handled by site-specific policies or plugins.\n# #SBATCH -A DD-23-135\n# #SBATCH --comment \"use:vtune=2022.2.0\"\n# #SBATCH --mail-type END\n\n# The original script did not specify cpus-per-task, but the loop inside runs up to 36 threads.\n# To support this, we request 36 CPUs for the single task.\n#flux: -c 36\n\n# The Flux equivalent of $SLURM_SUBMIT_DIR is $FLUX_SUBMIT_DIR\ncd $FLUX_SUBMIT_DIR\n\nml intel-compilers/2022.1.0 CMake/3.23.1-GCCcore-11.3.0 VTune/2022.2.0-intel-2021b\n\n[ -d build_vtune ] && rm -rf build_vtune\n[ -d build_vtune ] || mkdir build_vtune\ncd build_vtune\n\nCC=icc CXX=icpc cmake ..\nmake\n\n# The for-loop and commands are preserved. The application will have access to the 36 CPUs requested.\nfor threads in 18 36; do\n    for builder in \"ref\" \"loop\" \"tree\"; do\n        rm -rf vtune-${builder}-${threads}\n        vtune -collect threading -r vtune-${builder}-${threads} -app-working-dir . -- ./PMC --builder ${builder} -t ${threads} --grid 128 ../data/bun_zipper_res3.pts\n    done\ndone\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n#SBATCH -p qcpu_exp\n#SBATCH -A DD-23-135\n#SBATCH -n 1 \n#SBATCH --comment \"use:vtune=2022.2.0\"\n#SBATCH -t 0:10:00\n#SBATCH --mail-type END\n#SBATCH -J AVS-vtune\n\ncd $SLURM_SUBMIT_DIR\n\nml intel-compilers/2022.1.0 CMake/3.23.1-GCCcore-11.3.0 VTune/2022.2.0-intel-2021b\n\n[ -d build_vtune ] && rm -rf build_vtune\n[ -d build_vtune ] || mkdir build_vtune\ncd build_vtune\n\nCC=icc CXX=icpc cmake ..\nmake\n\nfor threads in 18 36; do\n    for builder in \"ref\" \"loop\" \"tree\"; do\n        rm -rf vtune-${builder}-${threads}\n        vtune -collect threading -r vtune-${builder}-${threads} -app-working-dir . -- ./PMC --builder ${builder} -t ${threads} --grid 128 ../data/bun_zipper_res3.pts\n    done\ndone\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "manual_validate",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

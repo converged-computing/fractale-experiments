@@ -1,0 +1,110 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "content": "Error code: 400 - {'error': {'message': 'litellm.BadRequestError: AzureException BadRequestError - Input tokens exceed the configured limit of 272000 tokens. Your messages resulted in 287574 tokens. Please reduce the length of the messages.. Received Model Group=gpt-5.2\\nAvailable Model Group Fallbacks=None', 'type': 'invalid_request_error', 'param': 'messages', 'code': '400'}}"
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "content": "Error code: 400 - {'error': {'message': 'litellm.BadRequestError: AzureException BadRequestError - Input tokens exceed the configured limit of 272000 tokens. Your messages resulted in 287805 tokens. Please reduce the length of the messages.. Received Model Group=gpt-5.2\\nAvailable Model Group Fallbacks=None', 'type': 'invalid_request_error', 'param': 'messages', 'code': '400'}}"
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "lsf",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n\nlet nnds=4096\n#--- process the submit script\n\n#-----This part creates a submission script---------\ncat >batch.job <<EOF\n# Begin LSF directives\n#BSUB -P MED106\n#BSUB -J ytopt\n#BSUB -o output.log\n#BSUB -e output.err\n#BSUB -alloc_flags gpumps\n#BSUB -W 30\n#BSUB -nnodes ${nnds}\n\nexport OMP_NUM_THREADS=168\njsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out.txt\njsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out2.txt\njsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out3.txt\njsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out4.txt\njsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out5.txt\n\nEOF\n#-----This part submits the script you just created--------------\nchmod +x batch.job\nbsub  batch.job\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "manual_validate",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

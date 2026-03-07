@@ -1,0 +1,130 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n# Flux batch script converted from LSF\n# Note: Flux does not support in-script directives for resource specification\n# This script should be submitted with the following command:\n# flux batch -N 1 -n 5 -t 20h -g 1 --job-name=NN_03-01 --output=output/NN_03-01-{{id}}.out script.sh\n#\n# Resource specifications:\n# -N 1         : 1 node (from -R \"span[hosts=1]\")\n# -n 5         : 5 tasks/cores (from -n 5)\n# -t 20h       : 20 hour walltime (from -W 20:00)\n# -g 1         : 1 GPU (from -gpu \"num=1:mode=exclusive_process\")\n# --job-name=NN_03-01 : job name (from -J NN_03-01)\n# --output=output/NN_03-01-{{id}}.out : output file (from -o, using {{id}} for job ID)\n#\n# Note: Flux uses {{id}} for job ID instead of %J\n\n# Original LSF queue: gpuv100\n# LSF: -q gpuv100\n# Note: Flux does not have queues in the same way as LSF\n# Queue selection is handled through Flux's scheduling configuration\n# Performance impact: Job scheduling priority depends on site-specific Flux configuration\n# Consult site documentation for equivalent resource pools or GPU types\n\n# Original LSF GPU specification: num=1:mode=exclusive_process\n# LSF: -gpu \"num=1:mode=exclusive_process\"\n# Flux: -g 1 (GPU count)\n# Note: Flux does not have a direct equivalent for GPU exclusive_process mode\n# Performance impact: GPU may be shared with other processes if not configured at system level\n# Consult Flux documentation for GPU isolation policies\n\n# Original LSF memory: 6GB per core (5 cores = 30GB total)\n# LSF: -R \"rusage[mem=6GB]\"\n# Note: Flux memory specification can be added at submission:\n# Add to submission command: --setattr=system.memory=30G or --setattr=system.memory=30720M\n# Performance impact: Without explicit memory specification, job gets default allocation\n# which may be insufficient (30GB needed: 6GB \u00d7 5 cores)\n\n# Original LSF email notifications: begin (-B) and end (-N)\n# Note: Flux does not have built-in email notification directives\n# Performance impact: User must manually monitor job status or implement external monitoring\n# Consider using flux job events or wrapper scripts for notifications\n\n# Module environment\nmodule purge\n#module load tensorflow/1.5-cpu-python-3.6.2\nmodule load tensorflow/1.5-gpu-python-3.6.2\n\n# Execute nested loops for parameter sweep\nfor drop in 0.2 0.25 0.3 0.4\ndo\n\tfor N in 250 350 400 450 550\n\tdo\n\t\tfor nhidden in 6\n\t\tdo\n\t\t\tfor act in sigmoid\n\t\t\tdo\n\t\t\t\tfor folder in 03-01-2019\\ 11.04 09-01-2019\\ 12.57 11-10-2018\\ 11.36\n\t\t\t\tdo\n\t\t\t\t\tfor func in group_period_x_group_period group_period_2x2 atomic_number\n\t\t\t\t\tdo\n\t\t\t\t\t\tpython3 NN/NN_script.py $drop $N sigmoid 6 $folder $func\n\t\t\t\t\tdone\n\t\t\t\tdone\n\t\t\tdone\n\t\tdone\n\tdone\ndone\n\n# Complete submission command with all options:\n# flux batch -N 1 -n 5 -t 20h -g 1 \\\n#   --job-name=NN_03-01 \\\n#   --output=output/NN_03-01-{{id}}.out \\\n#   --setattr=system.memory=30G \\\n#   script.sh\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": false,
+                    "reasons": [],
+                    "issues": [
+                        "The script correctly documents resource specifications and properly converts LSF directives to Flux command-line options.",
+                        "Memory specification (30GB total) is documented but NOT included in the primary submission command at the top. Users must remember to add '--setattr=system.memory=30G' as shown in the complete command at the bottom.",
+                        "GPU exclusive mode from LSF cannot be directly translated to Flux. The script correctly notes this limitation, but users should verify GPU isolation at the system level.",
+                        "Email notifications from LSF (-B and -N) have no direct equivalent in Flux. The script documents this, but users lose automatic job status notifications.",
+                        "The output directory 'output/' must exist before job submission, or the job will fail to write output. Consider adding 'mkdir -p output' to the script.",
+                        "The nested loops will execute 4 \u00d7 5 \u00d7 1 \u00d7 1 \u00d7 3 \u00d7 3 = 180 sequential python runs. With a 20-hour time limit, each run has ~6.7 minutes average. Verify this is sufficient time per iteration.",
+                        "The script hardcodes 'sigmoid' and '6' in the python command arguments, which matches the loop variables but could be confusing. The loop variables 'act' and 'nhidden' are set but not used dynamically in the python call.",
+                        "Folder names with spaces ('03-01-2019\\ 11.04') are properly escaped, but consider quoting the entire path in the python call to be safer: python3 NN/NN_script.py \"$drop\" \"$N\" sigmoid 6 \"$folder\" \"$func\"",
+                        "No error checking exists. If any python script fails, the loop continues. Consider adding error handling or early termination on failure.",
+                        "The 5 cores allocated may be underutilized if TensorFlow doesn't automatically use all available cores. Verify TensorFlow threading configuration."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n# Flux batch script converted from LSF\n# Note: Flux does not support in-script directives for resource specification\n# This script should be submitted with the following command:\n# flux batch -N 1 -n 5 -t 20h -g 1 --job-name=NN_03-01 --output=output/NN_03-01-{{id}}.out script.sh\n#\n# Resource specifications:\n# -N 1         : 1 node (from -R \"span[hosts=1]\")\n# -n 5         : 5 tasks/cores (from -n 5)\n# -t 20h       : 20 hour walltime (from -W 20:00)\n# -g 1         : 1 GPU (from -gpu \"num=1:mode=exclusive_process\")\n# --job-name=NN_03-01 : job name (from -J NN_03-01)\n# --output=output/NN_03-01-{{id}}.out : output file (from -o, using {{id}} for job ID)\n#\n# Note: Flux uses {{id}} for job ID instead of %J\n\n# Original LSF queue: gpuv100\n# LSF: -q gpuv100\n# Note: Flux does not have queues in the same way as LSF\n# Queue selection is handled through Flux's scheduling configuration\n# Performance impact: Job scheduling priority depends on site-specific Flux configuration\n# Consult site documentation for equivalent resource pools or GPU types\n\n# Original LSF GPU specification: num=1:mode=exclusive_process\n# LSF: -gpu \"num=1:mode=exclusive_process\"\n# Flux: -g 1 (GPU count)\n# Note: Flux does not have a direct equivalent for GPU exclusive_process mode\n# Performance impact: GPU may be shared with other processes if not configured at system level\n# Consult Flux documentation for GPU isolation policies\n\n# Original LSF memory: 6GB per core (5 cores = 30GB total)\n# LSF: -R \"rusage[mem=6GB]\"\n# Note: Flux memory specification can be added at submission:\n# Add to submission command: --setattr=system.memory=30G or --setattr=system.memory=30720M\n# Performance impact: Without explicit memory specification, job gets default allocation\n# which may be insufficient (30GB needed: 6GB \u00d7 5 cores)\n\n# Original LSF email notifications: begin (-B) and end (-N)\n# Note: Flux does not have built-in email notification directives\n# Performance impact: User must manually monitor job status or implement external monitoring\n# Consider using flux job events or wrapper scripts for notifications\n\n# Module environment\nmodule purge\n#module load tensorflow/1.5-cpu-python-3.6.2\nmodule load tensorflow/1.5-gpu-python-3.6.2\n\n# Execute nested loops for parameter sweep\nfor drop in 0.2 0.25 0.3 0.4\ndo\n\tfor N in 250 350 400 450 550\n\tdo\n\t\tfor nhidden in 6\n\t\tdo\n\t\t\tfor act in sigmoid\n\t\t\tdo\n\t\t\t\tfor folder in 03-01-2019\\ 11.04 09-01-2019\\ 12.57 11-10-2018\\ 11.36\n\t\t\t\tdo\n\t\t\t\t\tfor func in group_period_x_group_period group_period_2x2 atomic_number\n\t\t\t\t\tdo\n\t\t\t\t\t\tpython3 NN/NN_script.py $drop $N sigmoid 6 $folder $func\n\t\t\t\t\tdone\n\t\t\t\tdone\n\t\t\tdone\n\t\tdone\n\tdone\ndone\n\n# Complete submission command with all options:\n# flux batch -N 1 -n 5 -t 20h -g 1 \\\n#   --job-name=NN_03-01 \\\n#   --output=output/NN_03-01-{{id}}.out \\\n#   --setattr=system.memory=30G \\\n#   script.sh\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "lsf",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n##K\u00f8r p\u00e5 gpu\n#BSUB -q gpuv100\n##Antal gpuer vi vil bruge. Kommenter ud hvis cpu.\n#BSUB -gpu \"num=1:mode=exclusive_process\"\n\n##K\u00f8r p\u00e5 cpu\n##BSUB -q hpc\n\n##Navn p\u00e5 job\n#BSUB -J NN_03-01\n##Output fil\n#BSUB -o output/NN_03-01-%J.out\n##Antal kerner\n#BSUB -n 5\n##Om kernerne m\u00e5 v\u00e6re p\u00e5 forskellige computere\n#BSUB -R \"span[hosts=1]\"\n##Ram pr kerne\n#BSUB -R \"rusage[mem=6GB]\"\n##Hvor lang tid m\u00e5 den k\u00f8re hh:mm\n#BSUB -W 20:00\n##Email n\u00e5r jobbet starter\n#BSUB -B\n##og stopper\n#BSUB -N\n\n\nmodule purge\n#module load tensorflow/1.5-cpu-python-3.6.2\nmodule load tensorflow/1.5-gpu-python-3.6.2\n\n\nfor drop in 0.2 0.25 0.3 0.4\ndo\n\tfor N in 250 350 400 450 550\n\tdo\n\t\tfor nhidden in 6\n\t\tdo\n\t\t\tfor act in sigmoid\n\t\t\tdo\n\t\t\t\tfor folder in 03-01-2019\\ 11.04 09-01-2019\\ 12.57 11-10-2018\\ 11.36\n\t\t\t\tdo\n\t\t\t\t\tfor func in group_period_x_group_period group_period_2x2 atomic_number\n\t\t\t\t\tdo\n\t\t\t\t\t\tpython3 NN/NN_script.py $drop $N sigmoid 6 $folder $func\n\t\t\t\t\tdone\n\t\t\t\tdone\n\t\t\tdone\n\t\tdone\n\tdone\ndone\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "manual_validate",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

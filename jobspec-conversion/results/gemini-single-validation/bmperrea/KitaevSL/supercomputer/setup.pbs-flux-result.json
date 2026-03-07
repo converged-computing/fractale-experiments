@@ -1,0 +1,123 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash -l\n# Flux job script translated from PBS\n\n# The PBS resource list (-l) is broken down into individual Flux directives.\n# The script requests 13 CPUs for a single-task, multi-threaded application.\n#flux: -N 1\n#flux: -n 1\n#flux: -c 13\n#flux: -t 96:00:00\n\n# CRITICAL: The PBS memory request 'mem=2580mb' (~2.5GB) was not translated.\n# Flux does not have a standard equivalent directive. The job will receive the default memory allocation,\n# which may be insufficient and could cause the job to fail.\n# #PBS -l mem=2580mb\n\n# The following PBS directives for email notification were not translated as Flux does not support this functionality directly.\n# This is typically configured at the system level.\n# #PBS -m abe\n# #PBS -M perre035@umn.edu\n\ncd ~/kitaev\nmodule load matlab\n\n# The command is run directly. As a single-task job, 'flux run' is not necessary.\n# The 'maxNumCompThreads(13)' command inside Matlab correctly utilizes the 13 CPUs\n# requested by the '-c 13' directive.\nmatlab -nodisplay -r \"maxNumCompThreads(13)\" < do_some_mcmc.m\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "CRITICAL: As noted in the script's comments, the original PBS request for ~2.5GB of memory (`mem=2580mb`) was omitted. The job will receive a default, smaller memory allocation and is highly likely to fail at runtime if the application's memory footprint exceeds the default.",
+                        "The script uses a non-portable `cd ~/kitaev` command which relies on the tilde expansion to a specific user's home directory. This will fail for other users or if the directory structure changes.",
+                        "The script uses standard input redirection (`< do_some_mcmc.m`) to pass commands to Matlab. This can be less robust than passing a script name as a command-line argument, as it may interact poorly with how the scheduler handles I/O streams."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash -l\n# Flux job script translated from PBS\n\n# The PBS resource list (-l) is broken down into individual Flux directives.\n# The script requests 13 CPUs for a single-task, multi-threaded application.\n#flux: -N 1\n#flux: -n 1\n#flux: -c 13\n#flux: -t 96:00:00\n\n# CRITICAL: The PBS memory request 'mem=2580mb' (~2.5GB) was not translated.\n# Flux does not have a standard equivalent directive. The job will receive the default memory allocation,\n# which may be insufficient and could cause the job to fail.\n# #PBS -l mem=2580mb\n\n# The following PBS directives for email notification were not translated as Flux does not support this functionality directly.\n# This is typically configured at the system level.\n# #PBS -m abe\n# #PBS -M perre035@umn.edu\n\ncd ~/kitaev\nmodule load matlab\n\n# The command is run directly. As a single-task job, 'flux run' is not necessary.\n# The 'maxNumCompThreads(13)' command inside Matlab correctly utilizes the 13 CPUs\n# requested by the '-c 13' directive.\nmatlab -nodisplay -r \"maxNumCompThreads(13)\" < do_some_mcmc.m\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "pbs",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash -l\n#PBS -l walltime=96:00:00,nodes=1:ppn=13,mem=2580mb\n#PBS -m abe\n#PBS -M perre035@umn.edu\n\ncd ~/kitaev\nmodule load matlab\nmatlab -nodisplay -r \"maxNumCompThreads(13)\" < do_some_mcmc.m",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "manual_validate",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

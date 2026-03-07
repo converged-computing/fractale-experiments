@@ -1,0 +1,124 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n# Flux batch script converted from LSF\n\n# NOTE: Run with: flux batch <this_script>\n\n# LSF resources:\n#   -J all_to_all_32\n#   -nnodes 32\n#   -W 00:15\n#   -o all_to_all_32.%J.out\n#   -e all_to_all_32.%J.err\n\n#flux: --job-name=all_to_all_32\n#flux: -N 32\n#flux: --time-limit=15m\n\n# Omitted LSF options: -o / -e with %J token\n# Flux output/error path handling and jobid token expansion is not portable across Flux versions/sites.\n# Performance implication: none, but logs may collide/overwrite if run repeatedly unless you adjust filenames manually.\n\n# Omitted implicit GPU request from jsrun (-g4, -M \"-gpu\")\n# Flux GPU resource requests are site/config dependent and not expressed portably here.\n# Performance implication: job may be scheduled without GPUs (or with fewer GPUs), leading to failure or severe slowdown.\n\nmodule load gcc\nmodule load cuda/10.2.89\nmodule load hwloc\n\ncd /g/g14/bienz1/BenchPress/spectrum_build/examples\n\nnvidia-cuda-mps-control -d\n\n# LSF used jsrun for launch on the target system.\n# Under Flux, launch the application via flux-run; detailed jsrun binding/packing options are system-specific.\n# Performance implication: without explicit CPU/GPU binding equivalent to jsrun -a/-c/-g/-M/--launch_distribution,\n# performance may be lower due to different rank placement and affinity.\n\n# Map jsrun -n32 to 32 tasks. Per-task CPU/GPU binding is not portably replicated.\nflux run -n 32 ./time_alltoall\n\necho quit | nvidia-cuda-mps-control\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": false,
+                    "tool_call": false,
+                    "reasons": [
+                        "The resource section requests 32 nodes (`#flux: -N 32`) but does not request a task count. The workload later launches 32 tasks (`flux run -n 32`); without specifying `#flux: -n 32` (or equivalent) in the allocation, the job may allocate insufficient task slots or default to a single task, leading to launch failure or incorrect placement.",
+                        "The original job implicitly required GPUs (jsrun used `-g4` and `-M \"-gpu\"`), but the resource section makes no GPU request. On GPU-managed systems this can result in a CPU-only allocation and the job failing or running far slower."
+                    ],
+                    "issues": [
+                        "The original jsrun mapping implied 40 cores and 4 GPUs per node (common on Sierra/Lassen). This conversion drops CPU/GPU binding and per-node resource mapping, which can significantly affect performance."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "failed -> manual_validate",
+            "complete": false,
+            "state": "failed"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n# Flux batch script converted from LSF\n\n# NOTE: Run with: flux batch <this_script>\n\n# LSF resources:\n#   -J all_to_all_32\n#   -nnodes 32\n#   -W 00:15\n#   -o all_to_all_32.%J.out\n#   -e all_to_all_32.%J.err\n\n#flux: --job-name=all_to_all_32\n#flux: -N 32\n#flux: --time-limit=15m\n\n# Omitted LSF options: -o / -e with %J token\n# Flux output/error path handling and jobid token expansion is not portable across Flux versions/sites.\n# Performance implication: none, but logs may collide/overwrite if run repeatedly unless you adjust filenames manually.\n\n# Omitted implicit GPU request from jsrun (-g4, -M \"-gpu\")\n# Flux GPU resource requests are site/config dependent and not expressed portably here.\n# Performance implication: job may be scheduled without GPUs (or with fewer GPUs), leading to failure or severe slowdown.\n\nmodule load gcc\nmodule load cuda/10.2.89\nmodule load hwloc\n\ncd /g/g14/bienz1/BenchPress/spectrum_build/examples\n\nnvidia-cuda-mps-control -d\n\n# LSF used jsrun for launch on the target system.\n# Under Flux, launch the application via flux-run; detailed jsrun binding/packing options are system-specific.\n# Performance implication: without explicit CPU/GPU binding equivalent to jsrun -a/-c/-g/-M/--launch_distribution,\n# performance may be lower due to different rank placement and affinity.\n\n# Map jsrun -n32 to 32 tasks. Per-task CPU/GPU binding is not portably replicated.\nflux run -n 32 ./time_alltoall\n\necho quit | nvidia-cuda-mps-control\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "lsf",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n#BSUB -J all_to_all_32\n#BSUB -e all_to_all_32.%J.err\n#BSUB -o all_to_all_32.%J.out\n#BSUB -nnodes 32\n#BSUB -W 00:15\n\nmodule load gcc\nmodule load cuda/10.2.89\nmodule load hwloc\n\ncd /g/g14/bienz1/BenchPress/spectrum_build/examples\n\nnvidia-cuda-mps-control -d\n\njsrun -a40 -c40 -g4 -r1 -n32 -M \"-gpu\" --latency_priority=gpu-cpu --launch_distribution=packed ./time_alltoall\n\necho quit | nvidia-cuda-mps-control\n\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "manual_validate",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

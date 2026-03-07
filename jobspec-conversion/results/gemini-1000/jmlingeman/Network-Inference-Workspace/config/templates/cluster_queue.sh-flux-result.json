@@ -1,0 +1,113 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n# Flux directives translated from PBS\n#FLUX: -t 5:00:00\n#FLUX: -o .o%J\n\n#\n# --- Omitted PBS options and explanations ---\n#\n# -l nodes=:ppn=\n#   Omitted. The original PBS directive was incomplete and did not specify the number\n#   of nodes or processors-per-node. This Flux script will run with a default\n#   allocation (typically one core).\n#\n# -N \n#   Omitted. The original PBS job name was not specified.\n#\n# -e localhost:$PBS_O_WORKDIR/${PBS_JOBNAME}.e${PBS_JOBID}\n#   Omitted. Flux combines stdout and stderr into the single output file\n#   specified by the -o directive. The original error filename '.e<jobid>'\n#   is now merged with the output file '.o%J'.\n#\n\nQSUB_PRIORITY=\n\n# The original script's purpose was to submit another job.\n# 'qsub' is replaced with 'flux submit'.\n# CRITICAL: The original 'qsub' command was incomplete and would have failed.\n# The 'flux submit' command below is also incomplete and WILL FAIL.\n# A script or executable must be provided as an argument to 'flux submit'.\nQSUB_CMD=\"-v \"\necho \"Sending the following command to QSUB: $QSUB_CMD\"\n\n#$QSUB_CMD\nflux submit $QSUB_CMD\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "content": "[SSL: SSLV3_ALERT_BAD_RECORD_MAC] sslv3 alert bad record mac (_ssl.c:2559)"
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n# Flux directives translated from PBS\n#FLUX: -t 5:00:00\n#FLUX: -o .o%J\n\n#\n# --- Omitted PBS options and explanations ---\n#\n# -l nodes=:ppn=\n#   Omitted. The original PBS directive was incomplete and did not specify the number\n#   of nodes or processors-per-node. This Flux script will run with a default\n#   allocation (typically one core).\n#\n# -N \n#   Omitted. The original PBS job name was not specified.\n#\n# -e localhost:$PBS_O_WORKDIR/${PBS_JOBNAME}.e${PBS_JOBID}\n#   Omitted. Flux combines stdout and stderr into the single output file\n#   specified by the -o directive. The original error filename '.e<jobid>'\n#   is now merged with the output file '.o%J'.\n#\n\nQSUB_PRIORITY=\n\n# The original script's purpose was to submit another job.\n# 'qsub' is replaced with 'flux submit'.\n# CRITICAL: The original 'qsub' command was incomplete and would have failed.\n# The 'flux submit' command below is also incomplete and WILL FAIL.\n# A script or executable must be provided as an argument to 'flux submit'.\nQSUB_CMD=\"-v \"\necho \"Sending the following command to QSUB: $QSUB_CMD\"\n\n#$QSUB_CMD\nflux submit $QSUB_CMD\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "pbs",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n\n#PBS -l nodes={{cluster_nodes}}:ppn={{cluster_procs}},walltime=5:00:00\n#PBS -N {{cluster_expname}}\n#PBS -e localhost:$PBS_O_WORKDIR/${PBS_JOBNAME}.e${PBS_JOBID}\n#PBS -o localhost:$PBS_O_WORKDIR/${PBS_JOBNAME}.o${PBS_JOBID}\n\nQSUB_PRIORITY={{cluster_priority}}\n\nQSUB_CMD=\"-v {{cluster_prog_script}}\"\necho \"Sending the following command to QSUB: $QSUB_CMD\"\n\n#$QSUB_CMD\nqsub $QSUB_CMD\n\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

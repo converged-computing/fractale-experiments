@@ -1,0 +1,121 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n# Flux batch script converted from Slurm\n\n# NOTE: Run with: flux batch <this_script>\n\n# Slurm resources:\n#   -p RM\n#   -t 48:00:00\n#   -N 8\n#   --ntasks-per-node 26   (total tasks = 208)\n#   -A phy210030p\n#   --mail-type=BEGIN,END,FAIL\n#   --mail-user=akshay2\n#   --output=/ocean/projects/phy210030p/akshay2/Slurm_logs/multi_acceljerk_%j.log\n\n#flux: -N 8\n#flux: -n 208\n#flux: -c 1\n#flux: --time-limit=48h\n\n# Omitted Slurm option: -p RM (partition)\n# Flux queues/partitions are site-specific; no portable equivalent.\n# Performance implication: job may run with different limits/priority or be rejected by policy.\n\n# Omitted Slurm option: -A phy210030p (account)\n# Flux accounting/project selection is site-specific; no portable equivalent.\n# Performance implication: job may be charged to a default account or be rejected by policy.\n\n# Omitted Slurm options: --mail-type and --mail-user\n# Flux does not provide a universal, built-in email notification directive in batch scripts.\n# Performance implication: none on runtime performance, but you will not receive automatic job emails.\n\n# Omitted Slurm option: --output=... with %j token\n# Slurm's %j token (job id) is not portable in Flux output directives.\n# Performance implication: none, but log naming may differ unless you set a fixed filename.\n\nmodule load openmpi/3.1.6-gcc8.3.1\n\nCMDDIR=$PROJECT/HPC_pulsar/cmd_files\n\necho \"Requested tasks: 208\"\n\n# If the .cmd file expects to launch MPI ranks itself, running it directly is fine.\n# If it expects the scheduler to launch ranks, use flux-run.\nflux run -n 208 -c 1 $CMDDIR/multinode_accelsearch.cmd\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": false,
+                    "tool_call": false,
+                    "reasons": [
+                        "The original Slurm job specified a partition (`-p RM`) and an account (`-A phy210030p`), but the Flux resource section has no queue/account selection; on sites where these affect eligibility/limits, scheduling behavior may differ or the job may be rejected."
+                    ],
+                    "issues": []
+                },
+                "attempts": 1
+            },
+            "transition": "failed -> manual_validate",
+            "complete": false,
+            "state": "failed"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n# Flux batch script converted from Slurm\n\n# NOTE: Run with: flux batch <this_script>\n\n# Slurm resources:\n#   -p RM\n#   -t 48:00:00\n#   -N 8\n#   --ntasks-per-node 26   (total tasks = 208)\n#   -A phy210030p\n#   --mail-type=BEGIN,END,FAIL\n#   --mail-user=akshay2\n#   --output=/ocean/projects/phy210030p/akshay2/Slurm_logs/multi_acceljerk_%j.log\n\n#flux: -N 8\n#flux: -n 208\n#flux: -c 1\n#flux: --time-limit=48h\n\n# Omitted Slurm option: -p RM (partition)\n# Flux queues/partitions are site-specific; no portable equivalent.\n# Performance implication: job may run with different limits/priority or be rejected by policy.\n\n# Omitted Slurm option: -A phy210030p (account)\n# Flux accounting/project selection is site-specific; no portable equivalent.\n# Performance implication: job may be charged to a default account or be rejected by policy.\n\n# Omitted Slurm options: --mail-type and --mail-user\n# Flux does not provide a universal, built-in email notification directive in batch scripts.\n# Performance implication: none on runtime performance, but you will not receive automatic job emails.\n\n# Omitted Slurm option: --output=... with %j token\n# Slurm's %j token (job id) is not portable in Flux output directives.\n# Performance implication: none, but log naming may differ unless you set a fixed filename.\n\nmodule load openmpi/3.1.6-gcc8.3.1\n\nCMDDIR=$PROJECT/HPC_pulsar/cmd_files\n\necho \"Requested tasks: 208\"\n\n# If the .cmd file expects to launch MPI ranks itself, running it directly is fine.\n# If it expects the scheduler to launch ranks, use flux-run.\nflux run -n 208 -c 1 $CMDDIR/multinode_accelsearch.cmd\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n#SBATCH -p RM\n#SBATCH -t 48:00:00\n#SBATCH -N 8\n#SBATCH --ntasks-per-node 26\n#SBATCH -A phy210030p\n#SBATCH --mail-type=BEGIN,END,FAIL\n#SBATCH --mail-user=akshay2\n#SBATCH --output=/ocean/projects/phy210030p/akshay2/Slurm_logs/multi_acceljerk_%j.log\n\n# Ensure that the output directory to SBATCH exists prior to batch script execution.\nmodule load openmpi/3.1.6-gcc8.3.1\n\n# Define environment variables. $PROJECT = /ocean/projects/<group id>/<username>\nCMDDIR=$PROJECT/HPC_pulsar/cmd_files\n\necho $SLURM_NTASKS\n# Run acceleration searches within singularity container.\n$CMDDIR/multinode_accelsearch.cmd\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "manual_validate",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

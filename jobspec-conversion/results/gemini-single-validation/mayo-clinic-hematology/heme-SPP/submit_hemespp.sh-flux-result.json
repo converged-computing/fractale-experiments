@@ -1,0 +1,122 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/sh\n# Flux job script translated from Slurm\n\n# The Slurm '--chdir' directive is handled by an explicit 'cd' command.\ncd /research/labs/hematology/hemedata/m302618/projects/spatial/cdx_pipeline_mforge/MCMICRO/\n\n#flux: -q cpu-short\n#flux: --job-name=mcmicro_SMM_multisample\n#flux: -t 2:00:00\n\n# Slurm's %J is replaced with Flux's {job.id}. Stderr will be merged with stdout by default.\n#flux: -o mcmicro-{job.id}.log\n\n# CRITICAL: The Slurm memory request '--mem=4G' was not translated.\n# Flux does not have a standard equivalent directive. The job will receive the default memory allocation,\n# which may be insufficient and could cause the job to fail.\n# #SBATCH --mem=4G\n\n# The following SLURM directives for email notification were not translated as Flux does not support this functionality directly.\n# This is typically configured at the system level.\n# #SBATCH --mail-type=ALL\n# #SBATCH --mail-user=howe.michael@mayo.edu\n\nmodule purge\nmodule load nextflow\nmodule load apptainer\n\nexport NXF_APPTAINER_CACHEDIR=\"/research/labs/hematology/hemedata/m302618/apptainer/containers\"\n\n# Since the original script defaults to a single task, the command can be run directly.\nnextflow -C mforge_settings.config run labsyspharm/mcmicro --in 20240112_BR062124_Gonsalves_CD45 -with-report\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "CRITICAL: As noted in the script's comments, the original Slurm request for 4GB of memory (`--mem=4G`) was omitted. The job will receive a default, much smaller memory allocation and is highly likely to fail at runtime if the application's memory footprint exceeds the default.",
+                        "The script uses a hardcoded, user-specific path in the `cd` command and for the `NXF_APPTAINER_CACHEDIR` environment variable. This makes the script non-portable and it will fail if run by another user or if the directory structure changes."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/sh\n# Flux job script translated from Slurm\n\n# The Slurm '--chdir' directive is handled by an explicit 'cd' command.\ncd /research/labs/hematology/hemedata/m302618/projects/spatial/cdx_pipeline_mforge/MCMICRO/\n\n#flux: -q cpu-short\n#flux: --job-name=mcmicro_SMM_multisample\n#flux: -t 2:00:00\n\n# Slurm's %J is replaced with Flux's {job.id}. Stderr will be merged with stdout by default.\n#flux: -o mcmicro-{job.id}.log\n\n# CRITICAL: The Slurm memory request '--mem=4G' was not translated.\n# Flux does not have a standard equivalent directive. The job will receive the default memory allocation,\n# which may be insufficient and could cause the job to fail.\n# #SBATCH --mem=4G\n\n# The following SLURM directives for email notification were not translated as Flux does not support this functionality directly.\n# This is typically configured at the system level.\n# #SBATCH --mail-type=ALL\n# #SBATCH --mail-user=howe.michael@mayo.edu\n\nmodule purge\nmodule load nextflow\nmodule load apptainer\n\nexport NXF_APPTAINER_CACHEDIR=\"/research/labs/hematology/hemedata/m302618/apptainer/containers\"\n\n# Since the original script defaults to a single task, the command can be run directly.\nnextflow -C mforge_settings.config run labsyspharm/mcmicro --in 20240112_BR062124_Gonsalves_CD45 -with-report\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/sh\n\n#SBATCH --partition=cpu-short\n#SBATCH -J=mcmicro_SMM_multisample\n#SBATCH -o=mcmicro-%J.log\n#SBATCH --time=2:00:00\n#SBATCH --mem=4G\n#SBATCH --mail-type=ALL\n#SBATCH --mail-user=howe.michael@mayo.edu\n#SBATCH --chdir /research/labs/hematology/hemedata/m302618/projects/spatial/cdx_pipeline_mforge/MCMICRO/\n\nmodule purge\nmodule load nextflow\nmodule load apptainer\n\nexport NXF_APPTAINER_CACHEDIR=\"/research/labs/hematology/hemedata/m302618/apptainer/containers\"\n\nnextflow -C mforge_settings.config run labsyspharm/mcmicro --in 20240112_BR062124_Gonsalves_CD45 -with-report",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "manual_validate",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

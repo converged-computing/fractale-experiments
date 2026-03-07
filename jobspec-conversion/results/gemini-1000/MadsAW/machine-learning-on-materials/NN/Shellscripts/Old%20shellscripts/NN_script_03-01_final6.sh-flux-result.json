@@ -1,0 +1,124 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n# Flux directives translated from LSF\n# LSF's '-n 5' with a single command is interpreted as a request for 5 cores.\n#FLUX: -n 1\n#FLUX: -c 5\n#FLUX: -q gpuv100\n#FLUX: -g 1\n#FLUX: -t 20:00:00\n#FLUX: -o output/NN_03-01-%J.out\n\n#\n# --- Omitted LSF options and explanations ---\n#\n# -J NN_03-01\n#   Omitted. The job name in Flux is generally set during submission (e.g.,\n#   'flux submit --job-name=...') or via the FLUX_JOB_NAME\n#   environment variable, not through a script directive.\n#\n# -R \"rusage[mem=6GB]\"\n#   Omitted. This LSF directive requests memory per core. Flux does not have a direct\n#   batch script directive for memory. The total requested memory was 5 * 6GB = 30GB.\n#   Performance implication: Without a memory constraint, the job may be\n#   scheduled on a node with insufficient memory, potentially causing it to\n#   fail with an out-of-memory error or perform poorly due to heavy swapping.\n#\n# -R \"span[hosts=1]\"\n#   Omitted. This LSF directive ensures all tasks are placed on a single host.\n#   This intent is captured by the Flux translation of '-n 1 -c 5', which requests\n#   1 task with 5 cores on one node.\n#\n# -B and -N\n#   Omitted. Flux core does not have built-in support for email notifications via\n#   batch directives. This functionality may be provided by site-specific\n#   plugins or wrappers.\n#\n\nmodule purge\n#module load tensorflow/1.5-cpu-python-3.6.2\nmodule load tensorflow/1.5-gpu-python-3.6.2\n\n\nfor drop in 0.2 0.25 0.3 0.4\ndo\n\tfor N in 250 350 400 450 550\n\tdo\n\t\tfor nhidden in 6\n\t\tdo\n\t\t\tfor act in sigmoid\n\t\t\tdo\n\t\t\t\tfor folder in \"03-01-2019 11.04\" \"09-01-2019 12.57\" \"11-10-2018 11.36\"\n\t\t\t\tdo\n\t\t\t\t\tfor func in group_period_x_group_period group_period_2x2 atomic_number\n\t\t\t\t\tdo\n\t\t\t\t\t\tpython3 NN/NN_script.py $drop $N sigmoid 6 \"$folder\" $func\n\t\t\t\t\tdone\n\t\t\t\tdone\n\t\t\tdone\n\t\t\tdone\n\t\tdone\ndone\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "As correctly noted in the script's comments, the original LSF memory request (`-R \"rusage[mem=6GB]\"`, totaling 30GB) was omitted. This is a critical omission for a long-running TensorFlow job. Without this memory constraint, the job is at high risk of being scheduled on a node with insufficient memory, leading to an out-of-memory failure.",
+                        "The script runs a large number of serial Python commands inside a set of nested loops. This is a highly inefficient use of a batch system. A better approach would be to use a job array (`flux bulksubmit`), where each Python command runs as a separate, independent job. This would allow the jobs to run in parallel on many nodes, drastically reducing the total time to completion.",
+                        "The script specifies an output file in a subdirectory (`output/NN_03-01-%J.out`). If the `output` directory does not exist in the working directory when the job starts, the job will fail because it cannot create the output file.",
+                        "The script calls the Python script via a relative path (`NN/NN_script.py`), which means the job must be submitted from a specific parent directory for the script to be found. This is a fragile practice."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n# Flux directives translated from LSF\n# LSF's '-n 5' with a single command is interpreted as a request for 5 cores.\n#FLUX: -n 1\n#FLUX: -c 5\n#FLUX: -q gpuv100\n#FLUX: -g 1\n#FLUX: -t 20:00:00\n#FLUX: -o output/NN_03-01-%J.out\n\n#\n# --- Omitted LSF options and explanations ---\n#\n# -J NN_03-01\n#   Omitted. The job name in Flux is generally set during submission (e.g.,\n#   'flux submit --job-name=...') or via the FLUX_JOB_NAME\n#   environment variable, not through a script directive.\n#\n# -R \"rusage[mem=6GB]\"\n#   Omitted. This LSF directive requests memory per core. Flux does not have a direct\n#   batch script directive for memory. The total requested memory was 5 * 6GB = 30GB.\n#   Performance implication: Without a memory constraint, the job may be\n#   scheduled on a node with insufficient memory, potentially causing it to\n#   fail with an out-of-memory error or perform poorly due to heavy swapping.\n#\n# -R \"span[hosts=1]\"\n#   Omitted. This LSF directive ensures all tasks are placed on a single host.\n#   This intent is captured by the Flux translation of '-n 1 -c 5', which requests\n#   1 task with 5 cores on one node.\n#\n# -B and -N\n#   Omitted. Flux core does not have built-in support for email notifications via\n#   batch directives. This functionality may be provided by site-specific\n#   plugins or wrappers.\n#\n\nmodule purge\n#module load tensorflow/1.5-cpu-python-3.6.2\nmodule load tensorflow/1.5-gpu-python-3.6.2\n\n\nfor drop in 0.2 0.25 0.3 0.4\ndo\n\tfor N in 250 350 400 450 550\n\tdo\n\t\tfor nhidden in 6\n\t\tdo\n\t\t\tfor act in sigmoid\n\t\t\tdo\n\t\t\t\tfor folder in \"03-01-2019 11.04\" \"09-01-2019 12.57\" \"11-10-2018 11.36\"\n\t\t\t\tdo\n\t\t\t\t\tfor func in group_period_x_group_period group_period_2x2 atomic_number\n\t\t\t\t\tdo\n\t\t\t\t\t\tpython3 NN/NN_script.py $drop $N sigmoid 6 \"$folder\" $func\n\t\t\t\t\tdone\n\t\t\t\tdone\n\t\t\tdone\n\t\t\tdone\n\t\tdone\ndone\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "lsf",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n##K\u00f8r p\u00e5 gpu\n#BSUB -q gpuv100\n##Antal gpuer vi vil bruge. Kommenter ud hvis cpu.\n#BSUB -gpu \"num=1:mode=exclusive_process\"\n\n##K\u00f8r p\u00e5 cpu\n##BSUB -q hpc\n\n##Navn p\u00e5 job\n#BSUB -J NN_03-01\n##Output fil\n#BSUB -o output/NN_03-01-%J.out\n##Antal kerner\n#BSUB -n 5\n##Om kernerne m\u00e5 v\u00e6re p\u00e5 forskellige computere\n#BSUB -R \"span[hosts=1]\"\n##Ram pr kerne\n#BSUB -R \"rusage[mem=6GB]\"\n##Hvor lang tid m\u00e5 den k\u00f8re hh:mm\n#BSUB -W 20:00\n##Email n\u00e5r jobbet starter\n#BSUB -B\n##og stopper\n#BSUB -N\n\n\nmodule purge\n#module load tensorflow/1.5-cpu-python-3.6.2\nmodule load tensorflow/1.5-gpu-python-3.6.2\n\n\nfor drop in 0.2 0.25 0.3 0.4\ndo\n\tfor N in 250 350 400 450 550\n\tdo\n\t\tfor nhidden in 6\n\t\tdo\n\t\t\tfor act in sigmoid\n\t\t\tdo\n\t\t\t\tfor folder in 03-01-2019\\ 11.04 09-01-2019\\ 12.57 11-10-2018\\ 11.36\n\t\t\t\tdo\n\t\t\t\t\tfor func in group_period_x_group_period group_period_2x2 atomic_number\n\t\t\t\t\tdo\n\t\t\t\t\t\tpython3 NN/NN_script.py $drop $N sigmoid 6 $folder $func\n\t\t\t\t\tdone\n\t\t\t\tdone\n\t\t\tdone\n\t\tdone\n\tdone\ndone\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

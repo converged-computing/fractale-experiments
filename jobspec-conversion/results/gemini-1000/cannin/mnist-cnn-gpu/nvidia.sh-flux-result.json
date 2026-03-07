@@ -1,0 +1,124 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n# Flux directives translated from SLURM\n#FLUX: -n 1\n#FLUX: -c 4\n#FLUX: -g 2\n#FLUX: -t 6:00:00\n#FLUX: -q gpu\n#FLUX: -o nv_%J.out\n\n#\n# --- Omitted SLURM options and explanations ---\n#\n# --gres=gpu:teslaK80:2\n#   Partially translated to '-g 2'. The specific GPU type ('teslaK80') is omitted.\n#   Flux does not have a standard batch directive for requesting specific resource\n#   features. This is typically handled at submission time with a constraint, e.g.,\n#   'flux submit --requires=...'.\n#   Performance implication: The job will be allocated two GPUs, but they may not\n#   be the specific 'teslaK80' type required, potentially leading to errors or\n#   suboptimal performance if the code is optimized for or depends on features\n#   of that specific GPU model.\n#\n# -e nv_%j.err\n#   Omitted. Flux combines stdout and stderr into the single output file\n#   specified by the -o directive. To redirect stderr separately, you can use\n#   shell redirection in your command, e.g., 'command 2> nv_%J.err'.\n#\n\nmodule load gcc/6.2.0\nmodule load cuda/10.0\n\necho \"#---------\"\n# The CUDA_VISIBLE_DEVICES environment variable is typically set by the resource\n# manager. Flux sets this automatically for jobs that request GPUs.\necho $CUDA_VISIBLE_DEVICES\nnvidia-smi\nnvidia-smi |grep \"|    [$CUDA_VISIBLE_DEVICES] \"|awk '{print $3}'|xargs -r ps -o pid,ppid,uid -p\necho \"#----------\"\n\n~/nvida_samples/1_Utilities/deviceQuery/deviceQuery\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "As correctly noted in the script's comments, the original SLURM request for a specific GPU model (`--gres=gpu:teslaK80:2`) was only partially translated, losing the 'teslaK80' constraint. This is a significant issue. The job will be allocated generic GPUs, which may not be compatible with the code (e.g., if it was compiled for a specific compute capability) or may lead to sub-optimal performance.",
+                        "The script is missing an explicit memory request. The original SLURM script also omitted this. For a GPU job, which can often be memory-intensive, this is a stability risk that could lead to out-of-memory failures.",
+                        "The script contains a likely typographical error in the path to the executable: `~/nvida_samples/...` should probably be `~/nvidia_samples/...`. This will cause a 'command not found' error.",
+                        "The script is non-portable as it uses a home-directory-relative path (`~/nvida_samples/...`) to run the executable. This will fail for any user other than the one who created the script."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n# Flux directives translated from SLURM\n#FLUX: -n 1\n#FLUX: -c 4\n#FLUX: -g 2\n#FLUX: -t 6:00:00\n#FLUX: -q gpu\n#FLUX: -o nv_%J.out\n\n#\n# --- Omitted SLURM options and explanations ---\n#\n# --gres=gpu:teslaK80:2\n#   Partially translated to '-g 2'. The specific GPU type ('teslaK80') is omitted.\n#   Flux does not have a standard batch directive for requesting specific resource\n#   features. This is typically handled at submission time with a constraint, e.g.,\n#   'flux submit --requires=...'.\n#   Performance implication: The job will be allocated two GPUs, but they may not\n#   be the specific 'teslaK80' type required, potentially leading to errors or\n#   suboptimal performance if the code is optimized for or depends on features\n#   of that specific GPU model.\n#\n# -e nv_%j.err\n#   Omitted. Flux combines stdout and stderr into the single output file\n#   specified by the -o directive. To redirect stderr separately, you can use\n#   shell redirection in your command, e.g., 'command 2> nv_%J.err'.\n#\n\nmodule load gcc/6.2.0\nmodule load cuda/10.0\n\necho \"#---------\"\n# The CUDA_VISIBLE_DEVICES environment variable is typically set by the resource\n# manager. Flux sets this automatically for jobs that request GPUs.\necho $CUDA_VISIBLE_DEVICES\nnvidia-smi\nnvidia-smi |grep \"|    [$CUDA_VISIBLE_DEVICES] \"|awk '{print $3}'|xargs -r ps -o pid,ppid,uid -p\necho \"#----------\"\n\n~/nvida_samples/1_Utilities/deviceQuery/deviceQuery\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n\n#SBATCH -c 4\n#SBATCH -t 6:00:00\n#SBATCH -p gpu\n#SBATCH --gres=gpu:teslaK80:2\n#SBATCH -o nv_%j.out\n#SBATCH -e nv_%j.err\n\nmodule load gcc/6.2.0\nmodule load cuda/10.0\n\necho \"#---------\"\necho $CUDA_VISIBLE_DEVICES\nnvidia-smi\nnvidia-smi |grep \"|\\    [$CUDA_VISIBLE_DEVICES] \"|awk '{print $3}'|xargs -r ps -o pid,ppid,uid -p\necho \"#----------\"\n\n~/nvida_samples/1_Utilities/deviceQuery/deviceQuery\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

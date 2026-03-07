@@ -1,0 +1,160 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n# Flux directives translated from LSF\n#FLUX: -N 4096\n#FLUX: -n 4096\n#FLUX: -t 0:30:00\n#FLUX: -o output.log\n\n#\n# --- Omitted LSF options and explanations ---\n#\n# -P MED106\n#   Omitted. Flux accounting is typically managed through system configuration or job\n#   submission options, not a standard batch directive.\n#\n# -J ytopt\n#   Omitted. The job name in Flux is generally set during submission (e.g.,\n#   'flux submit --job-name=ytopt ...') or via the FLUX_JOB_NAME\n#   environment variable, not through a script directive.\n#\n# -e output.err\n#   Omitted. Flux combines stdout and stderr into the single output file\n#   specified by the -o directive. To redirect stderr separately, you can use\n#   shell redirection in your command, e.g., 'command 2> output.err'.\n#\n# -alloc_flags gpumps\n#   Omitted. This LSF flag indicates a GPU-per-process mapping. A similar request\n#   in Flux would require requesting an equal number of tasks and GPUs, e.g.,\n#   '-n 4096 -g 4096'. However, the 'jsrun' command includes '-g 0', which requests\n#   zero GPUs per process group, contradicting the allocation flag. This translation\n#   omits the GPU request to match the 'jsrun' command's intent.\n#   Performance implication: If GPUs are actually required, the job will fail.\n#\n# jsrun -c 42, -bpacked:42, -dpacked\n#   Omitted. These are IBM jsrun-specific options for CPU and binding control.\n#   Flux uses its own mechanisms for process placement and binding. A request\n#   for 42 CPUs per task has been added to the Flux directives to approximate the\n#   '-c 42' request.\n#   Performance implication: The default binding provided by Flux may be sub-optimal\n#   compared to the highly specific jsrun flags, which could impact performance.\n#\n# Note on script logic:\n#   The original script was a wrapper that generated and submitted another LSF script.\n#   This translation converts the *inner* script's logic and directives directly into\n#   a single Flux batch script, removing the wrapper layer.\n#\n\nexport OMP_NUM_THREADS=168\n\n# 'jsrun' is replaced by 'flux run'. Flux will automatically launch the 4096 tasks\n# requested in the job directives.\nflux run ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out.txt\nflux run ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out2.txt\nflux run ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out3.txt\nflux run ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out4.txt\nflux run ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out5.txt\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": false,
+                    "tool_call": true,
+                    "reasons": [
+                        "The job is invalid because it is missing a required `-c` (cpus-per-task) directive. The comments indicate that the original `jsrun` command used `-c 42`, which should be translated to `#FLUX: -c 42`."
+                    ],
+                    "issues": [
+                        "There is a severe contradiction in the resource requests and environment settings. The script sets `export OMP_NUM_THREADS=168` but the original `jsrun` command requested 42 cores per process group (`-c 42`). This suggests a significant oversubscription of threads to cores which would likely lead to catastrophic performance degradation.",
+                        "The script is missing an explicit memory request. For an extremely large job spanning 4096 nodes, this is a catastrophic omission. The job will receive a small, default memory allocation and is almost certain to fail with out-of-memory errors.",
+                        "The script runs the same `flux run` command five times sequentially. This is highly inefficient. If the goal is to run five independent simulations, they should be submitted as separate jobs or as part of a job array (`flux bulksubmit`) to run in parallel. If the goal is five steps in a workflow, they should be orchestrated appropriately.",
+                        "The script uses a relative path for the executable (`../amg2013`), which means the job must be submitted from a specific subdirectory for the path to be valid. This is a fragile practice."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "failed -> transform",
+            "complete": false,
+            "state": "failed"
+        },
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n# Flux directives translated from LSF\n#FLUX: -N 4096\n#FLUX: -n 4096\n#FLUX: -c 42\n#FLUX: -t 0:30:00\n#FLUX: -o output.log\n\n#\n# --- Omitted LSF options and explanations ---\n#\n# -P MED106\n#   Omitted. Flux accounting is typically managed through system configuration or job\n#   submission options, not a standard batch directive.\n#\n# -J ytopt\n#   Omitted. The job name in Flux is generally set during submission (e.g.,\n#   'flux submit --job-name=ytopt ...') or via the FLUX_JOB_NAME\n#   environment variable, not through a script directive.\n#\n# -e output.err\n#   Omitted. Flux combines stdout and stderr into the single output file\n#   specified by the -o directive. To redirect stderr separately, you can use\n#   shell redirection in your command, e.g., 'command 2> output.err'.\n#\n# -alloc_flags gpumps\n#   Omitted. This LSF flag indicates a GPU-per-process mapping. A similar request\n#   in Flux would require requesting an equal number of tasks and GPUs, e.g.,\n#   '-n 4096 -g 4096'. However, the 'jsrun' command includes '-g 0', which requests\n#   zero GPUs per process group, contradicting the allocation flag. This translation\n#   omits the GPU request to match the 'jsrun' command's intent.\n#   Performance implication: If GPUs are actually required, the job will fail.\n#\n# jsrun -bpacked:42, -dpacked\n#   Omitted. These are IBM jsrun-specific options for CPU binding and distribution.\n#   Flux uses its own mechanisms for process placement and binding.\n#   Performance implication: The default binding provided by Flux may be sub-optimal\n#   compared to the highly specific jsrun flags, which could impact performance.\n#\n# Note on script logic:\n#   The original script was a wrapper that generated and submitted another LSF script.\n#   This translation converts the *inner* script's logic and directives directly into\n#   a single Flux batch script, removing the wrapper layer.\n#\n\nexport OMP_NUM_THREADS=168\n\n# 'jsrun' is replaced by 'flux run'. Flux will automatically launch the 4096 tasks\n# requested in the job directives.\nflux run ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out.txt\nflux run ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out2.txt\nflux run ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out3.txt\nflux run ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out4.txt\nflux run ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out5.txt\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "There is a severe contradiction in the resource requests and environment settings. The script sets `export OMP_NUM_THREADS=168` but requests 42 cores per task (`#FLUX: -c 42`). This will cause each of the 4096 MPI tasks to attempt to spawn 168 OpenMP threads while only having 42 cores available, leading to a 4x oversubscription and likely catastrophic performance degradation.",
+                        "The script is missing an explicit memory request. For an extremely large job spanning 4096 nodes, this is a catastrophic omission. The job will receive a small, default memory allocation and is almost certain to fail with out-of-memory errors.",
+                        "The script runs the same `flux run` command five times sequentially. This is highly inefficient. If the goal is to run five independent simulations, they should be submitted as separate jobs or as part of a job array (`flux bulksubmit`) to run in parallel. If the goal is five steps in a workflow, they should be orchestrated appropriately.",
+                        "The script uses a relative path for the executable (`../amg2013`), which means the job must be submitted from a specific subdirectory for the path to be valid. This is a fragile practice."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n# Flux directives translated from LSF\n#FLUX: -N 4096\n#FLUX: -n 4096\n#FLUX: -c 42\n#FLUX: -t 0:30:00\n#FLUX: -o output.log\n\n#\n# --- Omitted LSF options and explanations ---\n#\n# -P MED106\n#   Omitted. Flux accounting is typically managed through system configuration or job\n#   submission options, not a standard batch directive.\n#\n# -J ytopt\n#   Omitted. The job name in Flux is generally set during submission (e.g.,\n#   'flux submit --job-name=ytopt ...') or via the FLUX_JOB_NAME\n#   environment variable, not through a script directive.\n#\n# -e output.err\n#   Omitted. Flux combines stdout and stderr into the single output file\n#   specified by the -o directive. To redirect stderr separately, you can use\n#   shell redirection in your command, e.g., 'command 2> output.err'.\n#\n# -alloc_flags gpumps\n#   Omitted. This LSF flag indicates a GPU-per-process mapping. A similar request\n#   in Flux would require requesting an equal number of tasks and GPUs, e.g.,\n#   '-n 4096 -g 4096'. However, the 'jsrun' command includes '-g 0', which requests\n#   zero GPUs per process group, contradicting the allocation flag. This translation\n#   omits the GPU request to match the 'jsrun' command's intent.\n#   Performance implication: If GPUs are actually required, the job will fail.\n#\n# jsrun -bpacked:42, -dpacked\n#   Omitted. These are IBM jsrun-specific options for CPU binding and distribution.\n#   Flux uses its own mechanisms for process placement and binding.\n#   Performance implication: The default binding provided by Flux may be sub-optimal\n#   compared to the highly specific jsrun flags, which could impact performance.\n#\n# Note on script logic:\n#   The original script was a wrapper that generated and submitted another LSF script.\n#   This translation converts the *inner* script's logic and directives directly into\n#   a single Flux batch script, removing the wrapper layer.\n#\n\nexport OMP_NUM_THREADS=168\n\n# 'jsrun' is replaced by 'flux run'. Flux will automatically launch the 4096 tasks\n# requested in the job directives.\nflux run ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out.txt\nflux run ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out2.txt\nflux run ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out3.txt\nflux run ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out4.txt\nflux run ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out5.txt\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "lsf",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n\nlet nnds=4096\n#--- process the submit script\n\n#-----This part creates a submission script---------\ncat >batch.job <<EOF\n# Begin LSF directives\n#BSUB -P MED106\n#BSUB -J ytopt\n#BSUB -o output.log\n#BSUB -e output.err\n#BSUB -alloc_flags gpumps\n#BSUB -W 30\n#BSUB -nnodes ${nnds}\n\nexport OMP_NUM_THREADS=168\njsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out.txt\njsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out2.txt\njsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out3.txt\njsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out4.txt\njsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out5.txt\n\nEOF\n#-----This part submits the script you just created--------------\nchmod +x batch.job\nbsub  batch.job\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

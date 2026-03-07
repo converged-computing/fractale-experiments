@@ -1,0 +1,132 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n# Flux batch script converted from PBS\n# Note: Flux does not support in-script directives for resource specification\n# This script should be submitted with the following command:\n# flux batch -N 1 -n 1 -t <walltime> --job-name=analysis --output=<out_folder>/{{id}}.out script.sh\n#\n# Resource specifications:\n# -N 1         : 1 node (from nodes=1)\n# -n 1         : 1 task (from ppn=1, processors per node)\n# -t <walltime>: walltime (from walltime=<walltime>, format: e.g., 1h, 30m, 2h30m)\n# --job-name=analysis : job name (from -N analysis)\n# --output=<out_folder>/{{id}}.out : output file with job ID\n#\n# Note: PBS uses $PBS_JOBID, Flux uses {{id}} or {{jobid}} for job ID\n# Note: Replace <walltime> with actual time value (e.g., 2h, 120m, 7200s)\n# Note: Replace <out_folder> with actual output directory path\n\n# Original PBS job name: analysis\n# Flux: --job-name=analysis\n\n# Original PBS output: \"<out_folder>/${PBS_JOBID}.out\"\n# Flux: --output=<out_folder>/{{id}}.out\n# Combined stdout/stderr (from -j oe)\n\n# Original PBS queue: batch\n# PBS: -q batch\n# Note: Flux does not have queues in the same way as PBS\n# Queue selection is handled through Flux's scheduling configuration\n# Performance impact: Job scheduling priority depends on site-specific Flux configuration\n# Consult site documentation for equivalent resource pools or queues\n\n# Original PBS walltime: <walltime>\n# PBS: -l walltime=<walltime>\n# Flux: -t <walltime>\n# Format: Flux accepts time as #h, #m, #s, or combinations like 1h30m\n# Convert PBS format (HH:MM:SS) to Flux format if needed\n\n# Original PBS memory: <memory> per process\n# PBS: -l pmem=<memory>\n# Note: Flux memory specification uses --setattr or similar mechanisms\n# Memory per task can be specified at submission:\n# flux batch --setattr=system.memory=<memory_in_MB>M ...\n# Or total memory: --setattr=system.memory=<total_memory>\n# Performance impact: Without explicit memory specification, job gets default allocation\n# which may be insufficient or excessive\n# Consult Flux documentation for memory allocation syntax at your site\n\n# Original PBS nodes: nodes=1:ppn=1\n# PBS: 1 node, 1 processor per node\n# Flux: -N 1 -n 1 (1 node, 1 task)\n# Note: ppn (processors per node) maps to tasks in Flux\n\n# Working directory\n# PBS: $PBS_O_WORKDIR (directory where qsub was called)\n# Flux: $FLUX_JOB_SUBMITDIR or use --cwd flag at submission\n# Using FLUX_JOB_SUBMITDIR environment variable\ncd ${FLUX_JOB_SUBMITDIR:-$PWD}\n\n# Project configuration\nPROJECT_HOME=\"<project_home>\"\n\nPYTHONPATH=\"$PROJECT_HOME/libs:$PYTHONPATH\"\nexport PYTHONPATH\n\n# Virtual environment activation\nif [ -d \"$PROJECT_HOME/venv\" ]; then\n\tsource \"$PROJECT_HOME\"/venv/bin/activate\n\techo \"Virtualenv at $PROJECT_HOME/venv activated.\"\nelse\n\techo \"WARNING: Virtualenv not found/activated! Using system python & LAMMPS...\"\nfi\n\n# Execute Python script\npython \"$PROJECT_HOME\"/tools/dump_processing.py \"<cfg_file>\" <aargs>\n\n# Complete submission command example:\n# flux batch -N 1 -n 1 -t 2h \\\n#   --job-name=analysis \\\n#   --output=<out_folder>/{{id}}.out \\\n#   --setattr=system.memory=<memory_in_MB>M \\\n#   script.sh\n#\n# Notes for submission:\n# 1. Replace <walltime> with actual time (e.g., 2h, 120m)\n# 2. Replace <out_folder> with actual output directory\n# 3. Replace <memory_in_MB> with memory in megabytes (e.g., 4096M for 4GB)\n# 4. Replace <project_home>, <cfg_file>, and <aargs> with actual values\n# 5. Ensure output directory exists before submission\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": false,
+                    "tool_call": false,
+                    "reasons": [
+                        "The submission command contains placeholder '<walltime>' which is not a valid time specification. Flux requires an actual time value (e.g., '2h', '120m', '7200s').",
+                        "The submission command contains placeholder '<out_folder>' which needs to be replaced with an actual directory path.",
+                        "Memory specification is documented but not included in the primary submission command. The script notes that memory should be specified with '--setattr=system.memory=<memory_in_MB>M' but this is only shown in the example at the bottom, not in the primary command at the top."
+                    ],
+                    "issues": [
+                        "The script contains multiple unresolved placeholders that must be replaced before submission: '<walltime>', '<out_folder>', '<project_home>', '<cfg_file>', '<aargs>', and '<memory_in_MB>'.",
+                        "The primary submission command documented at the top of the script is incomplete compared to the example at the bottom. The example includes memory specification which is missing from the primary command.",
+                        "The output file path uses '{{id}}' which should be verified as the correct Flux job ID placeholder. Some Flux versions may use '{{jobid}}' or other formats.",
+                        "The memory specification syntax '--setattr=system.memory=<memory_in_MB>M' should be verified against the specific Flux installation, as attribute paths may vary.",
+                        "The script does not validate that the output directory exists before attempting to write to it. The note at the bottom mentions this but no check is implemented.",
+                        "The working directory fallback '${FLUX_JOB_SUBMITDIR:-$PWD}' will use the current directory if FLUX_JOB_SUBMITDIR is not set, which may not match the PBS behavior of using the submission directory.",
+                        "No cores-per-task specification is provided. With '-n 1', this defaults to 1 core, but if the Python script uses threading, additional cores may be needed.",
+                        "The PBS '-j oe' (join stdout/stderr) behavior is not explicitly replicated. Flux's default behavior should be verified to ensure output is combined as expected."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "failed -> manual_validate",
+            "complete": false,
+            "state": "failed"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n# Flux batch script converted from PBS\n# Note: Flux does not support in-script directives for resource specification\n# This script should be submitted with the following command:\n# flux batch -N 1 -n 1 -t <walltime> --job-name=analysis --output=<out_folder>/{{id}}.out script.sh\n#\n# Resource specifications:\n# -N 1         : 1 node (from nodes=1)\n# -n 1         : 1 task (from ppn=1, processors per node)\n# -t <walltime>: walltime (from walltime=<walltime>, format: e.g., 1h, 30m, 2h30m)\n# --job-name=analysis : job name (from -N analysis)\n# --output=<out_folder>/{{id}}.out : output file with job ID\n#\n# Note: PBS uses $PBS_JOBID, Flux uses {{id}} or {{jobid}} for job ID\n# Note: Replace <walltime> with actual time value (e.g., 2h, 120m, 7200s)\n# Note: Replace <out_folder> with actual output directory path\n\n# Original PBS job name: analysis\n# Flux: --job-name=analysis\n\n# Original PBS output: \"<out_folder>/${PBS_JOBID}.out\"\n# Flux: --output=<out_folder>/{{id}}.out\n# Combined stdout/stderr (from -j oe)\n\n# Original PBS queue: batch\n# PBS: -q batch\n# Note: Flux does not have queues in the same way as PBS\n# Queue selection is handled through Flux's scheduling configuration\n# Performance impact: Job scheduling priority depends on site-specific Flux configuration\n# Consult site documentation for equivalent resource pools or queues\n\n# Original PBS walltime: <walltime>\n# PBS: -l walltime=<walltime>\n# Flux: -t <walltime>\n# Format: Flux accepts time as #h, #m, #s, or combinations like 1h30m\n# Convert PBS format (HH:MM:SS) to Flux format if needed\n\n# Original PBS memory: <memory> per process\n# PBS: -l pmem=<memory>\n# Note: Flux memory specification uses --setattr or similar mechanisms\n# Memory per task can be specified at submission:\n# flux batch --setattr=system.memory=<memory_in_MB>M ...\n# Or total memory: --setattr=system.memory=<total_memory>\n# Performance impact: Without explicit memory specification, job gets default allocation\n# which may be insufficient or excessive\n# Consult Flux documentation for memory allocation syntax at your site\n\n# Original PBS nodes: nodes=1:ppn=1\n# PBS: 1 node, 1 processor per node\n# Flux: -N 1 -n 1 (1 node, 1 task)\n# Note: ppn (processors per node) maps to tasks in Flux\n\n# Working directory\n# PBS: $PBS_O_WORKDIR (directory where qsub was called)\n# Flux: $FLUX_JOB_SUBMITDIR or use --cwd flag at submission\n# Using FLUX_JOB_SUBMITDIR environment variable\ncd ${FLUX_JOB_SUBMITDIR:-$PWD}\n\n# Project configuration\nPROJECT_HOME=\"<project_home>\"\n\nPYTHONPATH=\"$PROJECT_HOME/libs:$PYTHONPATH\"\nexport PYTHONPATH\n\n# Virtual environment activation\nif [ -d \"$PROJECT_HOME/venv\" ]; then\n\tsource \"$PROJECT_HOME\"/venv/bin/activate\n\techo \"Virtualenv at $PROJECT_HOME/venv activated.\"\nelse\n\techo \"WARNING: Virtualenv not found/activated! Using system python & LAMMPS...\"\nfi\n\n# Execute Python script\npython \"$PROJECT_HOME\"/tools/dump_processing.py \"<cfg_file>\" <aargs>\n\n# Complete submission command example:\n# flux batch -N 1 -n 1 -t 2h \\\n#   --job-name=analysis \\\n#   --output=<out_folder>/{{id}}.out \\\n#   --setattr=system.memory=<memory_in_MB>M \\\n#   script.sh\n#\n# Notes for submission:\n# 1. Replace <walltime> with actual time (e.g., 2h, 120m)\n# 2. Replace <out_folder> with actual output directory\n# 3. Replace <memory_in_MB> with memory in megabytes (e.g., 4096M for 4GB)\n# 4. Replace <project_home>, <cfg_file>, and <aargs> with actual values\n# 5. Ensure output directory exists before submission\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "pbs",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n\n#PBS -N analysis\n#PBS -q batch\n\n#PBS -l walltime=<walltime>\n#PBS -l pmem=<memory>\n#PBS -l nodes=1:ppn=1\n\n#PBS -o \"<out_folder>/${PBS_JOBID}.out\"\n#PBS -j oe\n\ncd $PBS_O_WORKDIR # where qsub is called from\n\nPROJECT_HOME=\"<project_home>\"\n\nPYTHONPATH=\"$PROJECT_HOME/libs:$PYTHONPATH\"\nexport PYTHONPATH\n\nif [ -d \"$PROJECT_HOME/venv\" ]; then\n\tsource \"$PROJECT_HOME\"/venv/bin/activate\n\techo \"Virtualenv at $PROJECT_HOME/venv activated.\"\nelse\n\techo \"WARNING: Virtualenv not found/activated! Using system python & LAMMPS...\"\nfi\n\npython \"$PROJECT_HOME\"/tools/dump_processing.py \"<cfg_file>\" <aargs>\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "manual_validate",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

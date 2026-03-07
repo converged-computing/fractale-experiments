@@ -1,0 +1,110 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "content": "400 INVALID_ARGUMENT. {'error': {'code': 400, 'message': 'The input token count exceeds the maximum number of tokens allowed 1048576.', 'status': 'INVALID_ARGUMENT'}}"
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "content": "400 INVALID_ARGUMENT. {'error': {'code': 400, 'message': 'The input token count exceeds the maximum number of tokens allowed 1048576.', 'status': 'INVALID_ARGUMENT'}}"
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "pbs",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n#PBS -l select=10:system=polaris\n#PBS -l place=scatter\n#PBS -l walltime=03:00:00\n#PBS -q prod\n#PBS -A datascience\n#PBS -l filesystems=grand:home\n\nset -xe\n\ncd ${PBS_O_WORKDIR}\n\nsource ../../../build/activate-dhenv.sh\n\n#!!! CONFIGURATION - START\nexport problem=\"dhb_combo\"\nexport search=\"MOTPE\"\nexport timeout=10200\nexport random_state=42\nexport lower_bounds=\"0.85,None,None\"\n#!!! CONFIGURATION - END\n\nexport NDEPTH=16\nexport NRANKS_PER_NODE=4\nexport NNODES=`wc -l < $PBS_NODEFILE`\nexport NTOTRANKS=$(( $NNODES * $NRANKS_PER_NODE ))\nexport OMP_NUM_THREADS=$NDEPTH\n\n\nexport log_dir=\"output/motpe-P-10\"\nmkdir -p $log_dir\n\n### Setup Postgresql Database - START ###\nexport OPTUNA_DB_DIR=\"$log_dir/optunadb\"\nexport OPTUNA_DB_HOST=$HOST\ninitdb -D \"$OPTUNA_DB_DIR\"\n\n# Set authentication policy to \"trust\" for all users\necho \"host    all             all             .hsn.cm.polaris.alcf.anl.gov               trust\" >> \"$OPTUNA_DB_DIR/pg_hba.conf\"\n\n# Set the limit of max connections to 2048\nsed -i \"s/max_connections = 100/max_connections = 2048/\" \"$OPTUNA_DB_DIR/postgresql.conf\"\n\n# start the server in the background and listen to all interfaces\npg_ctl -D $OPTUNA_DB_DIR -l \"$log_dir/db.log\" -o \"-c listen_addresses='*'\" start\n\ncreatedb hpo\n### Setup Postgresql Database - END ###\n\nsleep 5\n\nmpiexec -n ${NTOTRANKS} --ppn ${NRANKS_PER_NODE} \\\n    --depth=${NDEPTH} \\\n    --cpu-bind depth \\\n    --envall \\\n    ../set_affinity_gpu_polaris.sh python -m dhexp.run --problem $problem \\\n    --search $search \\\n    --random-state $random_state \\\n    --log-dir $log_dir \\\n    --timeout $timeout \\\n    --lower-bounds $lower_bounds\n\ndropdb hpo\npg_ctl -D $OPTUNA_DB_DIR -l \"$log_dir/db.log\" stop",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

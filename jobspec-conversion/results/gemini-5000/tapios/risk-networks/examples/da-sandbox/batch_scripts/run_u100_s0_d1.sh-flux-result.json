@@ -1,0 +1,110 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "content": "429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_paid_tier_3_input_token_count, limit: 8000000, model: gemini-2.5-pro\\nPlease retry in 13.06426924s.', 'status': 'RESOURCE_EXHAUSTED', 'details': [{'@type': 'type.googleapis.com/google.rpc.Help', 'links': [{'description': 'Learn more about Gemini API quotas', 'url': 'https://ai.google.dev/gemini-api/docs/rate-limits'}]}, {'@type': 'type.googleapis.com/google.rpc.QuotaFailure', 'violations': [{'quotaMetric': 'generativelanguage.googleapis.com/generate_content_paid_tier_3_input_token_count', 'quotaId': 'GenerateContentPaidTierInputTokensPerModelPerMinute-PaidTier3', 'quotaDimensions': {'location': 'global', 'model': 'gemini-2.5-pro'}, 'quotaValue': '8000000'}]}, {'@type': 'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay': '13s'}]}}"
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "content": "429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_paid_tier_3_input_token_count, limit: 8000000, model: gemini-2.5-pro\\nPlease retry in 11.940369091s.', 'status': 'RESOURCE_EXHAUSTED', 'details': [{'@type': 'type.googleapis.com/google.rpc.Help', 'links': [{'description': 'Learn more about Gemini API quotas', 'url': 'https://ai.google.dev/gemini-api/docs/rate-limits'}]}, {'@type': 'type.googleapis.com/google.rpc.QuotaFailure', 'violations': [{'quotaMetric': 'generativelanguage.googleapis.com/generate_content_paid_tier_3_input_token_count', 'quotaId': 'GenerateContentPaidTierInputTokensPerModelPerMinute-PaidTier3', 'quotaDimensions': {'location': 'global', 'model': 'gemini-2.5-pro'}, 'quotaValue': '8000000'}]}, {'@type': 'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay': '11s'}]}}"
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n\n#SBATCH --time=120:00:00                 # walltime\n#SBATCH --ntasks=1\n#SBATCH --nodes=1\n#SBATCH --cpus-per-task=32\n#SBATCH --mem=192G\n#SBATCH -J \"u100s0d1\"\n#SBATCH --output=output/slurm_%A_%a.out\n#SBATCH --error=output/slurm_%A_%a.err  \n#SBATCH --mail-type=END\n#SBATCH --mail-type=FAIL\n#SBATCH --array=0-6\n\n################################\n# Intervention test experiment #\n################################\n# submit with: sbatch run_intervention_scenario_parallel.sh\n\n# preface ######################################################################\nset -euo pipefail\n\n# parallelization\nnum_cpus=${SLURM_CPUS_PER_TASK}\nbytes_of_memory=$((${SLURM_MEM_PER_NODE}*1000000 / 4)) #MB -> bytes\necho \"requested ${num_cpus} cores and ray is told ${bytes_of_memory} memory available\"\n# parameters & constants #######################################################\n\nnetwork_size=1e5\nwearers=0\n\n# user base\nuser_fraction=1.0\n\n# testing: virus tests\nI_min_threshold=0.0\nI_max_threshold=1.0\n\n# intervention\n#int_freq='single'\n#intervention_start_time=18\n\n#da params \nda_window=1.0\nn_sweeps=1\n\n#observation_noise\nobs_noise=1e-12\n#reglarization parameters\nsensor_reg=1e-1\ntest_reg=5e-2\nrecord_reg=1e-2\n\n# observation localization (number of nbhds observations have effect on (integer) 0 = delta at observation, 1= nbhd of observation)\ndistance_threshold=0\n\n#inflation (No inflation is 1.0)\nsensor_inflation=10.0\ntest_inflation=3.0\nrecord_inflation=2.0\nrate_inflation=1.0\nadditive_inflation=0.1\n\n#param noise mean - ln((mu+bias)^2 / sqrt((mu+bias)^2 +sig^2))\nparam_prior_noise_factor=0.25\n\n# network  + sensor wearers\n#EXP_NAME=\"1e5_params_WRI_${da_window}_${test_reg}_${test_inflation}\" #1e5 = 97942 nodes\nEXP_NAME=\"u100_s0_d1\" #1e5 = 97942 nodes\n#EXP_NAME=\"noda_1e5_parsd0.25\"\n# Experimental series parameters ###############################################\n#5% 10% 25%, of 97942\ntest_budgets=(0 979 2448 4897 9794 24485 97942)  \n#test_budgets=(0 49 98 245 982)  \nbudget=${test_budgets[${SLURM_ARRAY_TASK_ID}]}\n\n# output parameters\nOUTPUT_DIR=\"output\"\noutput_path=\"${OUTPUT_DIR}/${EXP_NAME}_${budget}\"\nstdout=\"${output_path}/stdout\"\nstderr=\"${output_path}/stderr\"\n\nmkdir -p \"${output_path}\"\n\necho \"output to be found in: ${output_path}, stdout in $stdout, stderr in $stderr \"\n\ncp batch_scripts/run_u100_s0_d1.sh ${output_path}\n\n# launch #######################################################################\n# launch #######################################################################\npython3 joint_iterated_forward_assimilation.py \\\n  --user-network-user-fraction=${user_fraction} \\\n  --constants-output-path=${output_path} \\\n  --observations-noise=${obs_noise} \\\n  --observations-I-budget=${budget} \\\n  --observations-sensor-wearers=${wearers} \\\n  --network-node-count=${network_size} \\\n  --parallel-flag \\\n  --parallel-memory=${bytes_of_memory} \\\n  --parallel-num-cpus=${num_cpus} \\\n  --sensor-assimilation-joint-regularization=${sensor_reg} \\\n  --test-assimilation-joint-regularization=${test_reg} \\\n  --record-assimilation-joint-regularization=${record_reg} \\\n  --assimilation-sensor-inflation=${sensor_inflation} \\\n  --assimilation-test-inflation=${test_inflation} \\\n  --assimilation-record-inflation=${record_inflation} \\\n  --distance-threshold=${distance_threshold} \\\n  --assimilation-window=${da_window} \\\n  --assimilation-sweeps=${n_sweeps} \\\n  --params-learn-transition-rates \\\n  --params-learn-transmission-rate \\\n  --params-transmission-rate-noise=${param_prior_noise_factor} \\\n  --params-transmission-inflation=${rate_inflation} \\\n  --assimilation-additive-inflation\\\n  --assimilation-additive-inflation-factor=${additive_inflation}\\\n  --record-ignore-mass-constraint\\\n  >${stdout} 2>${stderr}\n\n\n\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

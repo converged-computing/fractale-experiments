@@ -1,0 +1,132 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n# Flux batch script converted from PBS\n# Note: Flux does not support in-script directives for resource specification\n# This script should be submitted with the following command:\n# flux batch -N 1 -n 1 -c 1 -g 1 -t 24h --setattr=system.memory=30720M --job-name=QCL_PT script.sh\n#\n# Resource specifications:\n# -N 1         : 1 node (from select=1)\n# -n 1         : 1 task (from ncpus=1, interpreted as 1 task)\n# -c 1         : 1 CPU core per task (from ncpus=1)\n# -g 1         : 1 GPU (from ngpus=1)\n# -t 24h       : 24 hour walltime (from walltime=24:00:00)\n# --setattr=system.memory=30720M : 30GB memory (from mem=30GB, 30 * 1024 MB)\n# --job-name=QCL_PT : job name/project (from -P QCL_PT)\n#\n# PBS resource calculation:\n# select=1:ncpus=1:ngpus=1:mem=30GB means 1 chunk with 1 CPU, 1 GPU, 30GB memory\n# Flux equivalent: -N 1 -n 1 -c 1 -g 1 with total memory 30GB\n\n# Original project/account: QCL_PT\n# Note: PBS -P directive typically maps to account/project allocation\n# Flux uses banks/accounts through flux-accounting\n# Set at submission if flux-accounting is configured:\n# flux batch --setattr=bank=QCL_PT ...\n# Performance impact: Without bank specification, job may run under default account\n# which could affect priority, resource limits, or accounting tracking\n\n# Original queue: defaultQ\n# Note: Flux does not have queues/partitions in the same way as PBS\n# Queue selection is handled through Flux's scheduling configuration\n# Performance impact: Job scheduling depends on site-specific Flux queue policies\n# Consult site documentation for equivalent resource pools or queues\n\n# GPU allocation: 1 GPU\n# Note: PBS specifies ngpus=1 (generic GPU request)\n# Flux uses -g 1 for GPU count allocation\n# GPU type/model cannot be specified in standard Flux syntax\n# Performance impact: Job may be allocated any available GPU type\n# Consult site-specific Flux configuration for GPU property constraints\n\n# Memory: 30GB\n# Note: PBS specifies mem=30GB for total memory in the chunk\n# Flux memory specification: --setattr=system.memory=30720M (MB)\n# Alternative syntax may be --setattr=memory=30720M depending on Flux version\n# Performance impact: Without explicit memory request, job gets default allocation\n# which may be insufficient and cause OOM errors\n\n# Module loads\nmodule load cuda/10.0.130\nmodule load openmpi-gcc/3.1.3\n\n# Activate conda environment\nsource miniconda/bin/activate training\n\n# Change to working directory\ncd models/\n\n# Run TensorFlow 2 object detection training\n# Direct execution without MPI launcher since this is a single-task GPU job\npython research/object_detection/model_main_tf2.py \\\n  --model_dir=\"/project/RDS-FSC-QCL_PT-RW/rcnn_model_data/\" \\\n  --num_train_steps=200000 \\\n  --sample_1_of_n_eval_examples=1 \\\n  --pipeline_config_path=pipeline.config \\\n  --alsologtostderr\n\n# Note: Fixed typo in original script: '--alsologtostder' -> '--alsologtostderr'\n# Note: The original uses single-CPU, single-GPU configuration\n# TensorFlow will utilize the GPU through CUDA\n# Ensure CUDA_VISIBLE_DEVICES is properly set by Flux for GPU allocation\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": false,
+                    "reasons": [],
+                    "issues": [
+                        "The script correctly documents resource specifications and properly converts PBS directives to Flux command-line options.",
+                        "Memory attribute syntax '--setattr=system.memory=30720M' may not be correct for all Flux versions. The attribute path 'system.memory' should be verified. Common alternatives include '--setattr=memory=30720M' or the memory may need to be specified differently based on Flux version (e.g., using resource specification in jobspec).",
+                        "The recommended submission command is missing the bank/account specification. If flux-accounting is in use, the complete command should include '--setattr=bank=QCL_PT' to properly track resource usage against the QCL_PT project.",
+                        "The script allocates only 1 CPU core (-c 1) for a TensorFlow training job. TensorFlow typically benefits from multiple CPU cores for data preprocessing and loading, even when using GPU acceleration. Consider if 1 CPU core is sufficient for the workload.",
+                        "No output or error file redirection is specified in the submission command. Consider adding '--output=<filename>' and '--error=<filename>' to capture job output, or the default Flux output files will be used.",
+                        "The 'cd models/' command changes directory without error checking. If the directory doesn't exist, the python command will fail with a confusing error. Consider adding error checking: 'cd models/ || exit 1'.",
+                        "The conda activation uses a relative path 'miniconda/bin/activate'. This assumes the script is run from a specific directory. Using an absolute path would be more robust.",
+                        "OpenMPI module is loaded but not used in this single-task job. This module load is unnecessary and could be removed for cleaner execution.",
+                        "The script doesn't verify that GPU is actually allocated and visible. Consider adding a check like 'nvidia-smi' before the Python script to confirm GPU availability.",
+                        "TensorFlow 2 with CUDA 10.0.130 may have compatibility issues. TensorFlow 2.x typically requires CUDA 10.1 or newer for optimal performance. Verify version compatibility.",
+                        "The absolute path '/project/RDS-FSC-QCL_PT-RW/rcnn_model_data/' is used for model directory. Ensure this path is accessible from compute nodes and has appropriate permissions.",
+                        "No mechanism to save or check job completion status. Consider adding error handling or exit status checks after the Python command."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n# Flux batch script converted from PBS\n# Note: Flux does not support in-script directives for resource specification\n# This script should be submitted with the following command:\n# flux batch -N 1 -n 1 -c 1 -g 1 -t 24h --setattr=system.memory=30720M --job-name=QCL_PT script.sh\n#\n# Resource specifications:\n# -N 1         : 1 node (from select=1)\n# -n 1         : 1 task (from ncpus=1, interpreted as 1 task)\n# -c 1         : 1 CPU core per task (from ncpus=1)\n# -g 1         : 1 GPU (from ngpus=1)\n# -t 24h       : 24 hour walltime (from walltime=24:00:00)\n# --setattr=system.memory=30720M : 30GB memory (from mem=30GB, 30 * 1024 MB)\n# --job-name=QCL_PT : job name/project (from -P QCL_PT)\n#\n# PBS resource calculation:\n# select=1:ncpus=1:ngpus=1:mem=30GB means 1 chunk with 1 CPU, 1 GPU, 30GB memory\n# Flux equivalent: -N 1 -n 1 -c 1 -g 1 with total memory 30GB\n\n# Original project/account: QCL_PT\n# Note: PBS -P directive typically maps to account/project allocation\n# Flux uses banks/accounts through flux-accounting\n# Set at submission if flux-accounting is configured:\n# flux batch --setattr=bank=QCL_PT ...\n# Performance impact: Without bank specification, job may run under default account\n# which could affect priority, resource limits, or accounting tracking\n\n# Original queue: defaultQ\n# Note: Flux does not have queues/partitions in the same way as PBS\n# Queue selection is handled through Flux's scheduling configuration\n# Performance impact: Job scheduling depends on site-specific Flux queue policies\n# Consult site documentation for equivalent resource pools or queues\n\n# GPU allocation: 1 GPU\n# Note: PBS specifies ngpus=1 (generic GPU request)\n# Flux uses -g 1 for GPU count allocation\n# GPU type/model cannot be specified in standard Flux syntax\n# Performance impact: Job may be allocated any available GPU type\n# Consult site-specific Flux configuration for GPU property constraints\n\n# Memory: 30GB\n# Note: PBS specifies mem=30GB for total memory in the chunk\n# Flux memory specification: --setattr=system.memory=30720M (MB)\n# Alternative syntax may be --setattr=memory=30720M depending on Flux version\n# Performance impact: Without explicit memory request, job gets default allocation\n# which may be insufficient and cause OOM errors\n\n# Module loads\nmodule load cuda/10.0.130\nmodule load openmpi-gcc/3.1.3\n\n# Activate conda environment\nsource miniconda/bin/activate training\n\n# Change to working directory\ncd models/\n\n# Run TensorFlow 2 object detection training\n# Direct execution without MPI launcher since this is a single-task GPU job\npython research/object_detection/model_main_tf2.py \\\n  --model_dir=\"/project/RDS-FSC-QCL_PT-RW/rcnn_model_data/\" \\\n  --num_train_steps=200000 \\\n  --sample_1_of_n_eval_examples=1 \\\n  --pipeline_config_path=pipeline.config \\\n  --alsologtostderr\n\n# Note: Fixed typo in original script: '--alsologtostder' -> '--alsologtostderr'\n# Note: The original uses single-CPU, single-GPU configuration\n# TensorFlow will utilize the GPU through CUDA\n# Ensure CUDA_VISIBLE_DEVICES is properly set by Flux for GPU allocation\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "pbs",
+                    "to_manager": "flux",
+                    "script": "#! /bin/bash\n\n#PBS -P QCL_PT\n#PBS -l select=1:ncpus=1:ngpus=1:mem=30GB\n#PBS -l walltime=24:00:00\n#PBS -q defaultQ\n\nmodule load cuda/10.0.130\nmodule load openmpi-gcc/3.1.3\n\nsource miniconda/bin/activate training\n\ncd models/\n\npython research/object_detection/model_main_tf2.py --model_dir=\"/project/RDS-FSC-QCL_PT-RW/rcnn_model_data/\" --num_train_steps=200000  --sample_1_of_n_eval_examples=1  --pipeline_config_path=pipeline.config  --alsologtostder\n\n\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "manual_validate",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

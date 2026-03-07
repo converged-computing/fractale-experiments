@@ -1,0 +1,121 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n# Flux batch script converted from Slurm\n\n# NOTE: Run with: flux batch <this_script> [build.sh args...]\n\n# Slurm resources:\n#   --job-name=\"glotzerlab-software build\"\n#   --account=dmr140129\n#   --partition=shared\n#   --ntasks=1\n#   --cpus-per-task=32\n#   --time=8:00:00\n\n#flux: --job-name=\"glotzerlab-software build\"\n#flux: -N 1\n#flux: -n 1\n#flux: -c 32\n#flux: --time-limit=8h\n\n# Omitted Slurm option: --account=dmr140129\n# Flux accounting/project selection is site-specific; no portable equivalent.\n# Performance implication: job may be charged to a default account or be rejected by policy.\n\n# Omitted Slurm option: --partition=shared\n# Flux queues/partitions are site-specific; no portable equivalent.\n# Performance implication: job may run on different hardware or with different limits/priority (or be rejected by policy).\n\nexport OUTPUT_FOLDER=\"$PROJECT/software/conda\"\nunset CMAKE_PREFIX_PATH\n\nmodule reset\nmodule load gcc/11.2.0 openmpi/4.1.6\n\nexport CC=\"$GCC_HOME/bin/gcc\"\nexport CXX=\"$GCC_HOME/bin/g++\"\n\n./build.sh \"$@\" \\\n    --skip-existing \\\n    --variants \"{'cluster': ['anvil'], 'device': ['cpu'], 'gpu_platform': ['none']}\" \\\n    --output-folder \"$OUTPUT_FOLDER\"\n\nchmod g-w \"$OUTPUT_FOLDER\" -R\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": false,
+                    "tool_call": false,
+                    "reasons": [
+                        "The original Slurm job specified an account (`--account=dmr140129`) and a partition (`--partition=shared`), but the Flux resource section has no portable account/queue selection. On systems where these are required for eligibility/policy, the job may be scheduled differently or rejected."
+                    ],
+                    "issues": []
+                },
+                "attempts": 1
+            },
+            "transition": "failed -> manual_validate",
+            "complete": false,
+            "state": "failed"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n# Flux batch script converted from Slurm\n\n# NOTE: Run with: flux batch <this_script> [build.sh args...]\n\n# Slurm resources:\n#   --job-name=\"glotzerlab-software build\"\n#   --account=dmr140129\n#   --partition=shared\n#   --ntasks=1\n#   --cpus-per-task=32\n#   --time=8:00:00\n\n#flux: --job-name=\"glotzerlab-software build\"\n#flux: -N 1\n#flux: -n 1\n#flux: -c 32\n#flux: --time-limit=8h\n\n# Omitted Slurm option: --account=dmr140129\n# Flux accounting/project selection is site-specific; no portable equivalent.\n# Performance implication: job may be charged to a default account or be rejected by policy.\n\n# Omitted Slurm option: --partition=shared\n# Flux queues/partitions are site-specific; no portable equivalent.\n# Performance implication: job may run on different hardware or with different limits/priority (or be rejected by policy).\n\nexport OUTPUT_FOLDER=\"$PROJECT/software/conda\"\nunset CMAKE_PREFIX_PATH\n\nmodule reset\nmodule load gcc/11.2.0 openmpi/4.1.6\n\nexport CC=\"$GCC_HOME/bin/gcc\"\nexport CXX=\"$GCC_HOME/bin/g++\"\n\n./build.sh \"$@\" \\\n    --skip-existing \\\n    --variants \"{'cluster': ['anvil'], 'device': ['cpu'], 'gpu_platform': ['none']}\" \\\n    --output-folder \"$OUTPUT_FOLDER\"\n\nchmod g-w \"$OUTPUT_FOLDER\" -R\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n\n#SBATCH --job-name=\"glotzerlab-software build\"\n#SBATCH --account=dmr140129\n#SBATCH --partition=shared\n#SBATCH --ntasks=1\n#SBATCH --cpus-per-task=32\n#SBATCH --time=8:00:00\n\nexport OUTPUT_FOLDER=$PROJECT/software/conda\nunset CMAKE_PREFIX_PATH\n\n# Load modules used to build packages with native MPI support (no CUDA).\nmodule reset\nmodule load gcc/11.2.0 openmpi/4.1.6\n\nexport CC=$GCC_HOME/bin/gcc\nexport CXX=$GCC_HOME/bin/g++\n\n./build.sh \"$@\" \\\n    --skip-existing \\\n    --variants \"{'cluster': ['anvil'], 'device': ['cpu'], 'gpu_platform': ['none']}\" \\\n    --output-folder $OUTPUT_FOLDER\n\nchmod g-w $OUTPUT_FOLDER -R\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "manual_validate",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

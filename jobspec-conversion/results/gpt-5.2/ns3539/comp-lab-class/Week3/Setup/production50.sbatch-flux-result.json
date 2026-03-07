@@ -1,0 +1,122 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n# Flux batch script converted from Slurm\n\n# NOTE: Run with: flux batch <this_script>\n\n# Slurm resources:\n#   --job-name=run-gromacs\n#   --nodes=1\n#   --tasks-per-node=4\n#   --mem=8GB\n#   --time=24:00:00\n\n#flux: --job-name=run-gromacs\n#flux: -N 1\n#flux: -n 4\n#flux: -c 1\n#flux: --time-limit=24h\n\n# Omitted Slurm option: --mem=8GB\n# Flux memory requests are site/config dependent and not universally portable.\n# Performance implication: job may be scheduled on a node with insufficient memory, risking OOM kills or degraded performance.\n\n# Omitted Slurm option: --tasks-per-node=4 (explicit per-node placement)\n# Flux does not have a universally portable batch directive for tasks-per-node.\n# Performance implication: if the job were to span multiple nodes, placement might differ; here we force -N 1 to preserve intent.\n\nmodule purge\nmodule load gromacs/openmpi/intel/2020.4\n\n# Slurm used mpirun -np 1; preserve by running a single rank.\n# NOTE: requesting -n 4 but running -np 1 may leave resources idle.\nflux run -n 1 -c 1 gmx_mpi mdrun -deffnm md_50\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": false,
+                    "tool_call": false,
+                    "reasons": [
+                        "The original Slurm job requested 8GB of memory (`--mem=8GB`) but the Flux resource section has no memory request; on systems that schedule/enforce memory this can under-provision the job and risk OOM.",
+                        "The resource section requests 4 tasks (`#flux: -n 4`), but the workload launch uses only 1 task (`flux run -n 1`). This is a resource mismatch/overallocation in the resource request."
+                    ],
+                    "issues": []
+                },
+                "attempts": 1
+            },
+            "transition": "failed -> manual_validate",
+            "complete": false,
+            "state": "failed"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n# Flux batch script converted from Slurm\n\n# NOTE: Run with: flux batch <this_script>\n\n# Slurm resources:\n#   --job-name=run-gromacs\n#   --nodes=1\n#   --tasks-per-node=4\n#   --mem=8GB\n#   --time=24:00:00\n\n#flux: --job-name=run-gromacs\n#flux: -N 1\n#flux: -n 4\n#flux: -c 1\n#flux: --time-limit=24h\n\n# Omitted Slurm option: --mem=8GB\n# Flux memory requests are site/config dependent and not universally portable.\n# Performance implication: job may be scheduled on a node with insufficient memory, risking OOM kills or degraded performance.\n\n# Omitted Slurm option: --tasks-per-node=4 (explicit per-node placement)\n# Flux does not have a universally portable batch directive for tasks-per-node.\n# Performance implication: if the job were to span multiple nodes, placement might differ; here we force -N 1 to preserve intent.\n\nmodule purge\nmodule load gromacs/openmpi/intel/2020.4\n\n# Slurm used mpirun -np 1; preserve by running a single rank.\n# NOTE: requesting -n 4 but running -np 1 may leave resources idle.\nflux run -n 1 -c 1 gmx_mpi mdrun -deffnm md_50\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash \n#SBATCH --job-name=run-gromacs\n#SBATCH --nodes=1\n#SBATCH --tasks-per-node=4\n#SBATCH --mem=8GB\n#SBATCH --time=24:00:00\nmodule purge\nmodule load gromacs/openmpi/intel/2020.4\n\nmpirun -np 1 gmx_mpi mdrun -deffnm md_50",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "manual_validate",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

@@ -1,0 +1,124 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n# Flux directives translated from SLURM\n#FLUX: -n 1 \n#FLUX: -t 0:10:00\n#FLUX: -q qcpu_exp\n\n#\n# --- Omitted SLURM options and explanations ---\n#\n# -A DD-23-135\n#   Omitted. Flux accounting is typically managed through system configuration or job\n#   submission options, not a standard batch directive.\n#\n# --comment \"use:vtune=2022.2.0\"\n#   Omitted. This is a non-standard directive, likely a site-specific hint for the\n#   scheduler or operators, and has no equivalent in Flux.\n#\n# --mail-type END\n#   Omitted. Flux core does not have built-in support for email notifications via\n#   batch directives.\n#\n# -J AVS-vtune\n#   Omitted. The job name in Flux is generally set during submission (e.g.,\n#   'flux submit --job-name=AVS-vtune ...') or via the FLUX_JOB_NAME\n#   environment variable, not through a script directive.\n#\n# Note on CPU/Memory resources:\n#   The original script did not request a specific number of CPUs or memory. The job\n#   will receive a default allocation (typically one core), which may be insufficient\n#   for the threaded application being run.\n#\n\n# The SLURM variable $SLURM_SUBMIT_DIR is replaced by the Flux equivalent $FLUX_SUBMIT_DIR\ncd $FLUX_SUBMIT_DIR\n\nml intel-compilers/2022.1.0 CMake/3.23.1-GCCcore-11.3.0 VTune/2022.2.0-intel-2021b\n\n[ -d build_vtune ] && rm -rf build_vtune\n[ -d build_vtune ] || mkdir build_vtune\ncd build_vtune\n\nCC=icc CXX=icpc cmake ..\nmake\n\nfor threads in 18 36; do\n    for builder in \"ref\" \"loop\" \"tree\"; do\n        rm -rf vtune-${builder}-${threads}\n        vtune -collect threading -r vtune-${builder}-${threads} -app-working-dir . -- ./PMC --builder ${builder} -t ${threads} --grid 128 ../data/bun_zipper_res3.pts\n    done\ndone\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "The most critical resource-related issue is the lack of a specific CPU core (`-c`) request. The script runs a loop testing applications with 18 and 36 threads. However, the job only requests a single task (`-n 1`) and no specific core count. It will receive a default of 1 core. This massive oversubscription of threads to cores will lead to catastrophic performance degradation and make the VTune profiling results meaningless.",
+                        "The script is missing an explicit memory request. The original SLURM script also omitted this. A build and profiling job can be memory-intensive, and the lack of a memory request is a stability risk that could lead to out-of-memory failures.",
+                        "Including compilation (`cmake`, `make`) in a batch script is generally poor practice. Code should be compiled before job submission to separate the build and execution phases and to avoid wasting compute-node time on compilation.",
+                        "The script runs multiple serial commands within a single, single-core allocation. This is an inefficient use of a batch system. A better approach for this parameter sweep would be to use a job array (`flux bulksubmit`), where each `vtune` command runs as an independent job, allowing the scheduler to run them in parallel."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n# Flux directives translated from SLURM\n#FLUX: -n 1 \n#FLUX: -t 0:10:00\n#FLUX: -q qcpu_exp\n\n#\n# --- Omitted SLURM options and explanations ---\n#\n# -A DD-23-135\n#   Omitted. Flux accounting is typically managed through system configuration or job\n#   submission options, not a standard batch directive.\n#\n# --comment \"use:vtune=2022.2.0\"\n#   Omitted. This is a non-standard directive, likely a site-specific hint for the\n#   scheduler or operators, and has no equivalent in Flux.\n#\n# --mail-type END\n#   Omitted. Flux core does not have built-in support for email notifications via\n#   batch directives.\n#\n# -J AVS-vtune\n#   Omitted. The job name in Flux is generally set during submission (e.g.,\n#   'flux submit --job-name=AVS-vtune ...') or via the FLUX_JOB_NAME\n#   environment variable, not through a script directive.\n#\n# Note on CPU/Memory resources:\n#   The original script did not request a specific number of CPUs or memory. The job\n#   will receive a default allocation (typically one core), which may be insufficient\n#   for the threaded application being run.\n#\n\n# The SLURM variable $SLURM_SUBMIT_DIR is replaced by the Flux equivalent $FLUX_SUBMIT_DIR\ncd $FLUX_SUBMIT_DIR\n\nml intel-compilers/2022.1.0 CMake/3.23.1-GCCcore-11.3.0 VTune/2022.2.0-intel-2021b\n\n[ -d build_vtune ] && rm -rf build_vtune\n[ -d build_vtune ] || mkdir build_vtune\ncd build_vtune\n\nCC=icc CXX=icpc cmake ..\nmake\n\nfor threads in 18 36; do\n    for builder in \"ref\" \"loop\" \"tree\"; do\n        rm -rf vtune-${builder}-${threads}\n        vtune -collect threading -r vtune-${builder}-${threads} -app-working-dir . -- ./PMC --builder ${builder} -t ${threads} --grid 128 ../data/bun_zipper_res3.pts\n    done\ndone\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n#SBATCH -p qcpu_exp\n#SBATCH -A DD-23-135\n#SBATCH -n 1 \n#SBATCH --comment \"use:vtune=2022.2.0\"\n#SBATCH -t 0:10:00\n#SBATCH --mail-type END\n#SBATCH -J AVS-vtune\n\ncd $SLURM_SUBMIT_DIR\n\nml intel-compilers/2022.1.0 CMake/3.23.1-GCCcore-11.3.0 VTune/2022.2.0-intel-2021b\n\n[ -d build_vtune ] && rm -rf build_vtune\n[ -d build_vtune ] || mkdir build_vtune\ncd build_vtune\n\nCC=icc CXX=icpc cmake ..\nmake\n\nfor threads in 18 36; do\n    for builder in \"ref\" \"loop\" \"tree\"; do\n        rm -rf vtune-${builder}-${threads}\n        vtune -collect threading -r vtune-${builder}-${threads} -app-working-dir . -- ./PMC --builder ${builder} -t ${threads} --grid 128 ../data/bun_zipper_res3.pts\n    done\ndone\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

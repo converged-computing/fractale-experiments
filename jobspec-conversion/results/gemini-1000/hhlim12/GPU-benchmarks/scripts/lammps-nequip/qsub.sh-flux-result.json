@@ -1,0 +1,174 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/sh\n\n# Flux directives translated from PBS\n#FLUX: -N 1\n#FLUX: -n 1\n#FLUX: -c 64\n#FLUX: -t 00:15:00\n#FLUX: -q i1accs\n\n#\n# --- Omitted PBS options and explanations ---\n#\n# -N GCNLMP\n#   Omitted. The job name in Flux is generally set during submission (e.g.,\n#   'flux submit --job-name=GCNLMP ...') or via the FLUX_JOB_NAME\n#   environment variable, not through a script directive.\n#\n# -l select=...:ncpus=64...\n#   Partially translated. The PBS 'ncpus' option often acts as a constraint on\n#   the type of node selected. The Flux translation requests 64 cores for the job,\n#   but does not constrain the node to have at least that many cores total.\n#   Performance implication: The job could be scheduled on a smaller node (e.g.,\n#   32 cores) and only be allocated a portion of it, which might have different\n#   performance characteristics (cache, memory bandwidth) than a larger node.\n#\n# #PBS -I\n#   Omitted. This PBS directive requests an interactive job, which is not applicable\n#   to a batch script.\n#\n# Note: This script loads CUDA-aware modules and sets CUDA_VISIBLE_DEVICES, but\n# does not explicitly request a GPU from the scheduler. A GPU request like\n# '#FLUX: -g 1' may need to be added if the application requires it.\n#\n\nmodule purge\nmodule load openmpi_nvhpc/4.1.2\nmodule load nvhpc-nompi/22.2_cuda11.6\n\nsource ~/miniconda3/etc/profile.d/conda.sh\nconda activate nequip_GPU2\n\nexport CUDA_VISIBLE_DEVICES=\"0\"\n\n# The executable is run directly. It is assumed to be a threaded application that\n# will utilize the 64 cores requested by the '-c 64' directive.\n./lmp -in input.data\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "The most critical resource-related issue is the lack of a GPU request. The script loads multiple CUDA-aware modules, activates a conda environment named `nequip_GPU2`, and sets `CUDA_VISIBLE_DEVICES`. All of these actions strongly indicate that a GPU is required. However, no GPU is requested in the `#FLUX` resource directives (e.g., using `-g 1`). The job will almost certainly fail at runtime when the application cannot find an allocated CUDA device.",
+                        "The script is missing an explicit memory request. The original PBS script also omitted this. For a job requesting an entire 64-core node, this is a significant omission that could lead to out-of-memory failures.",
+                        "The script is non-portable. It uses a home-directory-relative path (`~/miniconda3/...`) to source the conda environment, which will fail for any user other than the one who wrote the script.",
+                        "The script executes `./lmp` using a relative path, which requires that the job be submitted from the directory where the executable is located. This practice is fragile and can easily lead to 'file not found' errors."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": true,
+                "data": {
+                    "jobspec": "#!/bin/sh\n\n# Flux directives translated from PBS\n#FLUX: -N 1\n#FLUX: -n 1\n#FLUX: -c 64\n#FLUX: -t 00:15:00\n#FLUX: -q i1accs\n\n#\n# --- Omitted PBS options and explanations ---\n#\n# -N GCNLMP\n#   Omitted. The job name in Flux is generally set during submission (e.g.,\n#   'flux submit --job-name=GCNLMP ...') or via the FLUX_JOB_NAME\n#   environment variable, not through a script directive.\n#\n# -l select=...:ncpus=64...\n#   Partially translated. The PBS 'ncpus' option often acts as a constraint on\n#   the type of node selected. The Flux translation requests 64 cores for the job,\n#   but does not constrain the node to have at least that many cores total.\n#   Performance implication: The job could be scheduled on a smaller node (e.g.,\n#   32 cores) and only be allocated a portion of it, which might have different\n#   performance characteristics (cache, memory bandwidth) than a larger node.\n#\n# #PBS -I\n#   Omitted. This PBS directive requests an interactive job, which is not applicable\n#   to a batch script.\n#\n# Note: This script loads CUDA-aware modules and sets CUDA_VISIBLE_DEVICES, but\n# does not explicitly request a GPU from the scheduler. A GPU request like\n# '#FLUX: -g 1' may need to be added if the application requires it.\n#\n\nmodule purge\nmodule load openmpi_nvhpc/4.1.2\nmodule load nvhpc-nompi/22.2_cuda11.6\n\nsource ~/miniconda3/etc/profile.d/conda.sh\nconda activate nequip_GPU2\n\nexport CUDA_VISIBLE_DEVICES=\"0\"\n\n# The executable is run directly. It is assumed to be a threaded application that\n# will utilize the 64 cores requested by the '-c 64' directive.\n./lmp -in input.data\n",
+                    "errors": [
+                        "Jobspec is invalid, required changes: [{'line': \"# '#FLUX: -g 1' may need to be added if the application requires it.\", 'reason': 'sentinel changed'}]"
+                    ],
+                    "valid": false
+                }
+            },
+            "transition": "failed -> transform",
+            "complete": false,
+            "state": "failed"
+        },
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/sh\n\n# Flux directives translated from PBS\n#FLUX: -N 1\n#FLUX: -n 1\n#FLUX: -c 64\n#FLUX: -g 1\n#FLUX: -t 00:15:00\n#FLUX: -q i1accs\n\n#\n# --- Omitted PBS options and explanations ---\n#\n# -N GCNLMP\n#   Omitted. The job name in Flux is generally set during submission (e.g.,\n#   'flux submit --job-name=GCNLMP ...') or via the FLUX_JOB_NAME\n#   environment variable, not through a script directive.\n#\n# -l select=...:ncpus=64...\n#   Partially translated. The PBS 'ncpus' option often acts as a constraint on\n#   the type of node selected. The Flux translation requests 64 cores for the job,\n#   but does not constrain the node to have at least that many cores total.\n#   Performance implication: The job could be scheduled on a smaller node (e.g.,\n#   32 cores) and only be allocated a portion of it, which might have different\n#   performance characteristics (cache, memory bandwidth) than a larger node.\n#\n# #PBS -I\n#   Omitted. This PBS directive requests an interactive job, which is not applicable\n#   to a batch script.\n#\n\nmodule purge\nmodule load openmpi_nvhpc/4.1.2\nmodule load nvhpc-nompi/22.2_cuda11.6\n\nsource ~/miniconda3/etc/profile.d/conda.sh\nconda activate nequip_GPU2\n\nexport CUDA_VISIBLE_DEVICES=\"0\"\n\n# The executable is run directly. It is assumed to be a threaded application that\n# will utilize the 64 cores requested by the '-c 64' directive.\n./lmp -in input.data\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "The script is missing an explicit memory request. The original PBS script also omitted this. For a job requesting an entire 64-core node and a GPU, this is a significant omission that could lead to out-of-memory failures.",
+                        "The script requests 64 CPU cores (`-c 64`) for a single task running the `lmp` executable. This is only efficient if `lmp` is a multi-threaded application capable of utilizing all 64 cores. If it is single-threaded or uses fewer threads, this will lead to a significant waste of allocated resources.",
+                        "The script is non-portable. It uses a home-directory-relative path (`~/miniconda3/...`) to source the conda environment, which will fail for any user other than the one who wrote the script.",
+                        "The script executes `./lmp` using a relative path, which requires that the job be submitted from the directory where the executable is located. This practice is fragile and can easily lead to 'file not found' errors."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/sh\n\n# Flux directives translated from PBS\n#FLUX: -N 1\n#FLUX: -n 1\n#FLUX: -c 64\n#FLUX: -g 1\n#FLUX: -t 00:15:00\n#FLUX: -q i1accs\n\n#\n# --- Omitted PBS options and explanations ---\n#\n# -N GCNLMP\n#   Omitted. The job name in Flux is generally set during submission (e.g.,\n#   'flux submit --job-name=GCNLMP ...') or via the FLUX_JOB_NAME\n#   environment variable, not through a script directive.\n#\n# -l select=...:ncpus=64...\n#   Partially translated. The PBS 'ncpus' option often acts as a constraint on\n#   the type of node selected. The Flux translation requests 64 cores for the job,\n#   but does not constrain the node to have at least that many cores total.\n#   Performance implication: The job could be scheduled on a smaller node (e.g.,\n#   32 cores) and only be allocated a portion of it, which might have different\n#   performance characteristics (cache, memory bandwidth) than a larger node.\n#\n# #PBS -I\n#   Omitted. This PBS directive requests an interactive job, which is not applicable\n#   to a batch script.\n#\n\nmodule purge\nmodule load openmpi_nvhpc/4.1.2\nmodule load nvhpc-nompi/22.2_cuda11.6\n\nsource ~/miniconda3/etc/profile.d/conda.sh\nconda activate nequip_GPU2\n\nexport CUDA_VISIBLE_DEVICES=\"0\"\n\n# The executable is run directly. It is assumed to be a threaded application that\n# will utilize the 64 cores requested by the '-c 64' directive.\n./lmp -in input.data\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "pbs",
+                    "to_manager": "flux",
+                    "script": "#!/bin/sh\n#PBS -q i1accs\n#PBS -l select=1:ncpus=64:mpiprocs=1:ompthreads=1\n#PBS -l walltime=00:15:00\n#PBS -N GCNLMP\n##PBS -I\n\nmodule purge\nmodule load openmpi_nvhpc/4.1.2\nmodule load nvhpc-nompi/22.2_cuda11.6\n\nsource ~/miniconda3/etc/profile.d/conda.sh\nconda activate nequip_GPU2\n\nexport CUDA_VISIBLE_DEVICES=\"0\"\n\n./lmp -in input.data\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

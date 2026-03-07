@@ -19,7 +19,7 @@ def prepare_data(root_dir, output_file="data.js"):
 
     for event_path in event_files:
         parent_dir = os.path.dirname(event_path)
-        exp_id = os.path.basename(os.path.dirname(parent_dir)) # e.g., 'gemini'
+        exp_id = os.path.basename(parent_dir) # e.g., 'gemini'
         prefix = os.path.basename(event_path).replace("-events.json", "")
         metrics_path = os.path.join(parent_dir, f"{prefix}-metrics.json")
         
@@ -67,13 +67,17 @@ def prepare_data(root_dir, output_file="data.js"):
 
             relevant_steps = ['transform', 'validate', 'validate_flux_jobspec', 'manual_validate']
             step_count = sum(1 for e in events if e.get("step") in relevant_steps and e.get('event') == "exit")
+            total_time = events[-1]['timestamp'] - events[0]['timestamp']
+            token_total = sum([x['data']['metrics'].get('total_token_count') or x['data']['metrics'].get('total_tokens') for x in m_list])
             entry = {
                 "id": prefix,
                 "status": final_status,
+                "total_time": total_time,
                 "step_count": step_count,
                 "slurm": slurm_source,
                 "flux": flux_output,
-                "events": events
+                "events": events,
+                "token_total": token_total,
             }
 
             if exp_id not in experiments: experiments[exp_id] = []

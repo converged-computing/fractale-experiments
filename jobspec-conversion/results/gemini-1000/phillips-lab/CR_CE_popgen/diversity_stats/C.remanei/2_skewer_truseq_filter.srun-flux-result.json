@@ -1,0 +1,123 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n# Flux directives translated from SLURM\n#FLUX: -q phillips\n#FLUX: -t 04:00:00\n#FLUX: -N 1\n#FLUX: -n 1\n#FLUX: -c 4\n\n#\n# --- Omitted SLURM options and explanations ---\n#\n# -A phillipslab\n#   Omitted. Flux accounting is typically managed through system configuration or job\n#   submission options, not a standard batch directive.\n#\n# --job-name=filt1\n#   Omitted. The job name in Flux is generally set during submission (e.g.,\n#   'flux submit --job-name=filt1 ...') or via the FLUX_JOB_NAME\n#   environment variable, not through a script directive.\n#\n# --array=0-39\n#   Omitted. Flux does not have a batch directive to define a job array.\n#   Instead, arrays are typically submitted using 'flux bulksubmit'. For example:\n#   'flux bulksubmit --watch -n 40 ./your-flux-script.sh'\n#   This command would launch 40 instances of this script as tasks 0 through 39.\n#\n\n# The SLURM environment variable $SLURM_CPUS_PER_TASK is replaced by the Flux\n# equivalent, $FLUX_TASK_NCORES.\nexport OMP_NUM_THREADS=$FLUX_TASK_NCORES\n\nmodule load easybuild  icc/2017.1.132-GCC-6.3.0-2.27  impi/2017.1.132 skewer\n\ncd /projects/phillipslab/ateterina/CR_popgen/data/reads/\nLISTFILES=(*.fastq)\n\n# Note: The SLURM environment variable $SLURM_ARRAY_TASK_ID has been replaced with\n# $FLUX_TASK_ID. This script is intended for submission with 'flux bulksubmit'.\nfile=${LISTFILES[$FLUX_TASK_ID]}\n\n#remove adapter + qc\nskewer -x AGATCGGAAGAG -t 4 -q 20 -l 36 -d 0.1 -r 0.1 -o ${file/_1.fastq/.tr1} $file ${file/_1.fastq/_2.fastq};\n\n\nmv ${file/_1.fastq/.tr1-trimmed-pair1.fastq} ${file/_1.fastq/_fp1.ok.fastq}\nmv ${file/_1.fastq/.tr1-trimmed-pair2.fastq} ${file/_1.fastq/_fp2.ok.fastq}\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "The most significant resource-related issue is the lack of an explicit memory request. The original SLURM script also omitted this. Without a memory constraint, any of the 40 array jobs could be scheduled on a node with insufficient memory, leading to an out-of-memory failure, or be killed by the system for over-subscription.",
+                        "As correctly noted in the script's comments, the script is intended to be run as a job array and must be submitted using `flux bulksubmit`. If submitted with a simple `flux submit`, it will only execute a single task (for the first file) and not the full array, leading to an incorrect workflow and wasted resources if more than one task was expected.",
+                        "The script is highly non-portable. It uses a hardcoded, absolute path (`/projects/phillipslab/ateterina/CR_popgen/data/reads/`) which makes it specific to a single user on a single system."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n# Flux directives translated from SLURM\n#FLUX: -q phillips\n#FLUX: -t 04:00:00\n#FLUX: -N 1\n#FLUX: -n 1\n#FLUX: -c 4\n\n#\n# --- Omitted SLURM options and explanations ---\n#\n# -A phillipslab\n#   Omitted. Flux accounting is typically managed through system configuration or job\n#   submission options, not a standard batch directive.\n#\n# --job-name=filt1\n#   Omitted. The job name in Flux is generally set during submission (e.g.,\n#   'flux submit --job-name=filt1 ...') or via the FLUX_JOB_NAME\n#   environment variable, not through a script directive.\n#\n# --array=0-39\n#   Omitted. Flux does not have a batch directive to define a job array.\n#   Instead, arrays are typically submitted using 'flux bulksubmit'. For example:\n#   'flux bulksubmit --watch -n 40 ./your-flux-script.sh'\n#   This command would launch 40 instances of this script as tasks 0 through 39.\n#\n\n# The SLURM environment variable $SLURM_CPUS_PER_TASK is replaced by the Flux\n# equivalent, $FLUX_TASK_NCORES.\nexport OMP_NUM_THREADS=$FLUX_TASK_NCORES\n\nmodule load easybuild  icc/2017.1.132-GCC-6.3.0-2.27  impi/2017.1.132 skewer\n\ncd /projects/phillipslab/ateterina/CR_popgen/data/reads/\nLISTFILES=(*.fastq)\n\n# Note: The SLURM environment variable $SLURM_ARRAY_TASK_ID has been replaced with\n# $FLUX_TASK_ID. This script is intended for submission with 'flux bulksubmit'.\nfile=${LISTFILES[$FLUX_TASK_ID]}\n\n#remove adapter + qc\nskewer -x AGATCGGAAGAG -t 4 -q 20 -l 36 -d 0.1 -r 0.1 -o ${file/_1.fastq/.tr1} $file ${file/_1.fastq/_2.fastq};\n\n\nmv ${file/_1.fastq/.tr1-trimmed-pair1.fastq} ${file/_1.fastq/_fp1.ok.fastq}\nmv ${file/_1.fastq/.tr1-trimmed-pair2.fastq} ${file/_1.fastq/_fp2.ok.fastq}\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n#SBATCH -A phillipslab\n#SBATCH --partition=phillips       ### Partition\n#SBATCH --job-name=filt1    ### Job Name\n#SBATCH --time=00:240:00        ### WallTime\n#SBATCH --nodes=1              ### Number of Nodes\n#SBATCH --ntasks=1             ### Number of tasks per array job\n#SBATCH --array=0-39           ### Array index\n#SBATCH --cpus-per-task=4            ### Number of CPU cores per task\nexport OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK\n\nmodule load easybuild  icc/2017.1.132-GCC-6.3.0-2.27  impi/2017.1.132 skewer\n\ncd /projects/phillipslab/ateterina/CR_popgen/data/reads/\nLISTFILES=(*.fastq)\n\nfile=${LISTFILES[$SLURM_ARRAY_TASK_ID]}\n\n#remove adapter + qc\nskewer -x AGATCGGAAGAG -t 4 -q 20 -l 36 -d 0.1 -r 0.1 -o ${file/_1.fastq/.tr1} $file ${file/_1.fastq/_2.fastq};\n\n\nmv ${file/_1.fastq/.tr1-trimmed-pair1.fastq} ${file/_1.fastq/_fp1.ok.fastq}\nmv ${file/_1.fastq/.tr1-trimmed-pair2.fastq} ${file/_1.fastq/_fp2.ok.fastq}\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

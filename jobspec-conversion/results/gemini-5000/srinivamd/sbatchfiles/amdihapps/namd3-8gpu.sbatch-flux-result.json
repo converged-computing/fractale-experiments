@@ -1,0 +1,248 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n#flux: --job-name=namd-run\n#flux: --nodes=1\n#flux: --ntasks-per-node=8\n#flux: --cpus-per-task=16\n#flux: --gpus-per-node=8\n#flux: --exclusive\n#flux: --output=namd-run-%J.out\n#flux: --error=namd-run-%J.err\n# The Slurm memory directive '--mem=0' means all memory on the node. This is translated to\n# '--exclusive' in Flux, which gives the job exclusive access to the node's resources, including memory.\n# The Slurm output filename format '%x-%N-%j' (jobname-nodename-jobid) is not fully supported in Flux.\n# It has been simplified to 'jobname-%J.out', omitting the nodename. A job name has been added for clarity.\n\nsource /etc/profile.d/modules.sh\n\n# WARNING: The following logic for module paths is based on the Slurm partition name\n# and will not work in Flux. This logic needs to be adapted for the target system.\n# if [[ $(flux resource list -o '{nodelist}' | grep 'rhel8') ]]; then ...\n\nmodule purge\nmodule load rocm-5.4.2/ucx-1.13.1/ompi/4.1.4\n\ntmp=/tmp/$USER/tmp-$$\nmkdir -p $tmp\n\nsingularity run /shared/apps/bin/namd3_3.0a9.sif cp -r /examples ./examples-$$\n\n# WARNING: The following commands hardcode the use of all 8 GPUs via '+devices 0,1,2,3,4,5,6,7'.\n# This is not portable. It is better to let the application use the environment variables set by the\n# scheduler (e.g., ROCR_VISIBLE_DEVICES for ROCm) to discover allocated GPUs.\n# Additionally, '+p1' launches a single-threaded process, but the job allocates 8 tasks with 16 CPUs each.\n# This will result in significant resource waste.\n\nsingularity run --bind ./examples-$$:/examples-$$ --pwd /examples-$$ /shared/apps/bin/namd3_3.0a9.sif /opt/namd/bin/namd3 jac/jac.namd +p1 +setcpuaffinity --CUDASOAintegrate on +devices 0,1,2,3,4,5,6,7\n\nsingularity run --bind ./examples-$$:/examples-$$ --pwd /examples-$$ /shared/apps/bin/namd3_3.0a9.sif /opt/namd/bin/namd3 apoa1/apoa1.namd +p1 +setcpuaffinity --CUDASOAintegrate on +devices 0,1,2,3,4,5,6,7\n\nsingularity run --bind ./examples-$$:/examples-$$ --pwd /examples-$$ /shared/apps/bin/namd3_3.0a9.sif /opt/namd/bin/namd3 f1atpase/f1atpase.namd +p1 +setcpuaffinity --CUDASOAintegrate on +devices 0,1,2,3,4,5,6,7 \n\nsingularity run --bind ./examples-$$:/examples-$$ --pwd /examples-$$ /shared/apps/bin/namd3_3.0a9.sif /opt/namd/bin/namd3 stmv/stmv.namd +p1 +setcpuaffinity --CUDASOAintegrate on +devices 0,1,2,3,4,5,6,7\n\ncp -r ./examples-$$   $PWD/gpu8-$$-\"$(flux resource list -o '{nodelist}')\"-$FLUX_JOB_ID\n\nrm -rf examples-$$/\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "Extreme Resource Waste: The job requests 8 tasks, each with 16 CPUs, for a total of 128 CPU cores. However, the script then runs four sequential, single-process `singularity` commands. Each of these commands launches a NAMD process with `+p1`, indicating it will only use a single thread. This means that at any given time, 127 of the 128 allocated CPU cores will be completely idle, resulting in a >99% waste of CPU resources.",
+                        "Hardcoded GPU Devices: The NAMD commands use `+devices 0,1,2,3,4,5,6,7` to explicitly select all GPUs. This is bad practice in a scheduled environment. It is better to let the scheduler assign GPUs and have the application respect the environment variables it sets (e.g., `ROCR_VISIBLE_DEVICES` for ROCm). This hardcoding makes the script brittle and can lead to resource conflicts.",
+                        "The script's core logic for setting up the correct module environment based on the OS has been commented out because it depends on a Slurm-specific variable. The script will fail if the default module path does not contain the required `rocm-5.4.2/ucx-1.13.1/ompi/4.1.4` module. This logic must be adapted to the target Flux system for the script to be portable and reliable."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": true,
+                "data": {
+                    "jobspec": "#!/bin/bash\n#flux: --job-name=namd-run\n#flux: --nodes=1\n#flux: --ntasks-per-node=8\n#flux: --cpus-per-task=16\n#flux: --gpus-per-node=8\n#flux: --exclusive\n#flux: --output=namd-run-%J.out\n#flux: --error=namd-run-%J.err\n# The Slurm memory directive '--mem=0' means all memory on the node. This is translated to\n# '--exclusive' in Flux, which gives the job exclusive access to the node's resources, including memory.\n# The Slurm output filename format '%x-%N-%j' (jobname-nodename-jobid) is not fully supported in Flux.\n# It has been simplified to 'jobname-%J.out', omitting the nodename. A job name has been added for clarity.\n\nsource /etc/profile.d/modules.sh\n\n# WARNING: The following logic for module paths is based on the Slurm partition name\n# and will not work in Flux. This logic needs to be adapted for the target system.\n# if [[ $(flux resource list -o '{nodelist}' | grep 'rhel8') ]]; then ...\n\nmodule purge\nmodule load rocm-5.4.2/ucx-1.13.1/ompi/4.1.4\n\ntmp=/tmp/$USER/tmp-$$\nmkdir -p $tmp\n\nsingularity run /shared/apps/bin/namd3_3.0a9.sif cp -r /examples ./examples-$$\n\n# WARNING: The following commands hardcode the use of all 8 GPUs via '+devices 0,1,2,3,4,5,6,7'.\n# This is not portable. It is better to let the application use the environment variables set by the\n# scheduler (e.g., ROCR_VISIBLE_DEVICES for ROCm) to discover allocated GPUs.\n# Additionally, '+p1' launches a single-threaded process, but the job allocates 8 tasks with 16 CPUs each.\n# This will result in significant resource waste.\n\nsingularity run --bind ./examples-$$:/examples-$$ --pwd /examples-$$ /shared/apps/bin/namd3_3.0a9.sif /opt/namd/bin/namd3 jac/jac.namd +p1 +setcpuaffinity --CUDASOAintegrate on +devices 0,1,2,3,4,5,6,7\n\nsingularity run --bind ./examples-$$:/examples-$$ --pwd /examples-$$ /shared/apps/bin/namd3_3.0a9.sif /opt/namd/bin/namd3 apoa1/apoa1.namd +p1 +setcpuaffinity --CUDASOAintegrate on +devices 0,1,2,3,4,5,6,7\n\nsingularity run --bind ./examples-$$:/examples-$$ --pwd /examples-$$ /shared/apps/bin/namd3_3.0a9.sif /opt/namd/bin/namd3 f1atpase/f1atpase.namd +p1 +setcpuaffinity --CUDASOAintegrate on +devices 0,1,2,3,4,5,6,7 \n\nsingularity run --bind ./examples-$$:/examples-$$ --pwd /examples-$$ /shared/apps/bin/namd3_3.0a9.sif /opt/namd/bin/namd3 stmv/stmv.namd +p1 +setcpuaffinity --CUDASOAintegrate on +devices 0,1,2,3,4,5,6,7\n\ncp -r ./examples-$$   $PWD/gpu8-$$-\"$(flux resource list -o '{nodelist}')\"-$FLUX_JOB_ID\n\nrm -rf examples-$$/\n",
+                    "errors": [
+                        "Validation failed at directives:\n--ntasks-per-node=8\n--cpus-per-task=16\n--gpus-per-node=8"
+                    ],
+                    "valid": false
+                }
+            },
+            "transition": "failed -> transform",
+            "complete": false,
+            "state": "failed"
+        },
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n#flux: --job-name=namd-run\n#flux: --nodes=1\n#flux: --ntasks=128\n#flux: --gpus=8\n#flux: --exclusive\n#flux: --output=namd-run-%J.out\n#flux: --error=namd-run-%J.err\n# Based on validator feedback from multiple attempts, several key directives were omitted or changed:\n# - The original resource request for 8 tasks with 16 CPUs each has been simplified to a total of 128 tasks.\n#   The more specific per-task directives were rejected by the validator.\n# --\n# CRITICAL PERFORMANCE IMPLICATIONS:\n# 1. INCORRECT TASK MAPPING & RESOURCE WASTE: The application is launched as a single-threaded process ('+p1'),\n#    but the job requests 128 task slots. This mismatch will cause the application to run on only one core,\n#    while leaving 127 other cores idle and wasted.\n\nsource /etc/profile.d/modules.sh\n\n# WARNING: The site-specific logic for setting module paths based on OS has been removed as it depends\n# on Slurm variables. The script will fail if the required modules are not in the default path.\n\nmodule purge\nmodule load rocm-5.4.2/ucx-1.13.1/ompi/4.1.4\n\ntmp=/tmp/$USER/tmp-$$\nmkdir -p $tmp\n\nsingularity run /shared/apps/bin/namd3_3.0a9.sif cp -r /examples ./examples-$$\n\n# WARNING: The following commands hardcode the use of all 8 GPUs via '+devices 0,1,2,3,4,5,6,7'.\n# This is not portable and may conflict with scheduler-assigned resources.\nsingularity run --bind ./examples-$$:/examples-$$ --pwd /examples-$$ /shared/apps/bin/namd3_3.0a9.sif /opt/namd/bin/namd3 jac/jac.namd +p1 +setcpuaffinity --CUDASOAintegrate on +devices 0,1,2,3,4,5,6,7\nsingularity run --bind ./examples-$$:/examples-$$ --pwd /examples-$$ /shared/apps/bin/namd3_3.0a9.sif /opt/namd/bin/namd3 apoa1/apoa1.namd +p1 +setcpuaffinity --CUDASOAintegrate on +devices 0,1,2,3,4,5,6,7\nsingularity run --bind ./examples-$$:/examples-$$ --pwd /examples-$$ /shared/apps/bin/namd3_3.0a9.sif /opt/namd/bin/namd3 f1atpase/f1atpase.namd +p1 +setcpuaffinity --CUDASOAintegrate on +devices 0,1,2,3,4,5,6,7 \nsingularity run --bind ./examples-$$:/examples-$$ --pwd /examples-$$ /shared/apps/bin/namd3_3.0a9.sif /opt/namd/bin/namd3 stmv/stmv.namd +p1 +setcpuaffinity --CUDASOAintegrate on +devices 0,1,2,3,4,5,6,7\n\ncp -r ./examples-$$   $PWD/gpu8-$$-\"$(flux resource list -o '{nodelist}')\"-$FLUX_JOB_ID\n\nrm -rf examples-$$/\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "Extreme Resource Waste: The job requests 128 CPU tasks (`--ntasks=128`), but the script then runs four sequential, single-process `singularity` commands. Each of these commands launches a NAMD process with `+p1`, indicating it will only use a single thread. This means that at any given time, 127 of the 128 allocated CPU cores will be completely idle, resulting in a >99% waste of CPU resources.",
+                        "Hardcoded GPU Devices: The NAMD commands use `+devices 0,1,2,3,4,5,6,7` to explicitly select all GPUs. This is bad practice in a scheduled environment. It is better to let the scheduler assign GPUs and have the application respect the environment variables it sets (e.g., `ROCR_VISIBLE_DEVICES` for ROCm). This hardcoding makes the script brittle and can lead to resource conflicts.",
+                        "The script's core logic for setting up the correct module environment based on the OS has been commented out because it depends on a Slurm-specific variable. The script will fail if the default module path does not contain the required `rocm-5.4.2/ucx-1.13.1/ompi/4.1.4` module. This logic must be adapted to the target Flux system for the script to be portable and reliable."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": true,
+                "data": {
+                    "jobspec": "#!/bin/bash\n#flux: --job-name=namd-run\n#flux: --nodes=1\n#flux: --ntasks=128\n#flux: --gpus=8\n#flux: --exclusive\n#flux: --output=namd-run-%J.out\n#flux: --error=namd-run-%J.err\n# Based on validator feedback from multiple attempts, several key directives were omitted or changed:\n# - The original resource request for 8 tasks with 16 CPUs each has been simplified to a total of 128 tasks.\n#   The more specific per-task directives were rejected by the validator.\n# --\n# CRITICAL PERFORMANCE IMPLICATIONS:\n# 1. INCORRECT TASK MAPPING & RESOURCE WASTE: The application is launched as a single-threaded process ('+p1'),\n#    but the job requests 128 task slots. This mismatch will cause the application to run on only one core,\n#    while leaving 127 other cores idle and wasted.\n\nsource /etc/profile.d/modules.sh\n\n# WARNING: The site-specific logic for setting module paths based on OS has been removed as it depends\n# on Slurm variables. The script will fail if the required modules are not in the default path.\n\nmodule purge\nmodule load rocm-5.4.2/ucx-1.13.1/ompi/4.1.4\n\ntmp=/tmp/$USER/tmp-$$\nmkdir -p $tmp\n\nsingularity run /shared/apps/bin/namd3_3.0a9.sif cp -r /examples ./examples-$$\n\n# WARNING: The following commands hardcode the use of all 8 GPUs via '+devices 0,1,2,3,4,5,6,7'.\n# This is not portable and may conflict with scheduler-assigned resources.\nsingularity run --bind ./examples-$$:/examples-$$ --pwd /examples-$$ /shared/apps/bin/namd3_3.0a9.sif /opt/namd/bin/namd3 jac/jac.namd +p1 +setcpuaffinity --CUDASOAintegrate on +devices 0,1,2,3,4,5,6,7\nsingularity run --bind ./examples-$$:/examples-$$ --pwd /examples-$$ /shared/apps/bin/namd3_3.0a9.sif /opt/namd/bin/namd3 apoa1/apoa1.namd +p1 +setcpuaffinity --CUDASOAintegrate on +devices 0,1,2,3,4,5,6,7\nsingularity run --bind ./examples-$$:/examples-$$ --pwd /examples-$$ /shared/apps/bin/namd3_3.0a9.sif /opt/namd/bin/namd3 f1atpase/f1atpase.namd +p1 +setcpuaffinity --CUDASOAintegrate on +devices 0,1,2,3,4,5,6,7 \nsingularity run --bind ./examples-$$:/examples-$$ --pwd /examples-$$ /shared/apps/bin/namd3_3.0a9.sif /opt/namd/bin/namd3 stmv/stmv.namd +p1 +setcpuaffinity --CUDASOAintegrate on +devices 0,1,2,3,4,5,6,7\n\ncp -r ./examples-$$   $PWD/gpu8-$$-\"$(flux resource list -o '{nodelist}')\"-$FLUX_JOB_ID\n\nrm -rf examples-$$/\n",
+                    "errors": [
+                        "Validation failed at directives:\n--ntasks=128"
+                    ],
+                    "valid": false
+                }
+            },
+            "transition": "failed -> transform",
+            "complete": false,
+            "state": "failed"
+        },
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n#flux: --job-name=namd-run\n#flux: --nodes=1\n#flux: --ntasks=8\n#flux: --cpus-per-task=16\n#flux: --gpus-per-task=1\n#flux: --exclusive\n#flux: --output=namd-run-%J.out\n#flux: --error=namd-run-%J.err\n# Based on validator feedback from previous attempts, the resource request has been structured\n# to match the original Slurm script: 8 tasks, each with 16 CPUs and 1 GPU.\n\nsource /etc/profile.d/modules.sh\n\n# WARNING: The site-specific logic for setting module paths based on OS has been removed as it depends\n# on Slurm variables. The script will fail if the required modules are not in the default path.\n\nmodule purge\nmodule load rocm-5.4.2/ucx-1.13.1/ompi/4.1.4\n\ntmp=/tmp/$USER/tmp-$$\nmkdir -p $tmp\n\nsingularity run /shared/apps/bin/namd3_3.0a9.sif cp -r /examples ./examples-$$\n\n# WARNING: The following commands are run sequentially and do not utilize the parallel resources\n# requested. Each 'singularity run' command will only use a single task slot, leaving 7 tasks\n# (and 112 CPUs and 7 GPUs) idle. Furthermore, the NAMD command '+p1' is single-threaded, leaving\n# the 15 other CPUs in the single used task slot idle.\n\nsingularity run --bind ./examples-$$:/examples-$$ --pwd /examples-$$ /shared/apps/bin/namd3_3.0a9.sif /opt/namd/bin/namd3 jac/jac.namd +p1 +setcpuaffinity --CUDASOAintegrate on +devices 0,1,2,3,4,5,6,7\nsingularity run --bind ./examples-$$:/examples-$$ --pwd /examples-$$ /shared/apps/bin/namd3_3.0a9.sif /opt/namd/bin/namd3 apoa1/apoa1.namd +p1 +setcpuaffinity --CUDASOAintegrate on +devices 0,1,2,3,4,5,6,7\nsingularity run --bind ./examples-$$:/examples-$$ --pwd /examples-$$ /shared/apps/bin/namd3_3.0a9.sif /opt/namd/bin/namd3 f1atpase/f1atpase.namd +p1 +setcpuaffinity --CUDASOAintegrate on +devices 0,1,2,3,4,5,6,7 \nsingularity run --bind ./examples-$$:/examples-$$ --pwd /examples-$$ /shared/apps/bin/namd3_3.0a9.sif /opt/namd/bin/namd3 stmv/stmv.namd +p1 +setcpuaffinity --CUDASOAintegrate on +devices 0,1,2,3,4,5,6,7\n\ncp -r ./examples-$$   $PWD/gpu8-$$-\"$(flux resource list -o '{nodelist}')\"-$FLUX_JOB_ID\n\nrm -rf examples-$$/\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": false,
+                    "tool_call": true,
+                    "reasons": [
+                        "The directive '--ntasks=8' is not a valid Flux option.",
+                        "The directive '--cpus-per-task=16' is not a valid Flux option.",
+                        "The directive '--gpus-per-task=1' is not a valid Flux option."
+                    ],
+                    "issues": [
+                        "Extreme Resource Waste: The job requests 8 tasks, each with 16 CPUs and 1 GPU, for a total of 128 cores and 8 GPUs. However, the script runs four sequential, single-process `singularity` commands. Each command only uses a single CPU core (`+p1`), although it attempts to use all 8 GPUs. This means that at any given time, 127 of the 128 allocated CPU cores and 7 of the 8 task slots will be completely idle, resulting in a >99% waste of allocated CPU resources.",
+                        "Hardcoded GPU Devices: The NAMD commands use `+devices 0,1,2,3,4,5,6,7` to explicitly select all GPUs. This is bad practice in a scheduled environment and contradicts the per-task GPU allocation. It is better to let the scheduler assign GPUs and have the application respect the environment variables it sets (e.g., `ROCR_VISIBLE_DEVICES` for ROCm). This hardcoding makes the script brittle and can lead to resource conflicts.",
+                        "The script's core logic for setting up the correct module environment based on the OS has been removed because it depends on a Slurm-specific variable. The script will fail if the default module path does not contain the required `rocm-5.4.2/ucx-1.13.1/ompi/4.1.4` module."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "failed -> transform",
+            "complete": false,
+            "state": "failed"
+        },
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n#flux: --job-name=namd-run\n#flux: --nodes=1\n#flux: --ntasks=8\n#flux: --cpus-per-task=16\n#flux: --gpus-per-task=1\n#flux: --exclusive\n#flux: --output=namd-run-%J.out\n#flux: --error=namd-run-%J.err\n# Based on validator feedback from previous attempts, the resource request has been structured\n# to match the original Slurm script: 8 tasks, each with 16 CPUs and 1 GPU.\n\nsource /etc/profile.d/modules.sh\n\n# WARNING: The site-specific logic for setting module paths based on OS has been removed as it depends\n# on Slurm variables. The script will fail if the required modules are not in the default path.\n\nmodule purge\nmodule load rocm-5.4.2/ucx-1.13.1/ompi/4.1.4\n\ntmp=/tmp/$USER/tmp-$$\nmkdir -p $tmp\n\nsingularity run /shared/apps/bin/namd3_3.0a9.sif cp -r /examples ./examples-$$\n\n# WARNING: The following commands are run sequentially and do not utilize the parallel resources\n# requested. Each 'singularity run' command will only use a single task slot, leaving 7 tasks\n# (and 112 CPUs and 7 GPUs) idle. Furthermore, the NAMD command '+p1' is single-threaded, leaving\n# the 15 other CPUs in the single used task slot idle.\n\nsingularity run --bind ./examples-$$:/examples-$$ --pwd /examples-$$ /shared/apps/bin/namd3_3.0a9.sif /opt/namd/bin/namd3 jac/jac.namd +p1 +setcpuaffinity --CUDASOAintegrate on +devices 0,1,2,3,4,5,6,7\nsingularity run --bind ./examples-$$:/examples-$$ --pwd /examples-$$ /shared/apps/bin/namd3_3.0a9.sif /opt/namd/bin/namd3 apoa1/apoa1.namd +p1 +setcpuaffinity --CUDASOAintegrate on +devices 0,1,2,3,4,5,6,7\nsingularity run --bind ./examples-$$:/examples-$$ --pwd /examples-$$ /shared/apps/bin/namd3_3.0a9.sif /opt/namd/bin/namd3 f1atpase/f1atpase.namd +p1 +setcpuaffinity --CUDASOAintegrate on +devices 0,1,2,3,4,5,6,7 \nsingularity run --bind ./examples-$$:/examples-$$ --pwd /examples-$$ /shared/apps/bin/namd3_3.0a9.sif /opt/namd/bin/namd3 stmv/stmv.namd +p1 +setcpuaffinity --CUDASOAintegrate on +devices 0,1,2,3,4,5,6,7\n\ncp -r ./examples-$$   $PWD/gpu8-$$-\"$(flux resource list -o '{nodelist}')\"-$FLUX_JOB_ID\n\nrm -rf examples-$$/\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": false,
+                    "tool_call": true,
+                    "reasons": [
+                        "The directive '--ntasks=8' is not a valid Flux option.",
+                        "The directive '--cpus-per-task=16' is not a valid Flux option.",
+                        "The directive '--gpus-per-task=1' is not a valid Flux option."
+                    ],
+                    "issues": [
+                        "Extreme Resource Waste: The job requests 8 tasks, each with 16 CPUs and 1 GPU, for a total of 128 cores and 8 GPUs. However, the script runs four sequential, single-process `singularity` commands. Each command only uses a single CPU core (`+p1`), although it attempts to use all 8 GPUs. This means that at any given time, 127 of the 128 allocated CPU cores and 7 of the 8 task slots will be completely idle, resulting in a >99% waste of allocated CPU resources.",
+                        "Hardcoded GPU Devices: The NAMD commands use `+devices 0,1,2,3,4,5,6,7` to explicitly select all GPUs. This is bad practice in a scheduled environment and contradicts the per-task GPU allocation. It is better to let the scheduler assign GPUs and have the application respect the environment variables it sets (e.g., `ROCR_VISIBLE_DEVICES` for ROCm). This hardcoding makes the script brittle and can lead to resource conflicts.",
+                        "The script's core logic for setting up the correct module environment based on the OS has been removed because it depends on a Slurm-specific variable. The script will fail if the default module path does not contain the required `rocm-5.4.2/ucx-1.13.1/ompi/4.1.4` module."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "failed -> transform",
+            "complete": false,
+            "state": "failed"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n\n#SBATCH --nodes=1\n#SBATCH --ntasks-per-node=8\n#SBATCH --cpus-per-task=16\n#SBATCH --mem=0\n#SBATCH --gres=gpu:8\n\n#SBATCH -o %x-%N-%j.out\n#SBATCH -e %x-%N-%j.err\n\nsource /etc/profile.d/modules.sh\n\n# Use partition name to load OS-specific modulespath to use to override\n# login node environment\nif [[ $(echo $SLURM_JOB_PARTITION | grep -i ubuntu) = *Ubuntu* ]]; then\n    module use /shared/apps/modules/ubuntu/modulefiles\n    module unuse /shared/apps/modules/rhel8/modulefiles\n    module unuse /shared/apps/modules/rhel9/modulefiles\n    module unuse /shared/apps/modules/sles15sp4/modulefiles\n    module unuse /shared/apps/modules/centos8/modulefiles\n    module unuse /shared/apps/modules/rocky9/modulefiles\nelif [[ $(echo $SLURM_JOB_PARTITION | grep -i rhel8) = *RHEL8* ]]; then\n    module unuse /shared/apps/modules/ubuntu/modulefiles\n    module use /shared/apps/modules/rhel8/modulefiles\n    module unuse /shared/apps/modules/rhel9/modulefiles\n    module unuse /shared/apps/modules/sles15sp4/modulefiles\n    module unuse /shared/apps/modules/centos8/modulefiles\n    module unuse /shared/apps/modules/rocky9/modulefiles\nelif [[ $(echo $SLURM_JOB_PARTITION | grep -i rhel9) = *RHEL9* ]]; then\n    module unuse /shared/apps/modules/ubuntu/modulefiles\n    module unuse /shared/apps/modules/rhel8/modulefiles\n    module use /shared/apps/modules/rhel9/modulefiles\n    module unuse /shared/apps/modules/sles15sp4/modulefiles\n    module unuse /shared/apps/modules/centos8/modulefiles\n    module unuse /shared/apps/modules/rocky9/modulefiles\nelif [[ $(echo $SLURM_JOB_PARTITION | grep -i sles15) = *SLES15* ]]; then\n    module unuse /shared/apps/modules/ubuntu/modulefiles\n    module unuse /shared/apps/modules/rhel8/modulefiles\n    module unuse /shared/apps/modules/rhel9/modulefiles\n    module use /shared/apps/modules/sles15sp4/modulefiles\n    module unuse /shared/apps/modules/centos8/modulefiles\n    module unuse /shared/apps/modules/rocky9/modulefiles\nelif [[ $(echo $SLURM_JOB_PARTITION | grep -i centos8) = *CentOS8* ]]; then\n    module unuse /shared/apps/modules/ubuntu/modulefiles\n    module unuse /shared/apps/modules/rhel8/modulefiles\n    module unuse /shared/apps/modules/rhel9/modulefiles\n    module unuse /shared/apps/modules/sles15sp4/modulefiles\n    module use /shared/apps/modules/centos8/modulefiles\n    module unuse /shared/apps/modules/rocky9/modulefiles\nelif [[ $(echo $SLURM_JOB_PARTITION | grep -i rocky9) = *Rocky9* ]]; then\n    module unuse /shared/apps/modules/ubuntu/modulefiles\n    module unuse /shared/apps/modules/rhel8/modulefiles\n    module unuse /shared/apps/modules/rhel9/modulefiles\n    module unuse /shared/apps/modules/sles15sp4/modulefiles\n    module unuse /shared/apps/modules/centos8/modulefiles\n    module use /shared/apps/modules/rocky9/modulefiles\nfi\n\n\nmodule purge\nmodule load rocm-5.4.2/ucx-1.13.1/ompi/4.1.4\n\ntmp=/tmp/$USER/tmp-$$\nmkdir -p $tmp\n\nsingularity run /shared/apps/bin/namd3_3.0a9.sif cp -r /examples ./examples-$$\n\nsingularity run --bind ./examples-$$:/examples-$$ --pwd /examples-$$ /shared/apps/bin/namd3_3.0a9.sif /opt/namd/bin/namd3 jac/jac.namd +p1 +setcpuaffinity --CUDASOAintegrate on +devices 0,1,2,3,4,5,6,7\n\nsingularity run --bind ./examples-$$:/examples-$$ --pwd /examples-$$ /shared/apps/bin/namd3_3.0a9.sif /opt/namd/bin/namd3 apoa1/apoa1.namd +p1 +setcpuaffinity --CUDASOAintegrate on +devices 0,1,2,3,4,5,6,7\n\nsingularity run --bind ./examples-$$:/examples-$$ --pwd /examples-$$ /shared/apps/bin/namd3_3.0a9.sif /opt/namd/bin/namd3 f1atpase/f1atpase.namd +p1 +setcpuaffinity --CUDASOAintegrate on +devices 0,1,2,3,4,5,6,7 \n\nsingularity run --bind ./examples-$$:/examples-$$ --pwd /examples-$$ /shared/apps/bin/namd3_3.0a9.sif /opt/namd/bin/namd3 stmv/stmv.namd +p1 +setcpuaffinity --CUDASOAintegrate on +devices 0,1,2,3,4,5,6,7\n\ncp -r ./examples-$$   $PWD/gpu8-$$-$SLURM_JOB_NODELIST-$SLURM_JOB_ID\n\nrm -rf examples-$$/\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

@@ -1,0 +1,123 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash -l\n# Flux batch script converted from PBS\n\n# NOTE: Run with: flux batch <this_script>\n\n# PBS resources:\n#   -N MURbui\n#   -A UCSU0085\n#   -q main@gusched01\n#   -l select=1:ncpus=1:mpiprocs=1:mem=50GB:ngpus=1\n#   -l walltime=00:10:00\n#   -e build.err\n#   -o build.out\n#   (optional) -l gpu_type=a100\n\n#flux: --job-name=MURbui\n#flux: -N 1\n#flux: -n 1\n#flux: -c 1\n#flux: --time-limit=10m\n#flux: --output=build.out\n#flux: --error=build.err\n\n# Omitted PBS option: -l mem=50GB\n# Flux memory requests are site/config dependent and not universally portable.\n# Performance implication: job may be scheduled on a node with insufficient memory, risking OOM kills or degraded performance.\n\n# Omitted PBS option: -l ngpus=1 (and optional gpu_type=a100)\n# Flux GPU requests/type constraints are site/config dependent (often via custom resource types).\n# Performance implication: job may start without a GPU (or without the intended A100), causing failure or severe slowdown.\n\n# Omitted PBS option: -A UCSU0085 (project/account)\n# Flux accounting/project selection is site-specific; no portable equivalent.\n# Performance implication: job may be charged to a default account or be rejected by policy.\n\n# Omitted PBS option: -q main@gusched01 (queue)\n# Flux queues/partitions are site-specific; no portable equivalent.\n# Performance implication: job may run with different limits/priority or be rejected by policy.\n\nmodule purge\nmodule load ncarenv/22.12\nmodule load nvhpc/22.11\nmodule load cuda\nmodule load craype\nmodule load cray-mpich\nmodule load ncarcompilers\nmodule load cray-libsci\nmodule list\n\nmake clean\nmake\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": false,
+                    "tool_call": false,
+                    "reasons": [
+                        "PBS requested 1 GPU (`ngpus=1`, optionally `gpu_type=a100`) but the Flux resource section does not request any GPU resources; on GPU-managed systems this may allocate CPU-only resources and may not satisfy site policy.",
+                        "PBS requested 50GB of memory (`mem=50GB`) but the Flux resource section has no memory request; on systems that schedule/enforce memory this may under-provision the job and risk OOM.",
+                        "PBS specified a queue and project/account (`-q main@gusched01`, `-A UCSU0085`) but the Flux resource section has no queue/account selection; on sites where these affect eligibility/limits, scheduling behavior may differ or the job may be rejected."
+                    ],
+                    "issues": []
+                },
+                "attempts": 1
+            },
+            "transition": "failed -> manual_validate",
+            "complete": false,
+            "state": "failed"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash -l\n# Flux batch script converted from PBS\n\n# NOTE: Run with: flux batch <this_script>\n\n# PBS resources:\n#   -N MURbui\n#   -A UCSU0085\n#   -q main@gusched01\n#   -l select=1:ncpus=1:mpiprocs=1:mem=50GB:ngpus=1\n#   -l walltime=00:10:00\n#   -e build.err\n#   -o build.out\n#   (optional) -l gpu_type=a100\n\n#flux: --job-name=MURbui\n#flux: -N 1\n#flux: -n 1\n#flux: -c 1\n#flux: --time-limit=10m\n#flux: --output=build.out\n#flux: --error=build.err\n\n# Omitted PBS option: -l mem=50GB\n# Flux memory requests are site/config dependent and not universally portable.\n# Performance implication: job may be scheduled on a node with insufficient memory, risking OOM kills or degraded performance.\n\n# Omitted PBS option: -l ngpus=1 (and optional gpu_type=a100)\n# Flux GPU requests/type constraints are site/config dependent (often via custom resource types).\n# Performance implication: job may start without a GPU (or without the intended A100), causing failure or severe slowdown.\n\n# Omitted PBS option: -A UCSU0085 (project/account)\n# Flux accounting/project selection is site-specific; no portable equivalent.\n# Performance implication: job may be charged to a default account or be rejected by policy.\n\n# Omitted PBS option: -q main@gusched01 (queue)\n# Flux queues/partitions are site-specific; no portable equivalent.\n# Performance implication: job may run with different limits/priority or be rejected by policy.\n\nmodule purge\nmodule load ncarenv/22.12\nmodule load nvhpc/22.11\nmodule load cuda\nmodule load craype\nmodule load cray-mpich\nmodule load ncarcompilers\nmodule load cray-libsci\nmodule list\n\nmake clean\nmake\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "pbs",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash -l\n\n#PBS -N MURbui \n#PBS -A UCSU0085 \n#PBS -q main@gusched01\n#PBS -l select=1:ncpus=1:mpiprocs=1:mem=50GB:ngpus=1\n##PBS -l gpu_type=a100\n#PBS -l walltime=00:10:00\n#PBS -e build.err \n#PBS -o build.out \n\nmodule purge\nmodule load ncarenv/22.12\nmodule load nvhpc/22.11\nmodule load cuda\nmodule load craype\nmodule load cray-mpich\nmodule load ncarcompilers\nmodule load cray-libsci\nmodule list\n\nmake clean\nmake\n\n \n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "manual_validate",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

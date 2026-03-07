@@ -1,0 +1,122 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n# Flux batch script converted from Cobalt\n\n# NOTE: Run with: flux batch <this_script>\n\n# Cobalt resources:\n#   -n 4\n#   -t 1:00:00\n#   -q training --attrs mcdram=cache:numa=quad\n#   -A SDL_Workshop\n#   -O tensorflow_imagenet\n\n# Map nodes and time.\n#flux: -N 4\n#flux: --time-limit=1h\n#flux: --job-name=tensorflow_imagenet\n\n# Cobalt requested 1 MPI rank per node (PROC_PER_NODE=1) => 4 total tasks.\n#flux: -n 4\n\n# Omitted Cobalt option: -q training (queue)\n# Flux queues/partitions are site-specific; no portable equivalent.\n# Performance implication: job may run with different limits/priority or be rejected by policy.\n\n# Omitted Cobalt option: --attrs mcdram=cache:numa=quad\n# Flux memory-mode/NUMA attributes are site/config dependent; no portable equivalent.\n# Performance implication: memory bandwidth/latency and NUMA placement may differ, reducing performance.\n\n# Omitted Cobalt option: -A SDL_Workshop (account)\n# Flux accounting/project selection is site-specific; no portable equivalent.\n# Performance implication: job may be charged to a default account or be rejected by policy.\n\necho \"Running Flux Job ${FLUX_JOB_ID:-unknown}.\" \n\nmodule load datascience/tensorflow-1.14\n\n# aprun mapping: -n 4 total tasks, -N 1 per node, -d 128 (depth), -j 2 (HW threads/core), -cc depth, plus env vars.\n# Flux binding/NUMA controls are site/config dependent; no portable direct equivalent for -j/-d/-cc.\n# Performance implication: thread/core binding may be less optimal than with aprun, potentially reducing performance.\n\nflux run -N 4 -n 4 \\\n  --env=OMP_NUM_THREADS=8 \\\n  --env=KMP_BLOCKTIME=0 \\\n  --env=HOROVOD_TIMELINE=./timeline.json \\\n  --env=TIMELINE_MARK_CYCLES=1 \\\n  python tensorflow_synthetic_benchmark.py --num_intra=8 --num_inter=2 --num-iters=10 --device cpu\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": false,
+                    "tool_call": false,
+                    "reasons": [
+                        "The original Cobalt job requested specific node/memory/NUMA attributes (`--attrs mcdram=cache:numa=quad`) but the Flux resource section does not request any comparable constraints; this can materially change memory behavior and performance.",
+                        "The original Cobalt job specified a queue (`-q training`) and account (`-A SDL_Workshop`) but the Flux resource section has no queue/account selection; on sites where these affect eligibility/limits, scheduling behavior may differ or the job may be rejected."
+                    ],
+                    "issues": []
+                },
+                "attempts": 1
+            },
+            "transition": "failed -> manual_validate",
+            "complete": false,
+            "state": "failed"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n# Flux batch script converted from Cobalt\n\n# NOTE: Run with: flux batch <this_script>\n\n# Cobalt resources:\n#   -n 4\n#   -t 1:00:00\n#   -q training --attrs mcdram=cache:numa=quad\n#   -A SDL_Workshop\n#   -O tensorflow_imagenet\n\n# Map nodes and time.\n#flux: -N 4\n#flux: --time-limit=1h\n#flux: --job-name=tensorflow_imagenet\n\n# Cobalt requested 1 MPI rank per node (PROC_PER_NODE=1) => 4 total tasks.\n#flux: -n 4\n\n# Omitted Cobalt option: -q training (queue)\n# Flux queues/partitions are site-specific; no portable equivalent.\n# Performance implication: job may run with different limits/priority or be rejected by policy.\n\n# Omitted Cobalt option: --attrs mcdram=cache:numa=quad\n# Flux memory-mode/NUMA attributes are site/config dependent; no portable equivalent.\n# Performance implication: memory bandwidth/latency and NUMA placement may differ, reducing performance.\n\n# Omitted Cobalt option: -A SDL_Workshop (account)\n# Flux accounting/project selection is site-specific; no portable equivalent.\n# Performance implication: job may be charged to a default account or be rejected by policy.\n\necho \"Running Flux Job ${FLUX_JOB_ID:-unknown}.\" \n\nmodule load datascience/tensorflow-1.14\n\n# aprun mapping: -n 4 total tasks, -N 1 per node, -d 128 (depth), -j 2 (HW threads/core), -cc depth, plus env vars.\n# Flux binding/NUMA controls are site/config dependent; no portable direct equivalent for -j/-d/-cc.\n# Performance implication: thread/core binding may be less optimal than with aprun, potentially reducing performance.\n\nflux run -N 4 -n 4 \\\n  --env=OMP_NUM_THREADS=8 \\\n  --env=KMP_BLOCKTIME=0 \\\n  --env=HOROVOD_TIMELINE=./timeline.json \\\n  --env=TIMELINE_MARK_CYCLES=1 \\\n  python tensorflow_synthetic_benchmark.py --num_intra=8 --num_inter=2 --num-iters=10 --device cpu\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "cobalt",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n#COBALT -n 4\n#COBALT -t 1:00:00\n#COBALT -q training --attrs mcdram=cache:numa=quad\n#COBALT -A SDL_Workshop -O tensorflow_imagenet\n\n#submisstion script for running tensorflow_mnist with horovod\n\necho \"Running Cobalt Job $COBALT_JOBID.\"\n\n#Loading modules\nmodule load datascience/tensorflow-1.14\n\nPROC_PER_NODE=1\n\n#note: Setting threads to a low count for demonstration purposes\naprun -n $(($COBALT_JOBSIZE*$PROC_PER_NODE)) -N $PROC_PER_NODE \\\n    -j 2 -d 128 -cc depth \\\n    -e OMP_NUM_THREADS=8 \\\n    -e KMP_BLOCKTIME=0 \\\n    -e HOROVOD_TIMELINE=./timeline.json \\\n    -e TIMELINE_MARK_CYCLES=1 \\\n    python tensorflow_synthetic_benchmark.py --num_intra=8 --num_inter=2 --num-iters=10 --device cpu\n\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "manual_validate",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

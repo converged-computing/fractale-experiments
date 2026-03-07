@@ -1,0 +1,124 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#! /bin/bash\n# Flux job script translated from Cobalt\n\n# WARNING: This script is a template and requires command-line arguments to define job size.\n# The following directives assume an example execution of 'script.sh 4 8 2' (4 nodes, 8 tasks/node, 2 threads/core)\n\n# Total nodes, total tasks, and CPUs per task are derived from the script's logic.\n# nodes = $1 = 4\n# total_ranks = nodes * ranks_per_node = 4 * 8 = 32\n# threads_per_rank (cpus) = (64 * threads_per_core) / ranks_per_node = (64 * 2) / 8 = 16\n#flux: -N 4\n#flux: -n 32\n#flux: -c 16\n\n# The Cobalt account '-A' and attribute '--attrs' are omitted as they are not standard Flux options.\n# #COBALT -A CSC249ADCD08 --attrs enable_ssh=1\n\n# Load up the Python environment\nmodule load miniconda-3/latest\nsource activate /lus/theta-fs0/projects/CSC249ADCD08/design/graph_sage/env\nexport PYTHONPATH=\"\"  ## Get rid of the  default path from the modules\n\n# Read the number of nodes and ranks per node from command-line arguments\nnodes=$1\nranks_per_node=$2\nthreads_per_core=$3\ntotal_ranks=$((nodes * ranks_per_node))\nthreads_per_rank=$(((64 * threads_per_core) / ranks_per_node))\n\n# Set config and run\nexport KMP_BLOCKTIME=0\nexport KMP_AFFINITY=\"granularity=fine,compact,1,0\"\nexport MPICH_GNI_FORK_MODE=FULLCOPY\nexport OMP_NUM_THREADS=$threads_per_rank\n\n# 'aprun' is replaced by 'flux run'. It will launch the total number of tasks defined by the job size.\n# CRITICAL: The complex Cray-specific binding flags (-d, -j, --cc) do not have direct Flux equivalents\n# and are omitted. Flux's default binding is generally optimized, but performance will differ.\n# The environment variables KMP_AFFINITY and OMP_NUM_THREADS are preserved to guide thread placement.\nflux run python profile_train.py ${@:4}\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "As noted in the script's comments, this is a template that requires command-line arguments to function. If submitted without arguments (e.g., `flux batch script.sh`), the shell arithmetic will fail, and the job will not run correctly. The resource directives are hardcoded based on an *example* execution and will be incorrect if different arguments are provided.",
+                        "CRITICAL: The translation omits several Cray-specific `aprun` binding flags (`-j`, `-d`, `--cc depth`). While Flux's default binding is generally effective, the performance of this MPI+OpenMP application could be sensitive to this change in core-level affinity. The preservation of `KMP_AFFINITY` and `OMP_NUM_THREADS` helps, but performance may still differ from the original environment.",
+                        "The script contains multiple hardcoded, project-specific paths for the conda environment, making it non-portable.",
+                        "The command 'source activate ...' is a deprecated syntax for activating conda environments. The modern, recommended command is 'conda activate ...'."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#! /bin/bash\n# Flux job script translated from Cobalt\n\n# WARNING: This script is a template and requires command-line arguments to define job size.\n# The following directives assume an example execution of 'script.sh 4 8 2' (4 nodes, 8 tasks/node, 2 threads/core)\n\n# Total nodes, total tasks, and CPUs per task are derived from the script's logic.\n# nodes = $1 = 4\n# total_ranks = nodes * ranks_per_node = 4 * 8 = 32\n# threads_per_rank (cpus) = (64 * threads_per_core) / ranks_per_node = (64 * 2) / 8 = 16\n#flux: -N 4\n#flux: -n 32\n#flux: -c 16\n\n# The Cobalt account '-A' and attribute '--attrs' are omitted as they are not standard Flux options.\n# #COBALT -A CSC249ADCD08 --attrs enable_ssh=1\n\n# Load up the Python environment\nmodule load miniconda-3/latest\nsource activate /lus/theta-fs0/projects/CSC249ADCD08/design/graph_sage/env\nexport PYTHONPATH=\"\"  ## Get rid of the  default path from the modules\n\n# Read the number of nodes and ranks per node from command-line arguments\nnodes=$1\nranks_per_node=$2\nthreads_per_core=$3\ntotal_ranks=$((nodes * ranks_per_node))\nthreads_per_rank=$(((64 * threads_per_core) / ranks_per_node))\n\n# Set config and run\nexport KMP_BLOCKTIME=0\nexport KMP_AFFINITY=\"granularity=fine,compact,1,0\"\nexport MPICH_GNI_FORK_MODE=FULLCOPY\nexport OMP_NUM_THREADS=$threads_per_rank\n\n# 'aprun' is replaced by 'flux run'. It will launch the total number of tasks defined by the job size.\n# CRITICAL: The complex Cray-specific binding flags (-d, -j, --cc) do not have direct Flux equivalents\n# and are omitted. Flux's default binding is generally optimized, but performance will differ.\n# The environment variables KMP_AFFINITY and OMP_NUM_THREADS are preserved to guide thread placement.\nflux run python profile_train.py ${@:4}\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "cobalt",
+                    "to_manager": "flux",
+                    "script": "#! /bin/bash\n#COBALT -A CSC249ADCD08 --attrs enable_ssh=1\n\n# Load up the Python environment\nmodule load miniconda-3/latest\nsource activate /lus/theta-fs0/projects/CSC249ADCD08/design/graph_sage/env\nexport PYTHONPATH=\"\"  ## Get rid of the  default path from the modules\n\n# Read the number of nodes and ranks per node\nnodes=$1\nranks_per_node=$2\nthreads_per_core=$3\ntotal_ranks=$((nodes * ranks_per_node))\nthreads_per_rank=$(((64 * threads_per_core) / ranks_per_node))\n\n# Set config and run\n#  - Turning off XLA to see if that gives more threads. No effect\n#  - Adding prefetching\nexport KMP_BLOCKTIME=0\nexport KMP_AFFINITY=\"granularity=fine,compact,1,0\"\nexport MPICH_GNI_FORK_MODE=FULLCOPY\nexport OMP_NUM_THREADS=$threads_per_rank\n\naprun -n $total_ranks -N $ranks_per_node -d $OMP_NUM_THREADS -j $threads_per_core --cc depth python profile_train.py ${@:4}\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "manual_validate",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

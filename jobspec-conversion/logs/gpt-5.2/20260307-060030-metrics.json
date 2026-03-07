@@ -1,0 +1,30 @@
+[
+    {
+        "timestamp": 1772892024.5204139,
+        "data": {
+            "use_tools": null,
+            "metrics": {
+                "prompt_tokens": 232885,
+                "completion_tokens": 538,
+                "total_tokens": 233423
+            },
+            "memory": true,
+            "tools": null,
+            "prompt": "### PERSONA\nYou are a job specification generation expert.\n\n### CONTEXT\nWe need to convert between workload manager job specification formats.\n\n### GOAL\nI need to convert the provided job specification from 'slurm' to 'flux'. The desired output format is a 'batch' script.\n\n### REQUIREMENTS & CONSTRAINTS\nYou MUST not make up directives that do not exist.\nYou MUST preserve as many options as possible from the original.\nIf there is a directive that does not translate, you MUST leave it out and add a comment about the performance implications of the omission.\n\n### INSTRUCTIONS\n1. Analyze the provided script below.\n2. Write a new script and return in a json structure with a \"jobspec\"\n3. If the input script is not a workload manager batch file, you MUST return the json jobspec structure as \"noop\"\n\n#!/bin/sh\n#\n#SBATCH --job-name=\"perf_cylinder\"\n#SBATCH --partition=thin\n#SBATCH --time=2-00:00:00\n#SBATCH -n ${NP}\n#SBATCH -o stdout-benchmark/slurm-%j-%4t-%n.out\n#SBATCH -e stdout-benchmark/slurm-%j-%4t-%n.err\n\nsource ../compile/modules_snellius.sh\nexport CASE_ID=1\necho \"Starting case: $CASE_ID\"\nmpiexecjl --project=../ -n $1 julia -J ../PerforatedCylinder_parallel.so -O3 --check-bounds=no -e 'include(\"run_case_benchmark.jl\")'\n\n"
+        }
+    },
+    {
+        "timestamp": 1772892030.1483164,
+        "data": {
+            "use_tools": null,
+            "metrics": {
+                "prompt_tokens": 234145,
+                "completion_tokens": 149,
+                "total_tokens": 234294
+            },
+            "memory": true,
+            "tools": null,
+            "prompt": "### PERSONA\nYou are a job validation expert.\n\n### CONTEXT\nWe need to validate a job specification for correctness.\n\n### GOAL\nI need to validate if the following job specification is correct:\n\n```\n#!/bin/sh\n# Flux batch script converted from Slurm\n\n# NOTE:\n#   The Slurm script uses a shell variable in a directive (`-n ${NP}`), which is not valid in Flux batch directives.\n#   Provide the total task count as the first argument when running this script.\n#\n# Run with:\n#   flux batch <this_script> -- <NTASKS>\n\n# Slurm resources:\n#   --job-name=perf_cylinder\n#   --partition=thin\n#   --time=2-00:00:00\n#   -n ${NP}\n#   -o stdout-benchmark/slurm-%j-%4t-%n.out\n#   -e stdout-benchmark/slurm-%j-%4t-%n.err\n\n#flux: --job-name=perf_cylinder\n#flux: -N 1\n#flux: --time-limit=48h\n\n# Omitted Slurm option: -n ${NP}\n# Flux batch directives must be static; no portable variable expansion.\n# Performance implication: if you do not pass/allocate the intended task count externally, the job may run with too few resources or oversubscribe.\n\n# Omitted Slurm option: --partition=thin\n# Flux queues/partitions are site-specific; no portable equivalent.\n# Performance implication: job may run with different limits/priority or on different hardware (or be rejected by policy).\n\n# Omitted Slurm options: -o/-e with %j/%t/%n tokens\n# Slurm token expansion is not portable in Flux output/error directives.\n# Performance implication: none, but logs may overwrite/collide unless you choose unique filenames.\n\nNTASKS=$1\nif [ -z \"$NTASKS\" ]; then\n  echo \"Usage: $0 <NTASKS>\" >&2\n  exit 2\nfi\n\nsource ../compile/modules_snellius.sh\nexport CASE_ID=1\necho \"Starting case: $CASE_ID\"\n\n# Slurm used mpiexecjl; under Flux, use flux-run to launch ranks.\nflux run -n \"$NTASKS\" -c 1 mpiexecjl --project=../ -n \"$NTASKS\" \\\n  julia -J ../PerforatedCylinder_parallel.so -O3 --check-bounds=no -e 'include(\"run_case_benchmark.jl\")'\n\n```\n\n### REQUIREMENTS & CONSTRAINTS\nYou MUST return a JSON structure with fields for 'valid' (bool) and a list of string 'reasons'. You MAY optionally add a field `issues` with a list of debugging or critique of any code.\n\n### INSTRUCTIONS\n1. Analyze the provided script above.\n2. Use MUST use a jobspec validation tool for the manager if one is available otherwise use your knowledge.\n3. Determine validity based on the resource section ONLY\n4. The 'reasons' should ONLY be specific to resources\n5. If the script includes problematic code, please include in 'issues'\n6. You MUST include a 'tool_call' boolean, true or false, to indicate if you used a validation tool for validation.\n7. Return a json structure with 'valid' and 'tool_call' and 'reasons' (if not valid) and 'issues'\n"
+        }
+    }
+]
