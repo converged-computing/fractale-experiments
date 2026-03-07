@@ -1,0 +1,123 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n# NAMD MPI SubmitScript\n##########################################################################\n#FLUX -J GROMACS_JOB\n#FLUX --time=01:00:00     # Walltime\n#FLUX -A uoa99999         # Project Account\n#FLUX --ntasks=24         # number of tasks\n\n# NOTE: SLURM's --mem-per-cpu is not a direct option in Flux. The total\n# memory for the job has been calculated (24 tasks * 2G/task = 48G)\n# and specified with --mem.\n#FLUX --mem=48G\n##########################################################################\n###  Load the Enviroment Modules for Gromacs 4.5.4\nsource /etc/profile\nmodule load NAMD/2.9\n##########################################################################\n###  The files will be allocated in the shared FS ($SCRATCH_DIR)\ncp -pr /share/test/NAMD/apoa1/* $SCRATCH_DIR\ncd $SCRATCH_DIR\n##########################################################################\n###  Run the Parallel Program\nexport OMP_NUM_THREADS=1\n# 'srun' is the SLURM parallel launcher. It is replaced by the Flux equivalent, 'flux run'.\nflux run namd2 apoa1.namd\n##########################################################################\n###  Transfering the results to the home directory ($HOME)\ncp -pr $SCRATCH_DIR $HOME/OUT/namd\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "The job name is set to 'GROMACS_JOB' (`-J GROMACS_JOB`), but the application being loaded and executed is NAMD (`module load NAMD/2.9` and `flux run namd2`). This is misleading and could cause confusion when monitoring jobs or analyzing resource usage logs.",
+                        "The final command, `cp -pr $SCRATCH_DIR $HOME/OUT/namd`, is potentially dangerous. It attempts to copy the entire contents of the job's scratch directory. If this directory is shared with other jobs or contains pre-existing data, this command could copy a massive amount of unnecessary data, potentially filling the user's home directory quota and putting a heavy strain on the filesystem. The script should be more specific about which output files to copy back.",
+                        "The script does not ensure that the destination directory `$HOME/OUT` exists before attempting to copy files into it. If the directory is not present, the `cp` command will fail. It is safer to add `mkdir -p $HOME/OUT` before the copy command."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n# NAMD MPI SubmitScript\n##########################################################################\n#FLUX -J GROMACS_JOB\n#FLUX --time=01:00:00     # Walltime\n#FLUX -A uoa99999         # Project Account\n#FLUX --ntasks=24         # number of tasks\n\n# NOTE: SLURM's --mem-per-cpu is not a direct option in Flux. The total\n# memory for the job has been calculated (24 tasks * 2G/task = 48G)\n# and specified with --mem.\n#FLUX --mem=48G\n##########################################################################\n###  Load the Enviroment Modules for Gromacs 4.5.4\nsource /etc/profile\nmodule load NAMD/2.9\n##########################################################################\n###  The files will be allocated in the shared FS ($SCRATCH_DIR)\ncp -pr /share/test/NAMD/apoa1/* $SCRATCH_DIR\ncd $SCRATCH_DIR\n##########################################################################\n###  Run the Parallel Program\nexport OMP_NUM_THREADS=1\n# 'srun' is the SLURM parallel launcher. It is replaced by the Flux equivalent, 'flux run'.\nflux run namd2 apoa1.namd\n##########################################################################\n###  Transfering the results to the home directory ($HOME)\ncp -pr $SCRATCH_DIR $HOME/OUT/namd\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n# NAMD MPI SubmitScript\n##########################################################################\n#SBATCH -J GROMACS_JOB\n#SBATCH --time=01:00:00     # Walltime\n#SBATCH -A uoa99999         # Project Account\n#SBATCH --mem-per-cpu=2G  # memory/cpu \n#SBATCH --ntasks=24         # number of tasks\n##########################################################################\n###  Load the Enviroment Modules for Gromacs 4.5.4\nsource /etc/profile\nmodule load NAMD/2.9\n##########################################################################\n###  The files will be allocated in the shared FS ($SCRATCH_DIR)\ncp -pr /share/test/NAMD/apoa1/* $SCRATCH_DIR\ncd $SCRATCH_DIR\n##########################################################################\n###  Run the Parallel Program\nexport OMP_NUM_THREADS=1\nsrun namd2 apoa1.namd\n##########################################################################\n###  Transfering the results to the home directory ($HOME)\ncp -pr $SCRATCH_DIR $HOME/OUT/namd\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

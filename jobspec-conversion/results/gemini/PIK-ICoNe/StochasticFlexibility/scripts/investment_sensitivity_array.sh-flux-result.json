@@ -1,0 +1,123 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n#FLUX --qos=medium\n#FLUX --time=3d\n\n# NOTE: This script is designed as a template for a job array. The SLURM array\n# directive was omitted. This script should be submitted using 'flux bulksubmit',\n# for example:\n# flux bulksubmit -n 1024 --concurrent=32 --output=output/{name}-{id}.out ./your_script_name.sh\n# The script will execute 1024 times with FLUX_JOB_ARRAY_TASK_ID set from 0 to 1023.\n# The fallback output directive below is for a single-job submission.\n#FLUX --output=output/{name}-{id}.out\n\n#FLUX --nodes=2\n#FLUX --ntasks-per-node=16\n\nmodule load julia\n\n# 'srun' is replaced by 'flux run'. Flux will automatically launch the Julia script\n# across all 32 allocated tasks.\nflux run julia ./code/StochasticFlexibility/experiments/investment_sensitivity_parallel.jl\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "The script is intended for job array submission, but the resource request (`--nodes=2 --ntasks-per-node=16`) is for a single, 32-task MPI job. When submitted as an array via `flux bulksubmit`, the system will attempt to schedule 1024 independent 32-task jobs. This is likely not the intended behavior. The user probably intended for each task of the job array to be a serial job, in which case the resource request should be changed to `--nodes=1 --ntasks=1`.",
+                        "The output file is directed to a subdirectory (`output/`). The script does not create this directory, which will cause the job to fail at launch if the directory does not exist.",
+                        "The path to the Julia script is relative (`./code/StochasticFlexibility/...`). This means the job must be submitted from the correct parent directory for the path to be valid. Using absolute paths or `cd`-ing to a known project root directory would be more robust."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n#FLUX --qos=medium\n#FLUX --time=3d\n\n# NOTE: This script is designed as a template for a job array. The SLURM array\n# directive was omitted. This script should be submitted using 'flux bulksubmit',\n# for example:\n# flux bulksubmit -n 1024 --concurrent=32 --output=output/{name}-{id}.out ./your_script_name.sh\n# The script will execute 1024 times with FLUX_JOB_ARRAY_TASK_ID set from 0 to 1023.\n# The fallback output directive below is for a single-job submission.\n#FLUX --output=output/{name}-{id}.out\n\n#FLUX --nodes=2\n#FLUX --ntasks-per-node=16\n\nmodule load julia\n\n# 'srun' is replaced by 'flux run'. Flux will automatically launch the Julia script\n# across all 32 allocated tasks.\nflux run julia ./code/StochasticFlexibility/experiments/investment_sensitivity_parallel.jl\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n\n#SBATCH --qos=medium\n#SBATCH --time=03-00:00:00\n#SBATCH --output=output/%x-%j.out\n\n\n#SBATCH --nodes=2\n#SBATCH --ntasks-per-node=16\n#SBATCH --array=0-1023%32\n\nmodule load julia\n\nsrun julia ./code/StochasticFlexibility/experiments/investment_sensitivity_parallel.jl\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

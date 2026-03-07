@@ -1,0 +1,119 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n#FLUX --time=00:10:00\n#FLUX --nodes=2\n#FLUX --ntasks-per-node=1\n#FLUX --cpus-per-task=12\n#FLUX --job-name=cs420_project\n#FLUX --queue=cse\n\n# NOTE: The PBS directive '-j oe' (join stdout/stderr) is the default behavior\n# in Flux when an error file (-e) is not specified.\n\n# The Flux equivalent of PBS_O_WORKDIR is FLUX_SUBMIT_DIR\ncd $FLUX_SUBMIT_DIR\n\n#module load valgrind\n\nNUM_RANKS=2\nTHREADS=12\nMATRIX_SIZE=2048\nBLOCK_SIZE=512\nTILE_SIZE=64\n\necho \"Compiling main\"\n#mpiicc main.c -std=c99 -lrt -qopenmp -o main -g -O0\nmpiicc main.c -std=c99 -lrt -qopenmp -D_POSIX_C_SOURCE=199309L -o main\n\necho \"Running main\"\n# 'mpirun' is replaced by the Flux native launcher 'flux run'.\n# The resource directives request 1 task per node on 2 nodes, so 'flux run'\n# will correctly launch 2 MPI ranks, one on each node. The number of OpenMP\n# threads is passed as an argument to the application.\n#flux run valgrind -v --leak-check=yes ./main -t 12 -n ${MATRIX_SIZE} -b ${BLOCK_SIZE}\nflux run ./main -t $THREADS -n $MATRIX_SIZE -b $BLOCK_SIZE -T $TILE_SIZE\n\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": []
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n#FLUX --time=00:10:00\n#FLUX --nodes=2\n#FLUX --ntasks-per-node=1\n#FLUX --cpus-per-task=12\n#FLUX --job-name=cs420_project\n#FLUX --queue=cse\n\n# NOTE: The PBS directive '-j oe' (join stdout/stderr) is the default behavior\n# in Flux when an error file (-e) is not specified.\n\n# The Flux equivalent of PBS_O_WORKDIR is FLUX_SUBMIT_DIR\ncd $FLUX_SUBMIT_DIR\n\n#module load valgrind\n\nNUM_RANKS=2\nTHREADS=12\nMATRIX_SIZE=2048\nBLOCK_SIZE=512\nTILE_SIZE=64\n\necho \"Compiling main\"\n#mpiicc main.c -std=c99 -lrt -qopenmp -o main -g -O0\nmpiicc main.c -std=c99 -lrt -qopenmp -D_POSIX_C_SOURCE=199309L -o main\n\necho \"Running main\"\n# 'mpirun' is replaced by the Flux native launcher 'flux run'.\n# The resource directives request 1 task per node on 2 nodes, so 'flux run'\n# will correctly launch 2 MPI ranks, one on each node. The number of OpenMP\n# threads is passed as an argument to the application.\n#flux run valgrind -v --leak-check=yes ./main -t 12 -n ${MATRIX_SIZE} -b ${BLOCK_SIZE}\nflux run ./main -t $THREADS -n $MATRIX_SIZE -b $BLOCK_SIZE -T $TILE_SIZE\n\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "pbs",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n\n#PBS -l walltime=00:10:00\n#PBS -l nodes=2:ppn=12\n#PBS -N cs420_project\n#PBS -q cse\n#PBS -j oe\n\ncd $PBS_O_WORKDIR\n\n#module load valgrind\n\nNUM_RANKS=2\nTHREADS=12\nMATRIX_SIZE=2048\nBLOCK_SIZE=512\nTILE_SIZE=64\n\necho \"Compiling main\"\n#mpiicc main.c -std=c99 -lrt -qopenmp -o main -g -O0\nmpiicc main.c -std=c99 -lrt -qopenmp -D_POSIX_C_SOURCE=199309L -o main\n\necho \"Running main\"\n#mpirun -np ${NUM_RANKS} -ppn 1 valgrind -v --leak-check=yes ./main -t 12 -n ${MATRIX_SIZE} -b ${BLOCK_SIZE}\nmpirun -np ${NUM_RANKS} -ppn 1 ./main -t $THREADS -n $MATRIX_SIZE -b $BLOCK_SIZE -T $TILE_SIZE\n\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

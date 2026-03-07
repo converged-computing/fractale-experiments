@@ -1,0 +1,113 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n#FLUX --job-name=rand-smooth\n#FLUX --account=fc_wagner\n#FLUX --queue=savio3_gpu\n# Number of nodes:\n#FLUX --nodes=1\n# Number of tasks (one for each GPU desired for use case) (example):\n#FLUX --ntasks=2\n# Processors per task (please always specify the total number of processors twice the number of GPUs):\n#FLUX --cpus-per-task=2\n#Number of GPUs, this can be in the format of \"gpu:[1-4]\", or \"gpu:K80:[1-4] with the type included, GTX2080TI\n# To request a specific GPU type, Flux uses a combination of gpu count and constraints.\n# The request for 2 GPUs for 2 tasks is translated to 1 GPU per task.\n#FLUX --gpus-per-task=1\n#FLUX -C GTX2080TI\n#FLUX --time=24:00:00\n#FLUX --output=slurm-{id}-test-pgd-rand-35-fix-order-1235-aggmo.out\n\n## Command(s) to run:\neval \"$(conda shell.bash hook)\"\nconda activate base\n# nvidia-smi\n# python test.py configs/test_img_rand.yml\n# python train.py configs/train_img_pgd-rand.yml\n# python train.py configs/train_img_pgd.yml\n# python train.py configs/train_cifar_pgd-rand.yml\n# python test.py configs/test_cifar_rand.yml\n# python test.py configs/test_img_rand_normal.yml\npython test.py configs/test_img_rand_fixed.yml\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "content": "[SSL: SSLV3_ALERT_BAD_RECORD_MAC] sslv3 alert bad record mac (_ssl.c:2559)"
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n#FLUX --job-name=rand-smooth\n#FLUX --account=fc_wagner\n#FLUX --queue=savio3_gpu\n# Number of nodes:\n#FLUX --nodes=1\n# Number of tasks (one for each GPU desired for use case) (example):\n#FLUX --ntasks=2\n# Processors per task (please always specify the total number of processors twice the number of GPUs):\n#FLUX --cpus-per-task=2\n#Number of GPUs, this can be in the format of \"gpu:[1-4]\", or \"gpu:K80:[1-4] with the type included, GTX2080TI\n# To request a specific GPU type, Flux uses a combination of gpu count and constraints.\n# The request for 2 GPUs for 2 tasks is translated to 1 GPU per task.\n#FLUX --gpus-per-task=1\n#FLUX -C GTX2080TI\n#FLUX --time=24:00:00\n#FLUX --output=slurm-{id}-test-pgd-rand-35-fix-order-1235-aggmo.out\n\n## Command(s) to run:\neval \"$(conda shell.bash hook)\"\nconda activate base\n# nvidia-smi\n# python test.py configs/test_img_rand.yml\n# python train.py configs/train_img_pgd-rand.yml\n# python train.py configs/train_img_pgd.yml\n# python train.py configs/train_cifar_pgd-rand.yml\n# python test.py configs/test_cifar_rand.yml\n# python test.py configs/test_img_rand_normal.yml\npython test.py configs/test_img_rand_fixed.yml\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n#SBATCH --job-name=rand-smooth\n#SBATCH --account=fc_wagner\n#SBATCH --partition=savio3_gpu\n# Number of nodes:\n#SBATCH --nodes=1\n# Number of tasks (one for each GPU desired for use case) (example):\n#SBATCH --ntasks=2\n# Processors per task (please always specify the total number of processors twice the number of GPUs):\n#SBATCH --cpus-per-task=2\n#Number of GPUs, this can be in the format of \"gpu:[1-4]\", or \"gpu:K80:[1-4] with the type included, GTX2080TI\n#SBATCH --gres=gpu:GTX2080TI:2\n#xSBATCH --qos=v100_gpu3_normal\n#SBATCH --time=24:00:00\n#xSBATCH --output slurm-%j-test-cifar-pgd-rand-34.out\n#SBATCH --output slurm-%j-test-pgd-rand-35-fix-order-1235-aggmo.out\n## Command(s) to run:\neval \"$(conda shell.bash hook)\"\nconda activate base\n# nvidia-smi\n# python test.py configs/test_img_rand.yml\n# python train.py configs/train_img_pgd-rand.yml\n# python train.py configs/train_img_pgd.yml\n# python train.py configs/train_cifar_pgd-rand.yml\n# python test.py configs/test_cifar_rand.yml\n# python test.py configs/test_img_rand_normal.yml\npython test.py configs/test_img_rand_fixed.yml",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

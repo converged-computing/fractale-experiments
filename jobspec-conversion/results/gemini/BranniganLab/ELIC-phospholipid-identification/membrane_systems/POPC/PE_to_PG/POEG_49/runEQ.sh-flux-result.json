@@ -1,0 +1,124 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash \n#FLUX -J EQ_POEG_49\n#FLUX -o out{id}.amarel.log\n\n# NOTE: The SLURM '--export=ALL' directive is the default behavior for Flux and\n# does not require an explicit option.\n\n#FLUX --queue=cmain\n#FLUX -N 3 -n 96\n#FLUX --mem=6000M\n#FLUX -t 03:00:00       # max time\n#FLUX --output=starting.out     # STDOUT output file\n\n# NOTE: The SLURM '--requeue' option is not directly translatable to Flux.\n# Job requeue behavior in Flux is typically configured at the system level.\n\nmodule purge\nmodule load gcc cuda mvapich2/2.2\nNAMD=\"/projects/jdb252_1/tj227/bin/namd2-2.13-gcc-mvapich2\"\n\n# 'srun --mpi=pmi2' is replaced by 'flux run'. Flux automatically handles MPI startup.\nflux run $NAMD starting.POEG_49.namd > starting.POEG_49.log\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "The script specifies the job's standard output file twice (`#FLUX -o out{id}.amarel.log` and `#FLUX --output=starting.out`). The last directive will take precedence, and standard output will be written to `starting.out`, overwriting any previous content. The first `-o` directive will be ignored.",
+                        "The script loads a CUDA module, indicating a GPU is required for the NAMD application. However, no GPU resources are requested in the job directives. The job will fail if the scheduler places it on a CPU-only node. Directives such as `#FLUX --gpus=N` should be added.",
+                        "The command `flux run ... > starting.POEG_49.log` redirects the standard output of all 96 MPI ranks to a single file. This will cause a race condition where multiple processes attempt to write to the file simultaneously, resulting in interleaved and likely unreadable output. NAMD's output should be managed so that only a single rank writes to the log file.",
+                        "The path to the NAMD executable is hardcoded to a specific user's project directory (`/projects/jdb252_1/tj227/bin/namd2-2.13-gcc-mvapich2`). This makes the script non-portable and it will fail if run by any other user or if the directory structure changes."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash \n#FLUX -J EQ_POEG_49\n#FLUX -o out{id}.amarel.log\n\n# NOTE: The SLURM '--export=ALL' directive is the default behavior for Flux and\n# does not require an explicit option.\n\n#FLUX --queue=cmain\n#FLUX -N 3 -n 96\n#FLUX --mem=6000M\n#FLUX -t 03:00:00       # max time\n#FLUX --output=starting.out     # STDOUT output file\n\n# NOTE: The SLURM '--requeue' option is not directly translatable to Flux.\n# Job requeue behavior in Flux is typically configured at the system level.\n\nmodule purge\nmodule load gcc cuda mvapich2/2.2\nNAMD=\"/projects/jdb252_1/tj227/bin/namd2-2.13-gcc-mvapich2\"\n\n# 'srun --mpi=pmi2' is replaced by 'flux run'. Flux automatically handles MPI startup.\nflux run $NAMD starting.POEG_49.namd > starting.POEG_49.log\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash \n#SBATCH -J EQ_POEG_49\n#SBATCH -o out%j.amarel.log\n#SBATCH --export=ALL\n#SBATCH --partition=cmain\n#SBATCH -N 3 -n 96\n##SBATCH -N 1 -n 32\n#SBATCH --mem=6000\n#SBATCH -t 03:00:00       # max time\n#SBATCH --output=starting.out     # STDOUT output file\n#SBATCH --requeue\nmodule purge\nmodule load gcc cuda mvapich2/2.2\nNAMD=\"/projects/jdb252_1/tj227/bin/namd2-2.13-gcc-mvapich2\"\nSRUN=\"srun --mpi=pmi2\"\n$SRUN $NAMD starting.POEG_49.namd > starting.POEG_49.log\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

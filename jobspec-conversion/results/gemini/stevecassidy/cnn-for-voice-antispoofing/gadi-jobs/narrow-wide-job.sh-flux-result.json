@@ -1,0 +1,121 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n#FLUX --account=hj72\n#FLUX --queue=gpuvolta\n#FLUX --gpus=1\n#FLUX --cpus-per-task=12\n#FLUX --ntasks=1\n#FLUX --time=12:00:00\n#FLUX --mem=8GB\n\n# NOTE: The PBS directive '-l wd' which sets the working directory to the\n# submission directory is the default behavior in Flux and has been omitted.\n\n# NOTE: The PBS storage directive '-l storage=scratch/hj72' is site-specific\n# and does not have a standard equivalent in Flux. It has been omitted.\n\nmodule load pytorch/1.4.0a0 python3/3.7.4 cuda/10.1\n\npython3 -m models.train narrow-wide.ini\n\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "The job requests 12 CPUs but only 8GB of total memory for the task. This provides less than 1GB of memory per allocated CPU core, which is a very low ratio for many scientific or machine learning workloads. This could lead to out-of-memory errors or poor performance if the application's memory usage scales with the number of threads and exceeds the 8GB limit."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n#FLUX --account=hj72\n#FLUX --queue=gpuvolta\n#FLUX --gpus=1\n#FLUX --cpus-per-task=12\n#FLUX --ntasks=1\n#FLUX --time=12:00:00\n#FLUX --mem=8GB\n\n# NOTE: The PBS directive '-l wd' which sets the working directory to the\n# submission directory is the default behavior in Flux and has been omitted.\n\n# NOTE: The PBS storage directive '-l storage=scratch/hj72' is site-specific\n# and does not have a standard equivalent in Flux. It has been omitted.\n\nmodule load pytorch/1.4.0a0 python3/3.7.4 cuda/10.1\n\npython3 -m models.train narrow-wide.ini\n\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "pbs",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n#PBS -P hj72\n#PBS -q gpuvolta\n#PBS -l ngpus=1\n#PBS -l ncpus=12\n#PBS -l walltime=12:00:00,mem=8GB\n#PBS -l wd\n#PBS -l storage=scratch/hj72\n\nmodule load pytorch/1.4.0a0 python3/3.7.4 cuda/10.1\n\npython3 -m models.train narrow-wide.ini\n\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

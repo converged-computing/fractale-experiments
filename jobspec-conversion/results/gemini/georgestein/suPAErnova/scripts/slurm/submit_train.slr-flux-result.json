@@ -1,0 +1,150 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash -l\n#FLUX --time=04:00:00\n#FLUX --requires=gpu\n#FLUX --account=cusp\n#FLUX --nodes=1\n#FLUX --ntasks-per-node=1\n#FLUX --gpus-per-task=1\n#FLUX --cpus-per-task=10\n#FLUX -o scripts/sout/train_latest_2.out\n\n\nconda activate tfp\nflux run python scripts/train_ae.py\nflux run python scripts/train_flow.py \nflux run python scripts/run_posterior_analysis.py\n\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": false,
+                    "tool_call": true,
+                    "reasons": [
+                        "The directive '#FLUX --requires=gpu' is invalid. To request a generic resource or feature (constraint), the correct directive is '--constraint=<feature>' or '-C <feature>', for example: '#FLUX -C gpu'."
+                    ],
+                    "issues": []
+                },
+                "attempts": 1
+            },
+            "transition": "failed -> transform",
+            "complete": false,
+            "state": "failed"
+        },
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash -l\n#FLUX --time=04:00:00\n#FLUX -C gpu\n#FLUX --account=cusp\n#FLUX --nodes=1\n#FLUX --ntasks-per-node=1\n#FLUX --gpus-per-task=1\n#FLUX --cpus-per-task=10\n#FLUX -o scripts/sout/train_latest_2.out\n\n\nconda activate tfp\nflux run python scripts/train_ae.py\nflux run python scripts/train_flow.py \nflux run python scripts/run_posterior_analysis.py\n\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": []
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash -l\n#FLUX --time=04:00:00\n#FLUX -C gpu\n#FLUX --account=cusp\n#FLUX --nodes=1\n#FLUX --ntasks-per-node=1\n#FLUX --gpus-per-task=1\n#FLUX --cpus-per-task=10\n#FLUX -o scripts/sout/train_latest_2.out\n\n\nconda activate tfp\nflux run python scripts/train_ae.py\nflux run python scripts/train_flow.py \nflux run python scripts/run_posterior_analysis.py\n\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash -l\n#SBATCH --time=04:00:00\n#SBATCH -C gpu\n#SBATCH --account=cusp\n#SBATCH --nodes=1\n#SBATCH --ntasks-per-node=1\n#SBATCH --gpus-per-task=1\n#SBATCH --cpus-per-task=10\n#SBATCH -o scripts/sout/train_latest_2.out\n\n\nconda activate tfp\nsrun python scripts/train_ae.py\nsrun python scripts/train_flow.py \nsrun python scripts/run_posterior_analysis.py\n\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}
