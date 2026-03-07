@@ -1,0 +1,110 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "content": "Error code: 400 - {'error': {'message': 'litellm.ContextWindowExceededError: litellm.BadRequestError: BedrockException: Context Window Error - {\"message\":\"The model returned the following errors: prompt is too long: 203237 tokens > 200000 maximum\"}\\nmodel=claude-sonnet-4.5. context_window_fallbacks=None. fallbacks=None.\\n\\nSet \\'context_window_fallback\\' - https://docs.litellm.ai/docs/routing#fallbacks. Received Model Group=claude-sonnet-4.5\\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '400'}}"
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "content": "Error code: 400 - {'error': {'message': 'litellm.ContextWindowExceededError: litellm.BadRequestError: BedrockException: Context Window Error - {\"message\":\"The model returned the following errors: prompt is too long: 203237 tokens > 200000 maximum\"}\\nmodel=claude-sonnet-4.5. context_window_fallbacks=None. fallbacks=None.\\n\\nSet \\'context_window_fallback\\' - https://docs.litellm.ai/docs/routing#fallbacks. Received Model Group=claude-sonnet-4.5\\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '400'}}"
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n\n# Please adjust these settings according to your needs.\n#SBATCH --account=ece_gy_7123-2024sp\n#SBATCH --partition=n1s8-v100-1\n#SBATCH --nodes=1\n#SBATCH --ntasks-per-node=1\n#SBATCH --cpus-per-task=1\n#SBATCH --time=4:00:00\n#SBATCH --mem=25GB\n#SBATCH --gres=gpu:1\n#SBATCH --job-name=winograd\n#SBATCH --mail-type=ALL\n#SBATCH --mail-user=pa2497@nyu.edu\n#SBATCH --output=\"winograd.out\"\n\n\nmodule purge\ncd /home/pa2497/Thai-Winograd\nOVERLAY_FILE=/scratch/pa2497/overlay-25GB-500K.ext3:rw\nSINGULARITY_IMAGE=/scratch/pa2497/cuda11.4.2-cudnn8.2.4-devel-ubuntu20.04.3.sif\nsingularity exec --nv \\\n\t    --overlay $OVERLAY_FILE $SINGULARITY_IMAGE \\\n\t    /bin/bash -c \"source /ext3/env.sh; bash hpc/run_evaluation.sh\"\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "manual_validate",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

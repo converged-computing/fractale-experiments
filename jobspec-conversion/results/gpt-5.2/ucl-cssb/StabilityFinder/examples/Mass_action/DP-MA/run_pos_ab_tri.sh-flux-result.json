@@ -1,0 +1,121 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "noop"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": false,
+                    "tool_call": false,
+                    "reasons": [
+                        "The provided jobspec is `noop`, which does not contain any Flux resource directives (nodes/tasks/cores/time/etc.), so resources are not specified."
+                    ],
+                    "issues": []
+                },
+                "attempts": 1
+            },
+            "transition": "failed -> manual_validate",
+            "complete": false,
+            "state": "failed"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "noop",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "lsf",
+                    "to_manager": "flux",
+                    "script": "module load cuda/4.2.9\nmodule load pycuda/2012.1\n\nmodule load R\n##module load cuda-sim\n\n#BSUB -o log.pos_ab_tri\n#BSUB -e err.pos_ab_tri\n#BSUB -W 100:00\n\nexport PYTHONPATH=$PYTHONPATH:/home/ucl/eisuc058/code/abc-sysbio\nexport PYTHONPATH=$PYTHONPATH:/home/ucl/eisuc058/code/cuda-sim\n\nexe=/home/ucl/eisuc058/work/StabilityChecker/stabilitychecker\nexport PYTHONPATH=$PYTHONPATH:/home/ucbtle1/cuda-sim-code\n\n\npython $exe/my_abc.py -i input_file_pos_ab_tri.xml -o results_pos_ab_tri -l pos_ab_tri.log;# Rscript plot_posterior.R;\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "manual_validate",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

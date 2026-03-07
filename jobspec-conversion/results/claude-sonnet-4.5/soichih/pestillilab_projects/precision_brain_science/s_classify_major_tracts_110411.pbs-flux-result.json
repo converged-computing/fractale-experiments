@@ -1,0 +1,130 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n# Flux batch script converted from PBS\n# Note: Flux does not support in-script directives for resource specification\n# This script should be submitted with the following command:\n# flux batch -N 1 -n 16 -c 1 -t 48h --job-name=110411_CLASS_all_runs --output=/N/dc2/projects/lifebid/code/pestillilab_projects/precision_brain_science/s_classify_110411.out --error=/N/dc2/projects/lifebid/code/pestillilab_projects/precision_brain_science/s_classify_110411.err script.sh\n#\n# Resource specifications:\n# -N 1         : 1 node (from nodes=1)\n# -n 16        : 16 tasks (from ppn=16, processors per node)\n# -c 1         : 1 core per task (implicit, adjust if needed)\n# -t 48h       : 48 hour walltime (from walltime=48:00:00)\n# --job-name=110411_CLASS_all_runs : job name (from -N 110411_CLASS_all_runs)\n# --output=/N/dc2/projects/lifebid/code/pestillilab_projects/precision_brain_science/s_classify_110411.out : stdout file\n# --error=/N/dc2/projects/lifebid/code/pestillilab_projects/precision_brain_science/s_classify_110411.err : stderr file\n#\n# Note: PBS ppn=16 is interpreted as 16 tasks on 1 node\n# Flux equivalent: -N 1 -n 16 (1 node, 16 tasks total)\n\n# Original PBS job name: 110411_CLASS_all_runs\n# Flux: --job-name=110411_CLASS_all_runs\n\n# Original PBS output/error files:\n# PBS: -o /N/dc2/projects/lifebid/code/pestillilab_projects/precision_brain_science/s_classify_110411.out\n# PBS: -e /N/dc2/projects/lifebid/code/pestillilab_projects/precision_brain_science/s_classify_110411.err\n# Flux: --output=<path> --error=<path>\n\n# Email notification: -m ae (abort, end)\n# PBS: -m ae -M franpest@indiana.edu\n# Note: Flux does not have built-in email notification directives\n# Performance impact: User must manually monitor job status or implement external\n# monitoring solutions using flux job events, flux watch commands, or wrapper scripts\n# Consider creating notification wrappers or using flux job attach with monitoring\n# Email events: abort (a), end (e) would need custom implementation\n# Email address: franpest@indiana.edu\n\n# Export environment variables: -V\n# PBS: -V exports all environment variables from submission environment\n# Note: Flux batch jobs inherit the environment from submission shell by default\n# Performance impact: Environment inheritance behavior similar\n# If specific environment control is needed, use --env or --env-remove at submission\n\n# Walltime: 48 hours\n# PBS: -l walltime=48:00:00\n# Flux: -t 48h or -t 2880m or -t 172800s\n# Note: Flux time format: #h (hours), #m (minutes), #s (seconds), #d (days)\n\n# Nodes and processors:\n# PBS: -l nodes=1:ppn=16\n# - nodes=1: 1 node\n# - ppn=16: 16 processors per node\n# Flux: -N 1 -n 16\n# Note: ppn typically means processes/tasks per node\n# Flux -n specifies total tasks, -N specifies nodes\n# With 1 node and 16 tasks, all tasks run on the single node\n\n# Module environment\nmodule load spm\nmodule load matlab\n\n# Change to working directory\ncd /N/dc2/projects/lifebid/code/pestillilab_projects/precision_brain_science/\n\n# Execute MATLAB script\n# Note: This is a single MATLAB process execution, not parallel MPI\n# The 16 tasks allocated may be for MATLAB's internal parallelization\n# or for resource reservation\n# Direct execution without flux run is appropriate for single-process jobs\nmatlab -nojvm -nosplash -r s_classify_major_tracts_from_fe_structure_110411\n\n# Note on execution:\n# The original PBS script runs a single MATLAB command\n# MATLAB may use parallel toolbox or internal threading to utilize 16 cores\n# Flux allocation provides 16 cores on 1 node for MATLAB to use\n# If MATLAB needs explicit core count, set environment variables:\n# export MATLAB_NUM_THREADS=16\n# or use MATLAB's maxNumCompThreads within the script\n\n# Complete submission command:\n# flux batch -N 1 -n 16 -c 1 -t 48h \\\n#   --job-name=110411_CLASS_all_runs \\\n#   --output=/N/dc2/projects/lifebid/code/pestillilab_projects/precision_brain_science/s_classify_110411.out \\\n#   --error=/N/dc2/projects/lifebid/code/pestillilab_projects/precision_brain_science/s_classify_110411.err \\\n#   script.sh\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": false,
+                    "reasons": [],
+                    "issues": [
+                        "Resource allocation potential mismatch: The script allocates 16 tasks (-n 16) with 1 core per task (-c 1), totaling 16 cores, but then runs a single MATLAB process without using 'flux run'. This means MATLAB will run as a single process outside Flux's task management, and the 16-task allocation is not utilized by the actual workload.",
+                        "The allocation should likely be '-N 1 -n 1 -c 16' (1 node, 1 task, 16 cores per task) to properly provide 16 cores to a single MATLAB process, rather than '-N 1 -n 16 -c 1' which allocates 16 separate task slots.",
+                        "MATLAB threading configuration is not explicitly set. The script mentions 'export MATLAB_NUM_THREADS=16' or 'maxNumCompThreads' in comments but doesn't implement them. Without this, MATLAB may not utilize all 16 allocated cores effectively.",
+                        "The 48-hour walltime is very long (2 days). Verify this is within the site's maximum walltime limits and consider if the job truly needs this duration.",
+                        "No memory specification is included. For MATLAB jobs, especially those involving large datasets or parallel operations, explicit memory allocation may be necessary. Consider adding memory specifications if the default allocation is insufficient.",
+                        "The script changes directory with 'cd' but doesn't verify the directory exists. If the path is invalid, the MATLAB command will execute in an unexpected location.",
+                        "No error handling for module loading. If 'module load spm' or 'module load matlab' fails, the script will continue and likely fail when trying to execute 'matlab'.",
+                        "The MATLAB command uses '-r' flag which executes a command and exits. Ensure the MATLAB function 's_classify_major_tracts_from_fe_structure_110411' properly exits/quits MATLAB when done, otherwise the job may hang.",
+                        "Output and error file paths are absolute and very long. Verify these directories exist and are writable before job submission.",
+                        "The job name '110411_CLASS_all_runs' starts with a number, which is generally acceptable but may cause issues with some systems or scripts that expect names to start with letters."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n# Flux batch script converted from PBS\n# Note: Flux does not support in-script directives for resource specification\n# This script should be submitted with the following command:\n# flux batch -N 1 -n 16 -c 1 -t 48h --job-name=110411_CLASS_all_runs --output=/N/dc2/projects/lifebid/code/pestillilab_projects/precision_brain_science/s_classify_110411.out --error=/N/dc2/projects/lifebid/code/pestillilab_projects/precision_brain_science/s_classify_110411.err script.sh\n#\n# Resource specifications:\n# -N 1         : 1 node (from nodes=1)\n# -n 16        : 16 tasks (from ppn=16, processors per node)\n# -c 1         : 1 core per task (implicit, adjust if needed)\n# -t 48h       : 48 hour walltime (from walltime=48:00:00)\n# --job-name=110411_CLASS_all_runs : job name (from -N 110411_CLASS_all_runs)\n# --output=/N/dc2/projects/lifebid/code/pestillilab_projects/precision_brain_science/s_classify_110411.out : stdout file\n# --error=/N/dc2/projects/lifebid/code/pestillilab_projects/precision_brain_science/s_classify_110411.err : stderr file\n#\n# Note: PBS ppn=16 is interpreted as 16 tasks on 1 node\n# Flux equivalent: -N 1 -n 16 (1 node, 16 tasks total)\n\n# Original PBS job name: 110411_CLASS_all_runs\n# Flux: --job-name=110411_CLASS_all_runs\n\n# Original PBS output/error files:\n# PBS: -o /N/dc2/projects/lifebid/code/pestillilab_projects/precision_brain_science/s_classify_110411.out\n# PBS: -e /N/dc2/projects/lifebid/code/pestillilab_projects/precision_brain_science/s_classify_110411.err\n# Flux: --output=<path> --error=<path>\n\n# Email notification: -m ae (abort, end)\n# PBS: -m ae -M franpest@indiana.edu\n# Note: Flux does not have built-in email notification directives\n# Performance impact: User must manually monitor job status or implement external\n# monitoring solutions using flux job events, flux watch commands, or wrapper scripts\n# Consider creating notification wrappers or using flux job attach with monitoring\n# Email events: abort (a), end (e) would need custom implementation\n# Email address: franpest@indiana.edu\n\n# Export environment variables: -V\n# PBS: -V exports all environment variables from submission environment\n# Note: Flux batch jobs inherit the environment from submission shell by default\n# Performance impact: Environment inheritance behavior similar\n# If specific environment control is needed, use --env or --env-remove at submission\n\n# Walltime: 48 hours\n# PBS: -l walltime=48:00:00\n# Flux: -t 48h or -t 2880m or -t 172800s\n# Note: Flux time format: #h (hours), #m (minutes), #s (seconds), #d (days)\n\n# Nodes and processors:\n# PBS: -l nodes=1:ppn=16\n# - nodes=1: 1 node\n# - ppn=16: 16 processors per node\n# Flux: -N 1 -n 16\n# Note: ppn typically means processes/tasks per node\n# Flux -n specifies total tasks, -N specifies nodes\n# With 1 node and 16 tasks, all tasks run on the single node\n\n# Module environment\nmodule load spm\nmodule load matlab\n\n# Change to working directory\ncd /N/dc2/projects/lifebid/code/pestillilab_projects/precision_brain_science/\n\n# Execute MATLAB script\n# Note: This is a single MATLAB process execution, not parallel MPI\n# The 16 tasks allocated may be for MATLAB's internal parallelization\n# or for resource reservation\n# Direct execution without flux run is appropriate for single-process jobs\nmatlab -nojvm -nosplash -r s_classify_major_tracts_from_fe_structure_110411\n\n# Note on execution:\n# The original PBS script runs a single MATLAB command\n# MATLAB may use parallel toolbox or internal threading to utilize 16 cores\n# Flux allocation provides 16 cores on 1 node for MATLAB to use\n# If MATLAB needs explicit core count, set environment variables:\n# export MATLAB_NUM_THREADS=16\n# or use MATLAB's maxNumCompThreads within the script\n\n# Complete submission command:\n# flux batch -N 1 -n 16 -c 1 -t 48h \\\n#   --job-name=110411_CLASS_all_runs \\\n#   --output=/N/dc2/projects/lifebid/code/pestillilab_projects/precision_brain_science/s_classify_110411.out \\\n#   --error=/N/dc2/projects/lifebid/code/pestillilab_projects/precision_brain_science/s_classify_110411.err \\\n#   script.sh\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "pbs",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n#PBS -l nodes=1:ppn=16\n#PBS -l walltime=48:00:00\n#PBS -m ae\n#PBS -M franpest@indiana.edu\n#PBS -N 110411_CLASS_all_runs\n#PBS -V\n#PBS -o  /N/dc2/projects/lifebid/code/pestillilab_projects/precision_brain_science/s_classify_110411.out\n#PBS -e  /N/dc2/projects/lifebid/code/pestillilab_projects/precision_brain_science/s_classify_110411.err\n\nmodule load spm\nmodule load matlab\ncd /N/dc2/projects/lifebid/code/pestillilab_projects/precision_brain_science/\n\nmatlab -nojvm -nosplash -r s_classify_major_tracts_from_fe_structure_110411\n\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "manual_validate",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

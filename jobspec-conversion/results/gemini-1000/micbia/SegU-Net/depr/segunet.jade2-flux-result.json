@@ -1,0 +1,124 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n# Flux directives translated from SLURM\n#FLUX: -N 1\n#FLUX: -g 4\n#FLUX: -t 24:00:00\n#FLUX: -o logs/serene.%J.out\n\n#\n# --- Omitted SLURM options and explanations ---\n#\n# --job-name=serene\n#   Omitted. The job name in Flux is generally set during submission (e.g.,\n#   'flux submit --job-name=serene ...') or via the FLUX_JOB_NAME\n#   environment variable, not through a script directive.\n#\n# --error=logs/serene.%J.err\n#   Omitted. Flux combines stdout and stderr into the single output file\n#   specified by the -o directive. To redirect stderr separately, you can use\n#   shell redirection in your command, e.g., 'command 2> ...'.\n#\n# --mail-type=ALL and --mail-user=mb756@sussex.ac.uk\n#   Omitted. Flux core does not have built-in support for email notifications via\n#   batch directives. This functionality may be provided by site-specific\n#   plugins or wrappers.\n#\n# Note on CPU resources:\n#   The original script did not request any specific number of tasks or CPUs.\n#   This job will receive the default allocation (typically one core per GPU).\n#\n\nmodule load python/3.8.6\nmodule load cuda/10.1 \nmodule load tensorflow/2.3.1\n\nCONFIG_PATH=\"$HOME/SegU-Net/config\"\n#CONFIG_PATH=\"$HOME/data/outputs/16-06T13-25-30_128slice\"\n#CONFIG_PATH=\"$HOME/data/outputs/24-06T14-17-37_128slice\"\n\nsource $HOME/nnevn/bin/activate\n#python opt_talos.py $CONFIG_PATH/net_Unet_lc.ini\npython segUNet.py $CONFIG_PATH/net_Unet_lc.ini\n\n#python pred21cm.py $CONFIG_PATH/net2D_lc_full.ini\ndeactivate\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "The script is missing explicit requests for CPU cores (`-c`) and memory. For a long-running, 4-GPU deep learning job, these are critical omissions. The job will receive a small default CPU and memory allocation, which will almost certainly create a severe data loading bottleneck, starving the GPUs and leading to inefficient use of resources, and will also be at high risk of failing due to out-of-memory errors.",
+                        "The job will fail at startup if the directory for the output file (`logs/`) does not exist in the submission directory.",
+                        "The script is extremely non-portable. It uses the `$HOME` variable to construct hardcoded paths for the configuration and the virtual environment. This will cause the script to fail for any other user or if the directory structure changes.",
+                        "The script is ambiguous, with multiple commented-out `CONFIG_PATH` assignments and python commands. This makes it difficult to understand the intended workflow and prone to user error."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n# Flux directives translated from SLURM\n#FLUX: -N 1\n#FLUX: -g 4\n#FLUX: -t 24:00:00\n#FLUX: -o logs/serene.%J.out\n\n#\n# --- Omitted SLURM options and explanations ---\n#\n# --job-name=serene\n#   Omitted. The job name in Flux is generally set during submission (e.g.,\n#   'flux submit --job-name=serene ...') or via the FLUX_JOB_NAME\n#   environment variable, not through a script directive.\n#\n# --error=logs/serene.%J.err\n#   Omitted. Flux combines stdout and stderr into the single output file\n#   specified by the -o directive. To redirect stderr separately, you can use\n#   shell redirection in your command, e.g., 'command 2> ...'.\n#\n# --mail-type=ALL and --mail-user=mb756@sussex.ac.uk\n#   Omitted. Flux core does not have built-in support for email notifications via\n#   batch directives. This functionality may be provided by site-specific\n#   plugins or wrappers.\n#\n# Note on CPU resources:\n#   The original script did not request any specific number of tasks or CPUs.\n#   This job will receive the default allocation (typically one core per GPU).\n#\n\nmodule load python/3.8.6\nmodule load cuda/10.1 \nmodule load tensorflow/2.3.1\n\nCONFIG_PATH=\"$HOME/SegU-Net/config\"\n#CONFIG_PATH=\"$HOME/data/outputs/16-06T13-25-30_128slice\"\n#CONFIG_PATH=\"$HOME/data/outputs/24-06T14-17-37_128slice\"\n\nsource $HOME/nnevn/bin/activate\n#python opt_talos.py $CONFIG_PATH/net_Unet_lc.ini\npython segUNet.py $CONFIG_PATH/net_Unet_lc.ini\n\n#python pred21cm.py $CONFIG_PATH/net2D_lc_full.ini\ndeactivate\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n#SBATCH --job-name=serene\n#SBATCH --output=logs/serene.%J.out\n#SBATCH --error=logs/serene.%J.err\n\n##SBATCH --job-name=lstm_unet\n##SBATCH --output=logs/segunet_lstm.%J.out\n##SBATCH --error=logs/segunet_lstm.%J.err\n\n##SBATCH --job-name=talos\n##SBATCH --output=logs/talos.%J.out\n##SBATCH --error=logs/talos.%J.err\n\n#SBATCH --nodes=1\n#SBATCH --time=24:00:00\n#SBATCH --gres=gpu:4\n#SBATCH --gpus-per-node=4\n#SBATCH --mail-type=ALL\n#SBATCH --mail-user=mb756@sussex.ac.uk\n\nmodule load python/3.8.6\nmodule load cuda/10.1 \nmodule load tensorflow/2.3.1\n\nCONFIG_PATH=\"$HOME/SegU-Net/config\"\n#CONFIG_PATH=\"$HOME/data/outputs/16-06T13-25-30_128slice\"\n#CONFIG_PATH=\"$HOME/data/outputs/24-06T14-17-37_128slice\"\n\nsource $HOME/nnevn/bin/activate\n#python opt_talos.py $CONFIG_PATH/net_Unet_lc.ini\npython segUNet.py $CONFIG_PATH/net_Unet_lc.ini\n\n#python pred21cm.py $CONFIG_PATH/net2D_lc_full.ini\ndeactivate\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

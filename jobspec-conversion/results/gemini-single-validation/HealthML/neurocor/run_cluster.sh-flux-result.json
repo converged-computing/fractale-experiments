@@ -1,0 +1,123 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n# Flux job script translated from Slurm\n\n#flux: --job-name=controljob_{job.id}\n#flux: -o snakemake_{job.id}.log\n#flux: -t 24:00:00\n\n# The original script allowed for multiple partitions ('vcpu,hpcpu').\n# Flux typically accepts a single queue per job. One must be chosen.\n#flux: -q vcpu\n\n# The script requests 1 task with 1 CPU.\n#flux: -n 1\n#flux: -c 1\n\n# CRITICAL: The Slurm memory request '--mem 2000' (2GB) was not translated.\n# Flux does not have a standard equivalent directive. The job will receive the default memory allocation,\n# which may be insufficient and could cause the job to fail.\n# #SBATCH --mem 2000\n\nSNAKEMAKE_ENV=snakemake\n\n# Initialize conda:\neval \"$(conda shell.bash hook)\"\nconda activate ${SNAKEMAKE_ENV}\n\n# WARNING: The snakemake profile has been changed from 'slurm' to 'flux'.\n# This assumes a Snakemake profile named 'flux' exists and is configured correctly.\n# If it does not, Snakemake will fail to submit sub-jobs.\nsnakemake --snakefile workflow/Snakefile \\\n          --configfile config/config.yaml \\\n\t  --profile ./flux \\\n          --rerun-triggers mtime \\\n          --directory \"${PWD}\" \\\n\t  \"${@}\"\n\n\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "CRITICAL: As noted in the script's comments, the original Slurm request for 2GB of memory (`--mem 2000`) was omitted. The job will receive a default, much smaller memory allocation and is highly likely to fail at runtime if the application's memory footprint exceeds the default.",
+                        "The Snakemake command was modified to use `--profile ./flux`, which assumes that a correctly configured 'flux' profile exists. If this profile is missing or misconfigured, Snakemake will be unable to submit its sub-jobs to the scheduler, and the entire workflow will fail.",
+                        "The script is intended to be a Snakemake 'control job', which itself uses minimal resources while submitting many other jobs to the scheduler. The current resource request of one core and default memory is appropriate for this specific use case, but would be insufficient for a resource-intensive task."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n# Flux job script translated from Slurm\n\n#flux: --job-name=controljob_{job.id}\n#flux: -o snakemake_{job.id}.log\n#flux: -t 24:00:00\n\n# The original script allowed for multiple partitions ('vcpu,hpcpu').\n# Flux typically accepts a single queue per job. One must be chosen.\n#flux: -q vcpu\n\n# The script requests 1 task with 1 CPU.\n#flux: -n 1\n#flux: -c 1\n\n# CRITICAL: The Slurm memory request '--mem 2000' (2GB) was not translated.\n# Flux does not have a standard equivalent directive. The job will receive the default memory allocation,\n# which may be insufficient and could cause the job to fail.\n# #SBATCH --mem 2000\n\nSNAKEMAKE_ENV=snakemake\n\n# Initialize conda:\neval \"$(conda shell.bash hook)\"\nconda activate ${SNAKEMAKE_ENV}\n\n# WARNING: The snakemake profile has been changed from 'slurm' to 'flux'.\n# This assumes a Snakemake profile named 'flux' exists and is configured correctly.\n# If it does not, Snakemake will fail to submit sub-jobs.\nsnakemake --snakefile workflow/Snakefile \\\n          --configfile config/config.yaml \\\n\t  --profile ./flux \\\n          --rerun-triggers mtime \\\n          --directory \"${PWD}\" \\\n\t  \"${@}\"\n\n\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n\n#SBATCH --job-name=controljob_%j\n#SBATCH --output=snakemake_%j.log\n#SBATCH --partition=vcpu,hpcpu\n#SBATCH --time=24:00:00\n#SBATCH -c 1\n#SBATCH --mem 2000\n\nSNAKEMAKE_ENV=snakemake\n\n# Initialize conda:\neval \"$(conda shell.bash hook)\"\nconda activate ${SNAKEMAKE_ENV}\n\nsnakemake --snakefile workflow/Snakefile \\\n          --configfile config/config.yaml \\\n\t  --profile ./slurm \\\n          --rerun-triggers mtime \\\n          --directory \"${PWD}\" \\\n\t  \"${@}\"\n\n\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "manual_validate",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

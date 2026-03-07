@@ -1,0 +1,122 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n# Flux batch script converted from Slurm\n\n# NOTE: Run with: flux batch <this_script>\n\n# Slurm resources:\n#   --nodes=2\n\n# The script uses NPROCS=16 MPI ranks total.\n#flux: -N 2\n#flux: -n 16\n#flux: -c 1\n\nsource ~/init.sh\nmake clean && make\nrm -rf hpctoolkit*\n\n# Slurm used mpirun; under Flux, use flux-run to launch MPI ranks.\n# Omitted mpirun option: -npersocket (rank placement per socket)\n# Flux socket/NUMA placement controls are site/config dependent; no portable equivalent.\n# Performance implication: ranks may be placed differently across sockets/NUMA domains, potentially reducing performance.\n\nflux run -n 16 -c 1 hpcrun -e CPUTIME -e IO -e gpu=nvidia -t ./jacobi\n\nhpcstruct --gpucfg yes hpctoolkit*\nhpcstruct --gpucfg yes jacobi\nhpcprof -S jacobi.hpcstruct -I jacobi.cpp -I jacobi_kernels.cu -I ./+ hpctoolkit*\n\necho \"===DONE===\"\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": false,
+                    "reasons": [],
+                    "issues": [
+                        "The original Slurm script did not specify a walltime; this Flux script also does not set a time limit, so it may run with a site default limit which could be shorter than needed.",
+                        "The command uses GPU profiling/events (`hpcrun -e gpu=nvidia`), but no GPU resources are requested in the resource section; if the site schedules GPUs explicitly, the job may not have access to GPUs."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n# Flux batch script converted from Slurm\n\n# NOTE: Run with: flux batch <this_script>\n\n# Slurm resources:\n#   --nodes=2\n\n# The script uses NPROCS=16 MPI ranks total.\n#flux: -N 2\n#flux: -n 16\n#flux: -c 1\n\nsource ~/init.sh\nmake clean && make\nrm -rf hpctoolkit*\n\n# Slurm used mpirun; under Flux, use flux-run to launch MPI ranks.\n# Omitted mpirun option: -npersocket (rank placement per socket)\n# Flux socket/NUMA placement controls are site/config dependent; no portable equivalent.\n# Performance implication: ranks may be placed differently across sockets/NUMA domains, potentially reducing performance.\n\nflux run -n 16 -c 1 hpcrun -e CPUTIME -e IO -e gpu=nvidia -t ./jacobi\n\nhpcstruct --gpucfg yes hpctoolkit*\nhpcstruct --gpucfg yes jacobi\nhpcprof -S jacobi.hpcstruct -I jacobi.cpp -I jacobi_kernels.cu -I ./+ hpctoolkit*\n\necho \"===DONE===\"\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n#SBATCH --nodes=2\n\nNPROCS=16\nNPPERSOC=$(($NPROCS>>2))\nsource ~/init.sh\nmake clean && make\nrm -r hpctoolkit*\nmpirun -np $NPROCS -npersocket $NPPERSOC hpcrun -e CPUTIME -e IO -e gpu=nvidia -t ./jacobi\nhpcstruct --gpucfg yes hpctoolkit*\nhpcstruct --gpucfg yes jacobi\nhpcprof -S jacobi.hpcstruct -I jacobi.cpp -I jacobi_kernels.cu -I ./+ hpctoolkit*\necho \"===DONE===\"\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "manual_validate",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

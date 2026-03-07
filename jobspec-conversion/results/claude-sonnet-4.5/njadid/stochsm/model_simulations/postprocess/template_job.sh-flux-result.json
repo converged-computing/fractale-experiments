@@ -1,0 +1,110 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "content": "Error code: 400 - {'error': {'message': 'litellm.ContextWindowExceededError: litellm.BadRequestError: BedrockException: Context Window Error - {\"message\":\"The model returned the following errors: prompt is too long: 203237 tokens > 200000 maximum\"}\\nmodel=claude-sonnet-4.5. context_window_fallbacks=None. fallbacks=None.\\n\\nSet \\'context_window_fallback\\' - https://docs.litellm.ai/docs/routing#fallbacks. Received Model Group=claude-sonnet-4.5\\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '400'}}"
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "content": "Error code: 400 - {'error': {'message': 'litellm.ContextWindowExceededError: litellm.BadRequestError: BedrockException: Context Window Error - {\"message\":\"The model returned the following errors: prompt is too long: 203237 tokens > 200000 maximum\"}\\nmodel=claude-sonnet-4.5. context_window_fallbacks=None. fallbacks=None.\\n\\nSet \\'context_window_fallback\\' - https://docs.litellm.ai/docs/routing#fallbacks. Received Model Group=claude-sonnet-4.5\\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '400'}}"
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "pbs",
+                    "to_manager": "flux",
+                    "script": "##PBS -N GPM_$1          # job name\n#PBS -A GT-rbras6-CODA20               # account to which job is charged, ex: GT-gburdell3\n#PBS -l nodes=1:ppn=15           # number of nodes and cores per node required\n#PBS -l mem=20gb                # memory per core\n#PBS -l walltime=00:30:00      # duration of the job (ex: 15 min)\n#PBS -j oe                      # combine output and error messages into 1 file\n##PBS -o ST4_().out      # output file name\n##PBS -m e                    # event notification, set to email on start, end, or fail\n##PBS -M navidj@gatech.edu       # email to send notifications to\n\n/bin/echo Running on host: `hostname`.\n/bin/echo In directory: `pwd`\n/bin/echo Starting on: `date`\n\nsource activate ~/venvs/pydask\n\n/bin/echo Parition $1\n\npython /storage/coda1/p-rbras6/0/njadidoleslam3/projects/stochsm/model_simulations/postprocess/create_unified_data.py $1",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "manual_validate",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

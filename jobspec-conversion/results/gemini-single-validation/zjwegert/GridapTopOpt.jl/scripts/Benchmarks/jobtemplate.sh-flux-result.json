@@ -1,0 +1,122 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "noop"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": false,
+                    "tool_call": false,
+                    "reasons": [
+                        "The provided input 'noop' is not a valid workload manager batch script.",
+                        "The input lacks a resource specification section and contains no schedulable directives."
+                    ],
+                    "issues": []
+                },
+                "attempts": 1
+            },
+            "transition": "failed -> manual_validate",
+            "complete": false,
+            "state": "failed"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "noop",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "pbs",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n\n#PBS -P np01\n#PBS -q normal \n#PBS -N \"{{:name}}\"\n#PBS -l ncpus={{:ncpus}}\n#PBS -l mem={{:mem}}GB\n#PBS -l walltime={{:wallhr}}:00:00\n#PBS -j oe\n\nsource $HOME/hpc-environments/gadi/load-intel.sh\nPROJECT_DIR=$SCRATCH/{{:dir_name}}/\n\nmpiexec -n {{:ncpus}} julia --project=$PROJECT_DIR --check-bounds no -O3 \\\n    $PROJECT_DIR/scripts/Benchmarks/benchmark_gadi.jl \\\n    {{:name}} \\\n    {{{:write_dir}}} \\\n    {{:type}} \\\n    {{:bmark_type}} \\\n    {{:Nx_partition}} \\\n    {{:Ny_partition}} \\\n    {{:Nz_partition}} \\\n    {{:n_el_size}} \\\n    {{:fe_order}} \\\n    {{:verbose}} \\\n    {{:nreps}}",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "manual_validate",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

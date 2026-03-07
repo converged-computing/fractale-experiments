@@ -1,0 +1,121 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n# Flux batch script converted from PBS\n\n# NOTE:\n#   The PBS job name uses a positional parameter ($1): `#PBS -N GPM_$1`.\n#   Flux batch directives must be static (no shell expansion), so the job name\n#   cannot be parameterized portably here.\n#\n# Run with:\n#   flux batch <this_script> -- <partition_id>\n\n# PBS resources:\n#   -A GT-rbras6-CODA20\n#   -l nodes=1:ppn=15\n#   -l mem=20gb\n#   -l walltime=00:30:00\n#   -j oe\n\n#flux: -N 1\n#flux: -n 1\n#flux: -c 15\n#flux: --time-limit=30m\n\n# Omitted PBS option: -A GT-rbras6-CODA20 (account)\n# Flux accounting/project selection is site-specific; no portable equivalent.\n# Performance implication: job may be charged to a default account or be rejected by policy.\n\n# Omitted PBS option: -l mem=20gb\n# Flux memory requests are site/config dependent and not universally portable.\n# Performance implication: job may be scheduled on nodes with insufficient memory, risking OOM kills or degraded performance.\n\n# Omitted PBS option: -j oe (join stdout/stderr)\n# Flux commonly manages stdout/stderr separately; a portable join directive is not guaranteed.\n# Performance implication: none on runtime performance, but logs may be split.\n\n# Omitted PBS option: parameterized job name (GPM_$1)\n# Flux batch directives are static; no portable way to inject $1 into --job-name.\n# Performance implication: none, but job identification in the queue may be less informative.\n\nPARTITION_ID=$1\nif [ -z \"$PARTITION_ID\" ]; then\n  echo \"Usage: $0 <partition_id>\" >&2\n  exit 2\nfi\n\n/bin/echo Running on host: \"$(hostname)\".\n/bin/echo In directory: \"$(pwd)\"\n/bin/echo Starting on: \"$(date)\"\n\n# Activate environment\nsource activate ~/venvs/pydask\n\n/bin/echo Parition \"$PARTITION_ID\"\n\npython /storage/coda1/p-rbras6/0/njadidoleslam3/projects/stochsm/model_simulations/postprocess/create_unified_data.py \"$PARTITION_ID\"\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": false,
+                    "tool_call": false,
+                    "reasons": [
+                        "PBS requested 20gb of memory (`-l mem=20gb`) but the Flux resource section includes no memory request; on systems that schedule/enforce memory this can under-provision the job and risk OOM or degraded performance."
+                    ],
+                    "issues": []
+                },
+                "attempts": 1
+            },
+            "transition": "failed -> manual_validate",
+            "complete": false,
+            "state": "failed"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n# Flux batch script converted from PBS\n\n# NOTE:\n#   The PBS job name uses a positional parameter ($1): `#PBS -N GPM_$1`.\n#   Flux batch directives must be static (no shell expansion), so the job name\n#   cannot be parameterized portably here.\n#\n# Run with:\n#   flux batch <this_script> -- <partition_id>\n\n# PBS resources:\n#   -A GT-rbras6-CODA20\n#   -l nodes=1:ppn=15\n#   -l mem=20gb\n#   -l walltime=00:30:00\n#   -j oe\n\n#flux: -N 1\n#flux: -n 1\n#flux: -c 15\n#flux: --time-limit=30m\n\n# Omitted PBS option: -A GT-rbras6-CODA20 (account)\n# Flux accounting/project selection is site-specific; no portable equivalent.\n# Performance implication: job may be charged to a default account or be rejected by policy.\n\n# Omitted PBS option: -l mem=20gb\n# Flux memory requests are site/config dependent and not universally portable.\n# Performance implication: job may be scheduled on nodes with insufficient memory, risking OOM kills or degraded performance.\n\n# Omitted PBS option: -j oe (join stdout/stderr)\n# Flux commonly manages stdout/stderr separately; a portable join directive is not guaranteed.\n# Performance implication: none on runtime performance, but logs may be split.\n\n# Omitted PBS option: parameterized job name (GPM_$1)\n# Flux batch directives are static; no portable way to inject $1 into --job-name.\n# Performance implication: none, but job identification in the queue may be less informative.\n\nPARTITION_ID=$1\nif [ -z \"$PARTITION_ID\" ]; then\n  echo \"Usage: $0 <partition_id>\" >&2\n  exit 2\nfi\n\n/bin/echo Running on host: \"$(hostname)\".\n/bin/echo In directory: \"$(pwd)\"\n/bin/echo Starting on: \"$(date)\"\n\n# Activate environment\nsource activate ~/venvs/pydask\n\n/bin/echo Parition \"$PARTITION_ID\"\n\npython /storage/coda1/p-rbras6/0/njadidoleslam3/projects/stochsm/model_simulations/postprocess/create_unified_data.py \"$PARTITION_ID\"\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "pbs",
+                    "to_manager": "flux",
+                    "script": "##PBS -N GPM_$1          # job name\n#PBS -A GT-rbras6-CODA20               # account to which job is charged, ex: GT-gburdell3\n#PBS -l nodes=1:ppn=15           # number of nodes and cores per node required\n#PBS -l mem=20gb                # memory per core\n#PBS -l walltime=00:30:00      # duration of the job (ex: 15 min)\n#PBS -j oe                      # combine output and error messages into 1 file\n##PBS -o ST4_().out      # output file name\n##PBS -m e                    # event notification, set to email on start, end, or fail\n##PBS -M navidj@gatech.edu       # email to send notifications to\n\n/bin/echo Running on host: `hostname`.\n/bin/echo In directory: `pwd`\n/bin/echo Starting on: `date`\n\nsource activate ~/venvs/pydask\n\n/bin/echo Parition $1\n\npython /storage/coda1/p-rbras6/0/njadidoleslam3/projects/stochsm/model_simulations/postprocess/create_unified_data.py $1",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "manual_validate",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

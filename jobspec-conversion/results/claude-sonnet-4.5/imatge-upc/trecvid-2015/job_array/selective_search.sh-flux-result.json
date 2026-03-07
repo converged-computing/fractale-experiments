@@ -1,0 +1,130 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/sh\n\n# Flux batch script converted from Slurm\n# Note: Flux does not support in-script directives for resource specification\n# This script should be submitted with the following command:\n# flux batch --array=<range> --setattr=system.memory=6G -n 1 script.sh\n#\n# For job arrays, specify the range at submission, e.g.:\n# flux batch --array=1-10 --setattr=system.memory=6G -n 1 script.sh\n#\n# Resource specifications:\n# --setattr=system.memory=6G : 6 GB memory (from --mem-per-cpu=6G)\n# -n 1                        : 1 task (implicit, single task per array element)\n#\n# Note: The original Slurm script uses --mem-per-cpu=6G\n# Since no explicit CPU count is given, assuming 1 CPU per task\n# Flux memory specification: --setattr=system.memory=6G for total memory\n# If multiple CPUs per task are needed, adjust accordingly\n\n# Job Array Support:\n# Original: Uses ${SLURM_ARRAY_TASK_ID} for array job index\n# Flux equivalent: ${FLUX_TASK_ID} for job array index\n# Submit with: flux batch --array=<start>-<end> script.sh\n# Performance impact: Flux job arrays work similarly to Slurm arrays\n# Array indices are available via FLUX_TASK_ID environment variable\n\n# Memory per CPU: 6G\n# Note: Flux memory specification syntax may vary by version\n# Using --setattr=system.memory=6G assumes 1 CPU allocation\n# For explicit per-CPU memory with multiple CPUs, calculate total memory needed\n# Performance impact: Without explicit memory request, job gets default allocation\n# which may be insufficient and cause OOM errors\n\nmatlab -nodisplay '+single_thread+' '+jvm_string+' -nodesktop -r \"addpath('../scripts/matlab/');, run_selective_search(${FLUX_TASK_ID});\"\n\n# Note: Changed ${SLURM_ARRAY_TASK_ID} to ${FLUX_TASK_ID}\n# FLUX_TASK_ID provides the array index when job is submitted with --array flag\n# If not submitted as array job, FLUX_TASK_ID will be unset\n# Consider adding validation: if [ -z \"${FLUX_TASK_ID}\" ]; then echo \"Error: Must submit as array job\"; exit 1; fi\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": false,
+                    "reasons": [],
+                    "issues": [
+                        "The script correctly documents that Flux does not support in-script resource directives and provides proper submission command syntax in comments.",
+                        "The memory attribute syntax '--setattr=system.memory=6G' may not be the correct syntax for all Flux versions. Flux typically uses '--setattr=system.memory=6GB' or '--setattr=system.memory=6144MB' for memory specifications. The 'G' suffix without 'B' may not be recognized.",
+                        "The recommended submission command format should verify the exact memory attribute syntax: it may need to be '--setattr=system.memory=6GB' or use a different attribute path depending on Flux version.",
+                        "The script uses ${FLUX_TASK_ID} which is the correct environment variable for Flux job arrays, properly replacing Slurm's ${SLURM_ARRAY_TASK_ID}.",
+                        "No validation check is implemented for ${FLUX_TASK_ID}. The comment suggests adding validation, which is a good practice. Without it, if the script is run outside an array job context, the MATLAB command will receive an empty value.",
+                        "The memory specification assumes 1 CPU per task. If MATLAB's '+single_thread+' doesn't actually restrict to 1 thread, or if MATLAB uses additional threads internally, the memory allocation might be insufficient.",
+                        "Consider adding the validation check suggested in the comments: 'if [ -z \"${FLUX_TASK_ID}\" ]; then echo \"Error: Must submit as array job\"; exit 1; fi' before the MATLAB command.",
+                        "The number of cores per task is not explicitly specified. Consider adding '-c 1' to the submission command to be explicit about CPU allocation: 'flux batch --array=1-10 --setattr=system.memory=6GB -n 1 -c 1 script.sh'",
+                        "No time limit is specified. Consider adding a time limit to the submission command using '-t <duration>' to prevent jobs from running indefinitely.",
+                        "The MATLAB command arguments '+single_thread+' and '+jvm_string+' appear to be unusual. Verify these are valid MATLAB options (standard options use single dash like '-singleCompThread' or environment variables)."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/sh\n\n# Flux batch script converted from Slurm\n# Note: Flux does not support in-script directives for resource specification\n# This script should be submitted with the following command:\n# flux batch --array=<range> --setattr=system.memory=6G -n 1 script.sh\n#\n# For job arrays, specify the range at submission, e.g.:\n# flux batch --array=1-10 --setattr=system.memory=6G -n 1 script.sh\n#\n# Resource specifications:\n# --setattr=system.memory=6G : 6 GB memory (from --mem-per-cpu=6G)\n# -n 1                        : 1 task (implicit, single task per array element)\n#\n# Note: The original Slurm script uses --mem-per-cpu=6G\n# Since no explicit CPU count is given, assuming 1 CPU per task\n# Flux memory specification: --setattr=system.memory=6G for total memory\n# If multiple CPUs per task are needed, adjust accordingly\n\n# Job Array Support:\n# Original: Uses ${SLURM_ARRAY_TASK_ID} for array job index\n# Flux equivalent: ${FLUX_TASK_ID} for job array index\n# Submit with: flux batch --array=<start>-<end> script.sh\n# Performance impact: Flux job arrays work similarly to Slurm arrays\n# Array indices are available via FLUX_TASK_ID environment variable\n\n# Memory per CPU: 6G\n# Note: Flux memory specification syntax may vary by version\n# Using --setattr=system.memory=6G assumes 1 CPU allocation\n# For explicit per-CPU memory with multiple CPUs, calculate total memory needed\n# Performance impact: Without explicit memory request, job gets default allocation\n# which may be insufficient and cause OOM errors\n\nmatlab -nodisplay '+single_thread+' '+jvm_string+' -nodesktop -r \"addpath('../scripts/matlab/');, run_selective_search(${FLUX_TASK_ID});\"\n\n# Note: Changed ${SLURM_ARRAY_TASK_ID} to ${FLUX_TASK_ID}\n# FLUX_TASK_ID provides the array index when job is submitted with --array flag\n# If not submitted as array job, FLUX_TASK_ID will be unset\n# Consider adding validation: if [ -z \"${FLUX_TASK_ID}\" ]; then echo \"Error: Must submit as array job\"; exit 1; fi\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/sh\n#SBATCH --mem-per-cpu=6G\n\nmatlab -nodisplay '+single_thread+' '+jvm_string+' -nodesktop -r \"addpath('../scripts/matlab/');, run_selective_search(${SLURM_ARRAY_TASK_ID});\"\n\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "manual_validate",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

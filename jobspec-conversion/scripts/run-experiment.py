@@ -100,7 +100,7 @@ AGENTIC_PLAN = {
             "prompt": "validate_jobspec_expert",
             "allow_tools": False,
             "inputs": {"script": "{{steps.transform.outputs.jobspec}}"},
-            "transitions": {"failed": "transform", "success": "manual_validate"},
+            "transitions": {"failed": "manual_validate", "success": "manual_validate"},
             "rules": {"success": ["valid"], "failed": ["not valid"]},
         },
         {

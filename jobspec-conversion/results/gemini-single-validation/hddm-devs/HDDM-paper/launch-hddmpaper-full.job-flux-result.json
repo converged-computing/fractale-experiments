@@ -1,0 +1,124 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/sh\n# Flux job script translated from PBS\n\n#flux: --job-name=hddm-paper\n#flux: -t 10:00:00\n\n# The PBS script requests 20 nodes, 8 PPN, and launches 160 total MPI ranks.\n# This translates to 20 nodes, with 8 tasks per node.\n#flux: -N 20\n#flux: -n 160\n\n# The PBS '-r n' (not rerunnable) has no direct equivalent in Flux and is omitted.\n\nsource hddm_venv2/bin/activate\n\ncd HDDM-paper\n\n# The original script manually started an ipyparallel cluster.\n# This is a complex pattern to translate directly. A more standard approach for a\n# parallel python job is to launch the main script directly with the MPI runner.\n# The original logic is preserved as closely as possible.\n\necho \"Launching controller\"\n# Launch the ipcontroller on the first task (rank 0)\nflux exec -r 0 ipcontroller --profile=mpi &\nsleep 10\n\necho \"Launching engines\"\n# Launch the ipengine on the remaining 159 tasks (ranks 1-159)\nflux exec -r 1-159 ipengine --profile=mpi &\nsleep 10\n\necho \"Launching job\"\n# Launch the main python script on the first task (rank 0)\nflux exec -r 0 python ~/HDDM-paper/run_estimation.py -r -a --profile mpi --parallel --all -st -sz -z\n\n# Wait for all backgrounded processes (controller, engines) to finish\nwait\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "The manual startup of the `ipyparallel` controller and engines using `flux exec` is a complex and potentially fragile way to launch a parallel Python application. A more standard and robust method would be to use `flux run` to launch the main Python script and let `ipyparallel` or another framework like `mpi4py` handle the parallel setup internally.",
+                        "The script uses `flux exec -r 0` to run the main python script after launching the controller and engines. This means the main script will share the same task/core as the controller process, which could lead to resource contention.",
+                        "The `wait` command at the end of the script will wait for all backgrounded `flux exec` commands to complete. However, if the main python script (`run_estimation.py`) finishes before the engines are meant to shut down, the job might terminate prematurely, killing the backgrounded processes.",
+                        "The script activates a virtual environment and runs a python script using paths relative to the user's home directory. This makes the script non-portable."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/sh\n# Flux job script translated from PBS\n\n#flux: --job-name=hddm-paper\n#flux: -t 10:00:00\n\n# The PBS script requests 20 nodes, 8 PPN, and launches 160 total MPI ranks.\n# This translates to 20 nodes, with 8 tasks per node.\n#flux: -N 20\n#flux: -n 160\n\n# The PBS '-r n' (not rerunnable) has no direct equivalent in Flux and is omitted.\n\nsource hddm_venv2/bin/activate\n\ncd HDDM-paper\n\n# The original script manually started an ipyparallel cluster.\n# This is a complex pattern to translate directly. A more standard approach for a\n# parallel python job is to launch the main script directly with the MPI runner.\n# The original logic is preserved as closely as possible.\n\necho \"Launching controller\"\n# Launch the ipcontroller on the first task (rank 0)\nflux exec -r 0 ipcontroller --profile=mpi &\nsleep 10\n\necho \"Launching engines\"\n# Launch the ipengine on the remaining 159 tasks (ranks 1-159)\nflux exec -r 1-159 ipengine --profile=mpi &\nsleep 10\n\necho \"Launching job\"\n# Launch the main python script on the first task (rank 0)\nflux exec -r 0 python ~/HDDM-paper/run_estimation.py -r -a --profile mpi --parallel --all -st -sz -z\n\n# Wait for all backgrounded processes (controller, engines) to finish\nwait\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "pbs",
+                    "to_manager": "flux",
+                    "script": "#!/bin/sh\n#PBS -N hddm-paper\n#PBS -r n\n#PBS -l nodes=20:ppn=8\n#PBS -l walltime=10:00:00\n\nsource hddm_venv2/bin/activate\n\ncd HDDM-paper\n\necho \"Launching controller\"\nipcontroller --profile=mpi &\nsleep 10\n\necho \"Launching engines\"\nmpirun -np 160 --machinefile $PBS_NODEFILE -x PATH -x PYTHON_PATH -x VIRTUAL_ENV -wd ~/HDDM-paper ipengine --profile=mpi &\nsleep 10\n\necho \"Launching job\"\npython ~/HDDM-paper/run_estimation.py -r -a --profile mpi --parallel --all -st -sz -z\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "manual_validate",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

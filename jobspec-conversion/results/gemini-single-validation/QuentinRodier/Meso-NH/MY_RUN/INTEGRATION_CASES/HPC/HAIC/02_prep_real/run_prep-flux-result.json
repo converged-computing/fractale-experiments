@@ -1,0 +1,123 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/sh\n# Flux job script translated from Slurm\n\n#flux: --job-name=HAICprep\n#flux: -N 1\n#flux: -n 16\n#flux: -t 01:00:00\n#flux: -q normal256\n\n# Job output and error will be combined into the same file.\n# The Slurm '%j' is replaced with Flux's '{job.id}'.\n#flux: -o POI16.eo{job.id}\n\n# Echo des commandes\nulimit -c 0\nulimit -s unlimited\n\n# Nom de la machine\nhostname \n\n# Sourcing the environment profile is preserved.\n. ~rodierq/DEV_57/MNH-PHYEX070-b95d84d7/conf/profile_mesonh-LXifort-R8I4-MNH-V5-6-2-ECRAD140-MPIAUTO-O2-HAIC\n\nln -sf ../01_prep_pgd/PGD.* .\nln -sf ~/SAVE/mesonh/PGD/pgd_guyane* .\nln -sf ~/SAVE/GRIB_KTEST/arome.FO.201505* .\nln -sf ~/SAVE/GRIB_KTEST/historic.20150529.00.lfi\n\ntouch pgd_guyane.02km50.04.des\ntouch historic.20150529.00.des\n\n# The original script used a custom MPIRUN variable.\n# 'flux run' is the standard MPI launcher for Flux and will correctly start the 16 tasks requested.\n# NOTE: The script uses a variable '${XYZ}' which is not defined. This may cause an error.\ntime flux run PREP_REAL_CASE${XYZ}\n\nfor i in 00 06 12 18 24; do\n    cp PRE_REAL1.nam_$i PRE_REAL1.nam\n    time flux run PREP_REAL_CASE${XYZ}\ndone\n\ncd ..\n\n# It is assumed that 'run_all_mesonh' is a script that may submit other jobs.\n# If it uses 'sbatch', it will need to be modified to use 'flux batch'.\n./run_all_mesonh\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "The script sources a user-specific, hardcoded path: '. ~rodierq/DEV_57/...'. This makes the script non-portable and it will fail if run by another user or if the directory structure changes. Using environment modules or relative paths is a more robust approach.",
+                        "The command `time flux run PREP_REAL_CASE${XYZ}` uses a variable `${XYZ}` that is not defined within the script. This will likely expand to an empty string, which may cause the application to fail if it expects an argument.",
+                        "The script contains multiple `ln -sf` commands with tilde-expansion (`~/SAVE/...`). This hardcodes paths to a specific user's home directory, making the script non-portable."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/sh\n# Flux job script translated from Slurm\n\n#flux: --job-name=HAICprep\n#flux: -N 1\n#flux: -n 16\n#flux: -t 01:00:00\n#flux: -q normal256\n\n# Job output and error will be combined into the same file.\n# The Slurm '%j' is replaced with Flux's '{job.id}'.\n#flux: -o POI16.eo{job.id}\n\n# Echo des commandes\nulimit -c 0\nulimit -s unlimited\n\n# Nom de la machine\nhostname \n\n# Sourcing the environment profile is preserved.\n. ~rodierq/DEV_57/MNH-PHYEX070-b95d84d7/conf/profile_mesonh-LXifort-R8I4-MNH-V5-6-2-ECRAD140-MPIAUTO-O2-HAIC\n\nln -sf ../01_prep_pgd/PGD.* .\nln -sf ~/SAVE/mesonh/PGD/pgd_guyane* .\nln -sf ~/SAVE/GRIB_KTEST/arome.FO.201505* .\nln -sf ~/SAVE/GRIB_KTEST/historic.20150529.00.lfi\n\ntouch pgd_guyane.02km50.04.des\ntouch historic.20150529.00.des\n\n# The original script used a custom MPIRUN variable.\n# 'flux run' is the standard MPI launcher for Flux and will correctly start the 16 tasks requested.\n# NOTE: The script uses a variable '${XYZ}' which is not defined. This may cause an error.\ntime flux run PREP_REAL_CASE${XYZ}\n\nfor i in 00 06 12 18 24; do\n    cp PRE_REAL1.nam_$i PRE_REAL1.nam\n    time flux run PREP_REAL_CASE${XYZ}\ndone\n\ncd ..\n\n# It is assumed that 'run_all_mesonh' is a script that may submit other jobs.\n# If it uses 'sbatch', it will need to be modified to use 'flux batch'.\n./run_all_mesonh\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/sh\n#SBATCH -J HAICprep\n#SBATCH -N 1            # nodes number =NBP dans tosupcrc\n#SBATCH -n 16           # CPUs number (on all nodes) =NBP*TPN dans tosupcrc\n#SBATCH -o POI16.eo%j   #\n#SBATCH -e POI16.eo%j   #\n#SBATCH -t 01:00:00     # time limit\n#SBATCH -p normal256\n\n# Echo des commandes\nulimit -c 0\nulimit -s unlimited\n# Nom de la machine\nhostname \n\n. ~rodierq/DEV_57/MNH-PHYEX070-b95d84d7/conf/profile_mesonh-LXifort-R8I4-MNH-V5-6-2-ECRAD140-MPIAUTO-O2-HAIC\n\nexport MPIRUN='Mpirun -np 16'\n\nln -sf ../01_prep_pgd/PGD.* .\nln -sf ~/SAVE/mesonh/PGD/pgd_guyane* .\nln -sf ~/SAVE/GRIB_KTEST/arome.FO.201505* .\nln -sf ~/SAVE/GRIB_KTEST/historic.20150529.00.lfi\n\ntouch pgd_guyane.02km50.04.des\ntouch historic.20150529.00.des\n\ntime ${MPIRUN} PREP_REAL_CASE${XYZ}\n\nfor i in 00 06 12 18 24; do\n    cp PRE_REAL1.nam_$i PRE_REAL1.nam\n    time ${MPIRUN} PREP_REAL_CASE${XYZ}\ndone\ncd ../\n./run_all_mesonh\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "manual_validate",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

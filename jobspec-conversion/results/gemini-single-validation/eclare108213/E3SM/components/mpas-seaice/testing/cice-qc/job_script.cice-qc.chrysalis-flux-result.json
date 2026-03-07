@@ -1,0 +1,121 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash -l\n# Flux job script translated from Slurm\n\n#flux: --job-name=cice-qc\n#flux: -N 1\n#flux: -n 1\n#flux: -t 1:00:00\n#flux: -q compute\n\n# The Slurm output/error directives are combined into a single output file.\n# The '%j' variable is replaced with Flux's '{job.id}'.\n#flux: -o log-cice-qc.o{job.id}\n\n# The following Slurm directive for account was not translated as it is not a standard Flux option.\n# Account information is often handled by site-specific policies or plugins.\n# #SBATCH -A e3sm\n\n# The original script did not request CPUs per task, so it defaults to 1.\n# This is preserved by not specifying a '-c' or '--cpus-per-task' option.\n\n# The Flux equivalent of $SLURM_SUBMIT_DIR is ${FLUX_SUBMIT_DIR}\ncd $FLUX_SUBMIT_DIR\nexport OMP_NUM_THREADS=1\n\nsource /lcrc/soft/climate/e3sm-unified/load_latest_e3sm_unified_chrysalis.sh\n\nexport HDF5_USE_FILE_LOCKING=FALSE\n\nexport BASE=/lcrc/group/acme/ac.dcomeau/scratch/chrys/20221218.DMPAS-JRA1p5.TL319_EC30to60E2r2.chrysalis.column-package.intel/run\nexport TEST=/lcrc/group/acme/ac.dcomeau/scratch/chrys/20221218.DMPAS-JRA1p5.TL319_EC30to60E2r2.chrysalis.icepack.intel/run\n\n# 'srun' is not needed for a single-task job; the command is run directly.\n# The allocated resources are available to the script's environment.\npython mpas-seaice.t-test.py $BASE $TEST\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "The script contains multiple hardcoded, project-specific absolute paths for sourcing the environment and setting the `BASE` and `TEST` variables. This makes the script non-portable and it will fail if the directory structure changes or if run by another user."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash -l\n# Flux job script translated from Slurm\n\n#flux: --job-name=cice-qc\n#flux: -N 1\n#flux: -n 1\n#flux: -t 1:00:00\n#flux: -q compute\n\n# The Slurm output/error directives are combined into a single output file.\n# The '%j' variable is replaced with Flux's '{job.id}'.\n#flux: -o log-cice-qc.o{job.id}\n\n# The following Slurm directive for account was not translated as it is not a standard Flux option.\n# Account information is often handled by site-specific policies or plugins.\n# #SBATCH -A e3sm\n\n# The original script did not request CPUs per task, so it defaults to 1.\n# This is preserved by not specifying a '-c' or '--cpus-per-task' option.\n\n# The Flux equivalent of $SLURM_SUBMIT_DIR is ${FLUX_SUBMIT_DIR}\ncd $FLUX_SUBMIT_DIR\nexport OMP_NUM_THREADS=1\n\nsource /lcrc/soft/climate/e3sm-unified/load_latest_e3sm_unified_chrysalis.sh\n\nexport HDF5_USE_FILE_LOCKING=FALSE\n\nexport BASE=/lcrc/group/acme/ac.dcomeau/scratch/chrys/20221218.DMPAS-JRA1p5.TL319_EC30to60E2r2.chrysalis.column-package.intel/run\nexport TEST=/lcrc/group/acme/ac.dcomeau/scratch/chrys/20221218.DMPAS-JRA1p5.TL319_EC30to60E2r2.chrysalis.icepack.intel/run\n\n# 'srun' is not needed for a single-task job; the command is run directly.\n# The allocated resources are available to the script's environment.\npython mpas-seaice.t-test.py $BASE $TEST\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash -l\n#SBATCH --nodes=1\n#SBATCH --time=1:00:00\n#SBATCH -A e3sm\n#SBATCH -p compute\n#SBATCH --job-name=cice-qc\n#SBATCH --output=log-cice-qc.o%j\n#SBATCH --error=log-cice-qc.e%j\n\ncd $SLURM_SUBMIT_DIR\nexport OMP_NUM_THREADS=1\n\nsource /lcrc/soft/climate/e3sm-unified/load_latest_e3sm_unified_chrysalis.sh\n\nexport HDF5_USE_FILE_LOCKING=FALSE\n\nexport BASE=/lcrc/group/acme/ac.dcomeau/scratch/chrys/20221218.DMPAS-JRA1p5.TL319_EC30to60E2r2.chrysalis.column-package.intel/run\nexport TEST=/lcrc/group/acme/ac.dcomeau/scratch/chrys/20221218.DMPAS-JRA1p5.TL319_EC30to60E2r2.chrysalis.icepack.intel/run\n\nsrun -N 1 -n 1 python mpas-seaice.t-test.py $BASE $TEST\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "manual_validate",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

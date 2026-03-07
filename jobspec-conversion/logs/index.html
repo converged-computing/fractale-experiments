@@ -10,7 +10,6 @@
         body { font-family: 'Inter', sans-serif; background: #020617; color: #f8fafc; }
         .mono { font-family: 'JetBrains Mono', monospace; }
         
-        /* Timeline Connector Line */
         .step-node:not(:last-child)::after {
             content: ''; position: absolute; top: 24px; right: -24px; width: 24px; height: 2px; background: #1e293b; z-index: 0;
         }
@@ -33,6 +32,7 @@
         <div id="global-stats" class="flex gap-8 text-[11px] font-bold uppercase tracking-widest">
             <div class="flex flex-col items-end"><span class="text-slate-500">Success Rate</span><span id="stat-accuracy" class="text-blue-400 text-sm">--</span></div>
             <div class="flex flex-col items-end"><span class="text-slate-500">Avg Tokens</span><span id="stat-tokens" class="text-blue-400 text-sm">--</span></div>
+            <div class="flex flex-col items-end"><span class="text-slate-500">Avg Time</span><span id="stat-time" class="text-blue-400 text-sm">--</span></div>
         </div>
     </header>
 
@@ -65,6 +65,15 @@
         </main>
     </div>
 
+    <!-- Modal Overlay -->
+    <div id="step-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-10">
+        <div class="bg-slate-900 border border-slate-700 p-6 rounded-xl max-w-2xl w-full shadow-2xl">
+            <h3 id="modal-title" class="text-blue-400 font-bold uppercase tracking-widest mb-2">Step Metadata</h3>
+            <pre id="modal-content" class="bg-black p-4 rounded text-xs mono text-green-400 overflow-auto max-h-[60vh]"></pre>
+            <button onclick="closeModal()" class="mt-4 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-bold">CLOSE</button>
+        </div>
+    </div>
+
     <script src="data.js"></script>
     <script>
         window.onload = function() {
@@ -86,12 +95,17 @@
             const list = document.getElementById('attempt-list');
             list.innerHTML = ""; 
 
-            // Update Stats
+            // Calculate Global Stats
             const valid = attempts.filter(a => a.status === 'Valid').length;
             document.getElementById('stat-accuracy').textContent = ((valid / attempts.length) * 100).toFixed(1) + "%";
-            const tokens = attempts.reduce((acc, c) => acc + (c.token_total || 0), 0) / attempts.length;
-            document.getElementById('stat-tokens').textContent = Math.round(tokens).toLocaleString();
+            
+            const totalTokens = attempts.reduce((acc, c) => acc + (c.token_total || 0), 0);
+            document.getElementById('stat-tokens').textContent = Math.round(totalTokens / attempts.length).toLocaleString();
+            
+            const totalTime = attempts.reduce((acc, c) => acc + (c.total_time || 0), 0);
+            document.getElementById('stat-time').textContent = (totalTime / attempts.length).toFixed(1) + "s";
 
+            // Render Sidebar
             attempts.forEach(attr => {
                 const btn = document.createElement('button');
                 btn.className = "w-full text-left p-4 rounded-lg border border-slate-800 bg-slate-900/30 hover:border-blue-500 mb-2 transition-all group";
@@ -103,7 +117,11 @@
                         <span class="text-[10px] text-slate-500 mono">${attr.id}</span>
                         <span class="text-[9px] text-slate-600 font-bold">${attr.step_count || 0} STEPS</span>
                     </div>
-                    <div class="${statusColor} text-xs font-bold uppercase tracking-tight">${attr.status}</div>`;
+                    <div class="${statusColor} text-xs font-bold uppercase tracking-tight">${attr.status}</div>
+                    <div class="mt-2 flex gap-4 text-[9px] text-slate-500">
+                        <span>Tokens: ${attr.token_total ? attr.token_total.toLocaleString() : '0'}</span>
+                        <span>Time: ${attr.total_time ? attr.total_time.toFixed(1) + 's' : 'N/A'}</span>
+                    </div>`;
                 list.appendChild(btn);
             });
             
@@ -115,81 +133,63 @@
             const allBtns = document.querySelectorAll('#attempt-list button');
             allBtns.forEach(b => b.classList.remove('border-blue-500', 'bg-blue-500/10'));
             
-            // Highlight active button
             const activeBtn = Array.from(allBtns).find(b => b.innerText.includes(attemptId));
             if (activeBtn) activeBtn.classList.add('border-blue-500', 'bg-blue-500/10');
 
             renderOrchestration(attempt);
         }
 
-function renderOrchestration(attempt) {
-    // 1. Reset Timeline
-    const timelineFlow = document.getElementById('timeline-flow');
-    timelineFlow.innerHTML = ""; 
-    
-    // 2. Update Source/Target Panels (The ones that went missing)
-    const inputPanel = document.getElementById('input-view');
-    const outputPanel = document.getElementById('output-view');
-    
-    // Ensure we handle potential nulls
-    inputPanel.textContent = attempt.slurm || "No Slurm script found.";
-    outputPanel.textContent = attempt.flux || "No Flux translation found.";
+        function renderOrchestration(attempt) {
+            const timelineFlow = document.getElementById('timeline-flow');
+            timelineFlow.innerHTML = ""; 
+            
+            document.getElementById('input-view').textContent = attempt.slurm || "No Slurm script found.";
+            document.getElementById('output-view').textContent = attempt.flux || "No Flux translation found.";
 
-    // 3. Populate Timeline
-    const fragment = document.createDocumentFragment();
+            const fragment = document.createDocumentFragment();
 
-    (attempt.events || []).filter(e => e.event === "exit").forEach((ev) => {
-        const validSteps = ['transform', 'validate', 'validate_flux_jobspec', 'manual_validate'];
-        if (!validSteps.includes(ev.step)) return;
+            (attempt.events || []).filter(e => e.event === "exit").forEach((ev) => {
+                const validSteps = ['transform', 'validate', 'validate_flux_jobspec', 'manual_validate'];
+                if (!validSteps.includes(ev.step)) return;
 
-        // Extract and normalize data
-        const data = ev.data.output || ev.data.outputs || ev.data;
-        const isValid = data.valid === true;
-        const isInvalid = data.valid === false;
-        
-        // Styling logic
-        let color, label;
-        if (ev.step.includes('validate')) {
-            if (isValid) {
-                color = "bg-green-900/30 border-green-500 text-green-400";
-                label = "PASS";
-            } else if (isInvalid) {
-                color = "bg-red-900/30 border-red-500 text-red-400";
-                label = "FAIL";
-            } else {
-                color = "bg-blue-900/30 border-blue-500 text-blue-400";
-                label = "NA";
-            }
-        } else {
-            color = "bg-slate-800 border-slate-600 text-slate-300";
-            label = "CONVERT";
+                const data = ev.data.output || ev.data.outputs || ev.data;
+                const isValid = data.valid === true;
+                const isInvalid = data.valid === false;
+                
+                let color, label;
+                if (ev.step.includes('validate')) {
+                    if (isValid) {
+                        color = "bg-green-900/30 border-green-500 text-green-400";
+                        label = "PASS";
+                    } else if (isInvalid) {
+                        color = "bg-red-900/30 border-red-500 text-red-400";
+                        label = "FAIL";
+                    } else {
+                        color = "bg-blue-900/30 border-blue-500 text-blue-400";
+                        label = "NA";
+                    }
+                } else {
+                    color = "bg-slate-800 border-slate-600 text-slate-300";
+                    label = "CONVERT";
+                }
+
+                const node = document.createElement('div');
+                node.className = "step-node relative flex flex-col items-center min-w-[150px] shrink-0 group cursor-pointer";
+                node.onclick = () => showModal(ev.step, data);
+
+                node.innerHTML = `
+                    <div class="w-full py-3 border-2 rounded-xl text-center shadow-lg transition-all group-hover:scale-105 ${color} z-10">
+                        <div class="text-[8px] font-black uppercase opacity-50 tracking-widest">${ev.step.replace('_', ' ')}</div>
+                        <div class="text-xs font-bold">${label}</div>
+                    </div>
+                    <div class="mt-2 text-[9px] text-slate-600 mono">${new Date(ev.timestamp * 1000).toLocaleTimeString([], {hour12:false})}</div>`;
+                
+                fragment.appendChild(node);
+            });
+
+            timelineFlow.appendChild(fragment);
         }
 
-        const node = document.createElement('div');
-        node.className = "step-node relative flex flex-col items-center min-w-[150px] shrink-0 group cursor-pointer";
-        node.onclick = () => showModal(ev.step, data);
-
-        node.innerHTML = `
-            <div class="w-full py-3 border-2 rounded-xl text-center shadow-lg transition-all group-hover:scale-105 ${color} z-10">
-                <div class="text-[8px] font-black uppercase opacity-50 tracking-widest">${ev.step.replace('_', ' ')}</div>
-                <div class="text-xs font-bold">${label}</div>
-            </div>
-            <div class="mt-2 text-[9px] text-slate-600 mono">${new Date(ev.timestamp * 1000).toLocaleTimeString([], {hour12:false})}</div>`;
-        
-        fragment.appendChild(node);
-    });
-
-    timelineFlow.appendChild(fragment);
-}
-</script>
-<div id="step-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-10">
-    <div class="bg-slate-900 border border-slate-700 p-6 rounded-xl max-w-2xl w-full shadow-2xl">
-        <h3 id="modal-title" class="text-blue-400 font-bold uppercase tracking-widest mb-2">Step Metadata</h3>
-        <pre id="modal-content" class="bg-black p-4 rounded text-xs mono text-green-400 overflow-auto max-h-[60vh]"></pre>
-        <button onclick="closeModal()" class="mt-4 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-bold">CLOSE</button>
-    </div>
-</div>
-    <script>
         function showModal(stepName, data) {
             document.getElementById('step-modal').classList.remove('hidden');
             document.getElementById('modal-title').textContent = stepName.replace('_', ' ');

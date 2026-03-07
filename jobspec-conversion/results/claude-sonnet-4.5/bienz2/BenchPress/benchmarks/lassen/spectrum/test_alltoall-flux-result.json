@@ -1,0 +1,110 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "content": "Error code: 400 - {'error': {'message': 'litellm.ContextWindowExceededError: litellm.BadRequestError: BedrockException: Context Window Error - {\"message\":\"The model returned the following errors: prompt is too long: 203237 tokens > 200000 maximum\"}\\nmodel=claude-sonnet-4.5. context_window_fallbacks=None. fallbacks=None.\\n\\nSet \\'context_window_fallback\\' - https://docs.litellm.ai/docs/routing#fallbacks. Received Model Group=claude-sonnet-4.5\\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '400'}}"
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "content": "Error code: 400 - {'error': {'message': 'litellm.ContextWindowExceededError: litellm.BadRequestError: BedrockException: Context Window Error - {\"message\":\"The model returned the following errors: prompt is too long: 203237 tokens > 200000 maximum\"}\\nmodel=claude-sonnet-4.5. context_window_fallbacks=None. fallbacks=None.\\n\\nSet \\'context_window_fallback\\' - https://docs.litellm.ai/docs/routing#fallbacks. Received Model Group=claude-sonnet-4.5\\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '400'}}"
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "lsf",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n#BSUB -J all_to_all_32\n#BSUB -e all_to_all_32.%J.err\n#BSUB -o all_to_all_32.%J.out\n#BSUB -nnodes 32\n#BSUB -W 00:15\n\nmodule load gcc\nmodule load cuda/10.2.89\nmodule load hwloc\n\ncd /g/g14/bienz1/BenchPress/spectrum_build/examples\n\nnvidia-cuda-mps-control -d\n\njsrun -a40 -c40 -g4 -r1 -n32 -M \"-gpu\" --latency_priority=gpu-cpu --launch_distribution=packed ./time_alltoall\n\necho quit | nvidia-cuda-mps-control\n\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "manual_validate",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

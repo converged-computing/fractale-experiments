@@ -1,0 +1,124 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/sh\n\n# Flux directives translated from SLURM\n#FLUX: -N 1\n#FLUX: -n 16\n#FLUX: -t 01:00:00\n#FLUX: -q normal256\n#FLUX: -o POI16.eo%J\n\n#\n# --- Omitted SLURM options and explanations ---\n#\n# -J HAICprep\n#   Omitted. The job name in Flux is generally set during submission (e.g.,\n#   'flux submit --job-name=HAICprep ...') or via the FLUX_JOB_NAME\n#   environment variable, not through a script directive.\n#\n# -e POI16.eo%j\n#   Omitted. Flux combines stdout and stderr into the single output file\n#   specified by the -o directive by default. This behavior matches the original request.\n#\n\n# Echo des commandes\nulimit -c 0\nulimit -s unlimited\n# Nom de la machine\nhostname \n\n. ~rodierq/DEV_57/MNH-PHYEX070-b95d84d7/conf/profile_mesonh-LXifort-R8I4-MNH-V5-6-2-ECRAD140-MPIAUTO-O2-HAIC\n\n# 'flux run' is the native job launcher for Flux. It will automatically use the\n# 16 tasks requested in the '#FLUX: -n 16' directive.\n\nln -sf ../01_prep_pgd/PGD.* .\nln -sf ~/SAVE/mesonh/PGD/pgd_guyane* .\nln -sf ~/SAVE/GRIB_KTEST/arome.FO.201505* .\nln -sf ~/SAVE/GRIB_KTEST/historic.20150529.00.lfi\n\ntouch pgd_guyane.02km50.04.des\ntouch historic.20150529.00.des\n\n# Note: The executable command relies on an environment variable, ${XYZ}, which must\n# be set in the submission environment.\ntime flux run PREP_REAL_CASE${XYZ}\n\nfor i in 00 06 12 18 24; do\n    cp PRE_REAL1.nam_$i PRE_REAL1.nam\n    time flux run PREP_REAL_CASE${XYZ}\ndone\ncd ../\n./run_all_mesonh\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "The most significant resource-related issue is the lack of an explicit memory request. The original SLURM script also omitted this. For an MPI job running on 16 cores, this is a critical omission. The job is at high risk of being scheduled on a node with insufficient memory, leading to an out-of-memory failure, or it could be killed by the system for over-subscription.",
+                        "The script is extremely non-portable. It sources a profile script from a hardcoded, user-specific path (`~rodierq/...`) and creates symlinks to files in another user-specific path (`~/SAVE/...`). This will fail for any other user.",
+                        "The main executable command `time flux run PREP_REAL_CASE${XYZ}` relies on an environment variable `${XYZ}` which is not defined within the script. The job will fail unless this variable is set in the submission environment.",
+                        "The script runs the main parallel application `flux run PREP_REAL_CASE${XYZ}` multiple times inside a loop. This is an inefficient way to run a workflow and may not be the intended behavior. The final `./run_all_mesonh` is a serial command that does not use the 16-task allocation and may also be a parallel launcher that needs to be adapted for Flux."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/sh\n\n# Flux directives translated from SLURM\n#FLUX: -N 1\n#FLUX: -n 16\n#FLUX: -t 01:00:00\n#FLUX: -q normal256\n#FLUX: -o POI16.eo%J\n\n#\n# --- Omitted SLURM options and explanations ---\n#\n# -J HAICprep\n#   Omitted. The job name in Flux is generally set during submission (e.g.,\n#   'flux submit --job-name=HAICprep ...') or via the FLUX_JOB_NAME\n#   environment variable, not through a script directive.\n#\n# -e POI16.eo%j\n#   Omitted. Flux combines stdout and stderr into the single output file\n#   specified by the -o directive by default. This behavior matches the original request.\n#\n\n# Echo des commandes\nulimit -c 0\nulimit -s unlimited\n# Nom de la machine\nhostname \n\n. ~rodierq/DEV_57/MNH-PHYEX070-b95d84d7/conf/profile_mesonh-LXifort-R8I4-MNH-V5-6-2-ECRAD140-MPIAUTO-O2-HAIC\n\n# 'flux run' is the native job launcher for Flux. It will automatically use the\n# 16 tasks requested in the '#FLUX: -n 16' directive.\n\nln -sf ../01_prep_pgd/PGD.* .\nln -sf ~/SAVE/mesonh/PGD/pgd_guyane* .\nln -sf ~/SAVE/GRIB_KTEST/arome.FO.201505* .\nln -sf ~/SAVE/GRIB_KTEST/historic.20150529.00.lfi\n\ntouch pgd_guyane.02km50.04.des\ntouch historic.20150529.00.des\n\n# Note: The executable command relies on an environment variable, ${XYZ}, which must\n# be set in the submission environment.\ntime flux run PREP_REAL_CASE${XYZ}\n\nfor i in 00 06 12 18 24; do\n    cp PRE_REAL1.nam_$i PRE_REAL1.nam\n    time flux run PREP_REAL_CASE${XYZ}\ndone\ncd ../\n./run_all_mesonh\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/sh\n#SBATCH -J HAICprep\n#SBATCH -N 1            # nodes number =NBP dans tosupcrc\n#SBATCH -n 16           # CPUs number (on all nodes) =NBP*TPN dans tosupcrc\n#SBATCH -o POI16.eo%j   #\n#SBATCH -e POI16.eo%j   #\n#SBATCH -t 01:00:00     # time limit\n#SBATCH -p normal256\n\n# Echo des commandes\nulimit -c 0\nulimit -s unlimited\n# Nom de la machine\nhostname \n\n. ~rodierq/DEV_57/MNH-PHYEX070-b95d84d7/conf/profile_mesonh-LXifort-R8I4-MNH-V5-6-2-ECRAD140-MPIAUTO-O2-HAIC\n\nexport MPIRUN='Mpirun -np 16'\n\nln -sf ../01_prep_pgd/PGD.* .\nln -sf ~/SAVE/mesonh/PGD/pgd_guyane* .\nln -sf ~/SAVE/GRIB_KTEST/arome.FO.201505* .\nln -sf ~/SAVE/GRIB_KTEST/historic.20150529.00.lfi\n\ntouch pgd_guyane.02km50.04.des\ntouch historic.20150529.00.des\n\ntime ${MPIRUN} PREP_REAL_CASE${XYZ}\n\nfor i in 00 06 12 18 24; do\n    cp PRE_REAL1.nam_$i PRE_REAL1.nam\n    time ${MPIRUN} PREP_REAL_CASE${XYZ}\ndone\ncd ../\n./run_all_mesonh\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

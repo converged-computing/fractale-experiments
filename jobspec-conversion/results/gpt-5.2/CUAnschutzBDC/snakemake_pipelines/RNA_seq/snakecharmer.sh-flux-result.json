@@ -1,0 +1,125 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/usr/bin/env bash\n# Flux batch script converted from LSF\n\n# NOTE: Run with: flux batch <this_script>\n\n# LSF resources:\n#   -J RNAseq\n#   -q rna\n#   -R \"select[mem>4] rusage[mem=4]\"\n#   -o logs/snakemake_%J.out\n#   -e logs/snakemake_%J.err\n\n#flux: --job-name=RNAseq\n\n# Omitted LSF option: -q rna (queue)\n# Flux queues/partitions are site-specific; no portable equivalent.\n# Performance implication: job may run in a different queue with different priority/limits, affecting wait time and performance.\n\n# Omitted LSF option: -R \"select[mem>4] rusage[mem=4]\"\n# Flux memory requests are site/config dependent and not universally portable.\n# Performance implication: job may be scheduled on nodes with insufficient memory, risking OOM kills or degraded performance.\n\n# Omitted LSF options: -o/-e with %J token\n# Flux jobid token expansion for output/error paths is not portable across Flux versions/sites.\n# Performance implication: none, but logs may overwrite/collide unless you choose unique filenames per run.\n\nset -o nounset -o pipefail -o errexit -x\n\nmodule load singularity/3.9.2\n\n# LSF/DRMAA submission from Snakemake is not portable to Flux.\n# Omitted: Snakemake --drmaa \"$args\"\n# Performance implication: jobs will not be distributed as separate scheduler-managed tasks; instead they run under this single allocation,\n# which can reduce throughput and increase walltime unless you configure a Flux-native Snakemake executor.\n\nsnakemake \\\n  --snakefile Snakefile \\\n  --configfile config.yaml \\\n  --jobs 12 \\\n  --latency-wait 60 \\\n  --rerun-incomplete \\\n  --use-singularity \\\n  --singularity-args \"--bind /beevol/home/rbilab --bind /beevol/home/wellskri --bind /beevol/home/wellskri/packages/bin --bind /tmp:/tmp\"\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": false,
+                    "tool_call": false,
+                    "reasons": [
+                        "No compute resources are requested in the Flux resource section (no nodes, tasks, cores, or time limit). This will typically result in a default minimal allocation that is unlikely to match the workload needs.",
+                        "The original LSF job enforced a memory requirement (`rusage[mem=4]` / `select[mem>4]`), but the Flux resource section has no memory request; on systems that schedule/enforce memory, this can lead to under-provisioning.",
+                        "The workflow is configured to run up to 12 concurrent jobs (`--jobs 12`), but the Flux resource section does not request CPU capacity to support that concurrency (e.g., cores/tasks), risking severe oversubscription."
+                    ],
+                    "issues": [
+                        "Snakemake's LSF/DRMAA integration was removed; without a Flux-native executor profile, all work will run within the single allocation and may oversubscribe resources if not sized appropriately."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "failed -> manual_validate",
+            "complete": false,
+            "state": "failed"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/usr/bin/env bash\n# Flux batch script converted from LSF\n\n# NOTE: Run with: flux batch <this_script>\n\n# LSF resources:\n#   -J RNAseq\n#   -q rna\n#   -R \"select[mem>4] rusage[mem=4]\"\n#   -o logs/snakemake_%J.out\n#   -e logs/snakemake_%J.err\n\n#flux: --job-name=RNAseq\n\n# Omitted LSF option: -q rna (queue)\n# Flux queues/partitions are site-specific; no portable equivalent.\n# Performance implication: job may run in a different queue with different priority/limits, affecting wait time and performance.\n\n# Omitted LSF option: -R \"select[mem>4] rusage[mem=4]\"\n# Flux memory requests are site/config dependent and not universally portable.\n# Performance implication: job may be scheduled on nodes with insufficient memory, risking OOM kills or degraded performance.\n\n# Omitted LSF options: -o/-e with %J token\n# Flux jobid token expansion for output/error paths is not portable across Flux versions/sites.\n# Performance implication: none, but logs may overwrite/collide unless you choose unique filenames per run.\n\nset -o nounset -o pipefail -o errexit -x\n\nmodule load singularity/3.9.2\n\n# LSF/DRMAA submission from Snakemake is not portable to Flux.\n# Omitted: Snakemake --drmaa \"$args\"\n# Performance implication: jobs will not be distributed as separate scheduler-managed tasks; instead they run under this single allocation,\n# which can reduce throughput and increase walltime unless you configure a Flux-native Snakemake executor.\n\nsnakemake \\\n  --snakefile Snakefile \\\n  --configfile config.yaml \\\n  --jobs 12 \\\n  --latency-wait 60 \\\n  --rerun-incomplete \\\n  --use-singularity \\\n  --singularity-args \"--bind /beevol/home/rbilab --bind /beevol/home/wellskri --bind /beevol/home/wellskri/packages/bin --bind /tmp:/tmp\"\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "lsf",
+                    "to_manager": "flux",
+                    "script": "#!/usr/bin/env bash\n\n#BSUB -J RNAseq\n#BSUB -o logs/snakemake_%J.out\n#BSUB -e logs/snakemake_%J.err\n#BSUB -R \"select[mem>4] rusage[mem=4] \" \n#BSUB -q rna\n\nset -o nounset -o pipefail -o errexit -x\n\n# Load modules\n# Use locally installed packages for Majiq\n# module load fastqc/0.11.7\n# module load samtools/1.12\n# module load STAR/2.7.9a\n# module load subread/1.6.2\n# module load bbtools/38.86\nmodule load singularity/3.9.2\n\n# LSF arguments\nargs=' \n  -q rna \n  -o {log}.out \n  -e {log}.err \n  -J {params.job_name} \n  -R \"{params.memory} span[hosts=1] \" \n  -n {threads} ' \n\n# Run snakemake pipeline\nsnakemake \\\n    --drmaa \"$args\" \\\n    --snakefile Snakefile \\\n    --configfile config.yaml \\\n    --jobs 12 \\\n    --latency-wait 60 \\\n    --rerun-incomplete \\\n    --use-singularity \\\n    --singularity-args \"--bind /beevol/home/rbilab --bind /beevol/home/wellskri --bind /beevol/home/wellskri/packages/bin --bind /tmp:/tmp\"\n    ",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "manual_validate",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

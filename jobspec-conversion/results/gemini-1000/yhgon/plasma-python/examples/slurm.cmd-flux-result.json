@@ -1,0 +1,124 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n# Flux directives translated from SLURM\n#FLUX: -N 3\n#FLUX: -n 12\n#FLUX: -c 4\n#FLUX: -g 12\n#FLUX: -t 01:30:00\n\n#\n# --- Omitted SLURM options and explanations ---\n#\n# --ntasks-per-socket=2\n#   Omitted. Flux does not have a direct batch directive to control task placement\n#   relative to sockets. This is a resource layout hint.\n#   Performance implication: Without this hint, the scheduler might distribute tasks\n#   across sockets in a way that is sub-optimal. For tightly-coupled MPI jobs,\n#   this can increase communication latency and reduce performance compared to\n#   explicitly controlling the task-to-socket mapping.\n#\n# --gres=gpu:4\n#   Translated as a per-node request. The original SLURM request for '--gres=gpu:4'\n#   in a multi-node job typically means 4 GPUs per node. This has been translated\n#   to a total of 12 GPUs ('-g 12') for the 3-node job.\n#\n# --mem-per-cpu=0\n#   Omitted. A request for 0 memory in SLURM typically means to allocate all available\n#   memory on the node. Flux does not have a direct batch directive to achieve this.\n#   This is often managed via `--requires` at submission time or is a property of the queue.\n#   Performance implication: Without a specific memory request, the job will receive a\n#   default memory allocation which is likely much smaller than the full node memory,\n#   potentially causing the job to fail with an out-of-memory error.\n#\n\nexport PYTHONHASHSEED=0\nmodule load anaconda\nsource activate pppl\nmodule load cudatoolkit/8.0\nmodule load cudnn/cuda-8.0/6.0\nmodule load openmpi/cuda-8.0/intel-17.0/2.1.0/64\nmodule load intel/17.0/64/17.0.4.196 intel-mkl/2017.3/4/64\n\n#remove checkpoints for a benchmark run\nrm /tigress/$USER/model_checkpoints/*\nrm /tigress/$USER/results/*\nrm /tigress/$USER/csv_logs/*\nrm /tigress/$USER/Graph/*\nrm /tigress/$USER/normalization/*\n\nexport OMPI_MCA_btl=\"tcp,self,sm\"\n\n# The SLURM 'srun' command is replaced by the 'flux run' command.\nflux run python mpi_learn.py\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "As correctly noted in the script's comments, the original SLURM memory request (`--mem-per-cpu=0`, typically meaning all available memory on the node) was omitted. This is a critical omission. The job will receive a default memory allocation which is likely much smaller than the full node's memory, creating a high risk of failure due to out-of-memory errors for a machine learning application.",
+                        "The SLURM directive `--ntasks-per-socket=2` was also omitted, as noted. This is a significant performance consideration. For a tightly-coupled MPI application, failure to control task placement can lead to sub-optimal NUMA locality and increased communication latency, degrading performance.",
+                        "The script begins with several `rm` commands that unconditionally delete the contents of directories. This is extremely dangerous and can lead to irreversible data loss if the job is run in an unintended context or if the directories contain important data.",
+                        "The script is highly non-portable. It uses hardcoded, user-specific absolute paths (`/tigress/$USER/...`) throughout the `rm` commands, making it impossible for others to use and difficult to maintain."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n# Flux directives translated from SLURM\n#FLUX: -N 3\n#FLUX: -n 12\n#FLUX: -c 4\n#FLUX: -g 12\n#FLUX: -t 01:30:00\n\n#\n# --- Omitted SLURM options and explanations ---\n#\n# --ntasks-per-socket=2\n#   Omitted. Flux does not have a direct batch directive to control task placement\n#   relative to sockets. This is a resource layout hint.\n#   Performance implication: Without this hint, the scheduler might distribute tasks\n#   across sockets in a way that is sub-optimal. For tightly-coupled MPI jobs,\n#   this can increase communication latency and reduce performance compared to\n#   explicitly controlling the task-to-socket mapping.\n#\n# --gres=gpu:4\n#   Translated as a per-node request. The original SLURM request for '--gres=gpu:4'\n#   in a multi-node job typically means 4 GPUs per node. This has been translated\n#   to a total of 12 GPUs ('-g 12') for the 3-node job.\n#\n# --mem-per-cpu=0\n#   Omitted. A request for 0 memory in SLURM typically means to allocate all available\n#   memory on the node. Flux does not have a direct batch directive to achieve this.\n#   This is often managed via `--requires` at submission time or is a property of the queue.\n#   Performance implication: Without a specific memory request, the job will receive a\n#   default memory allocation which is likely much smaller than the full node memory,\n#   potentially causing the job to fail with an out-of-memory error.\n#\n\nexport PYTHONHASHSEED=0\nmodule load anaconda\nsource activate pppl\nmodule load cudatoolkit/8.0\nmodule load cudnn/cuda-8.0/6.0\nmodule load openmpi/cuda-8.0/intel-17.0/2.1.0/64\nmodule load intel/17.0/64/17.0.4.196 intel-mkl/2017.3/4/64\n\n#remove checkpoints for a benchmark run\nrm /tigress/$USER/model_checkpoints/*\nrm /tigress/$USER/results/*\nrm /tigress/$USER/csv_logs/*\nrm /tigress/$USER/Graph/*\nrm /tigress/$USER/normalization/*\n\nexport OMPI_MCA_btl=\"tcp,self,sm\"\n\n# The SLURM 'srun' command is replaced by the 'flux run' command.\nflux run python mpi_learn.py\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n#SBATCH -t 01:30:00\n#SBATCH -N 3\n#SBATCH --ntasks-per-node=4\n#SBATCH --ntasks-per-socket=2\n#SBATCH --gres=gpu:4\n#SBATCH -c 4\n#SBATCH --mem-per-cpu=0\n\nexport PYTHONHASHSEED=0\nmodule load anaconda\nsource activate pppl\nmodule load cudatoolkit/8.0\nmodule load cudnn/cuda-8.0/6.0\nmodule load openmpi/cuda-8.0/intel-17.0/2.1.0/64\nmodule load intel/17.0/64/17.0.4.196 intel-mkl/2017.3/4/64\n\n#remove checkpoints for a benchmark run\nrm /tigress/$USER/model_checkpoints/*\nrm /tigress/$USER/results/*\nrm /tigress/$USER/csv_logs/*\nrm /tigress/$USER/Graph/*\nrm /tigress/$USER/normalization/*\n\nexport OMPI_MCA_btl=\"tcp,self,sm\"\n\nsrun python mpi_learn.py\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

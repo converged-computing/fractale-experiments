@@ -1,0 +1,124 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n# Flux directives translated from SLURM\n#FLUX: -N 1\n#FLUX: -n 1\n#FLUX: -c 4\n#FLUX: -t 7-00:00:00\n#FLUX: -o log_train_emf_lhc_%t.log\n\n#\n# --- Omitted SLURM options and explanations ---\n#\n# --job-name=t-emf-l\n#   Omitted. The job name in Flux is generally set during submission (e.g.,\n#   'flux submit --job-name=...') or via the FLUX_JOB_NAME\n#   environment variable, not through a script directive.\n#\n# --mem=32GB\n#   Omitted. Flux does not have a direct batch script directive for memory.\n#   Performance implication: Without a memory constraint, the job may be\n#   scheduled on a node with insufficient memory, potentially causing it to\n#   fail with an out-of-memory error or perform poorly due to heavy swapping.\n#\n# --gres=gpu:1\n#   Omitted. This directive was commented out in the original SLURM script. If a\n#   GPU is required, add '#FLUX: -g 1' to the directives above.\n#\n# Job Array Context:\n#   The original script uses the SLURM_ARRAY_TASK_ID variable, implying it was\n#   submitted as a job array. Flux does not have a batch directive for this.\n#   Instead, arrays are submitted using 'flux bulksubmit'. For example:\n#   'flux bulksubmit --watch -n <number_of_tasks> ./your-flux-script.sh'\n#\n\n# module load cuda/10.1.105\nsource activate ml\nexport OMP_NUM_THREADS=1\ncd /scratch/jb6504/manifold-flow/experiments\n\n# Note: The SLURM environment variable ${SLURM_ARRAY_TASK_ID} has been replaced with\n# ${FLUX_TASK_ID}. This script is intended for submission with 'flux bulksubmit'.\npython -u train.py -c configs/train_mf_lhc_june.config --algorithm emf -i ${FLUX_TASK_ID}\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "As correctly noted in the script's comments, the original SLURM memory request of 32GB was omitted. This is a critical omission for a very long-running job (7 days). Without a memory constraint, the job is at high risk of being scheduled on a node with insufficient memory, leading to an out-of-memory failure.",
+                        "There is a significant resource mismatch: the job requests 4 CPU cores (`#FLUX: -c 4`) but then explicitly limits OpenMP parallelism to a single thread (`export OMP_NUM_THREADS=1`). If the Python application's performance relies on multi-threading (e.g., via numerical libraries), it will not be able to use 3 of the 4 allocated cores, leading to a significant waste of resources for the entire 7-day runtime.",
+                        "The script is intended to be run as a job array, as indicated by the use of `${FLUX_TASK_ID}`. The comments correctly state that this requires a different submission command (`flux bulksubmit`). This is a critical change in user workflow. If submitted with a simple `flux submit`, the script would only run a single task (task 0) and not the full array.",
+                        "The script is highly non-portable. It uses a hardcoded, user-specific absolute path for the working directory (`/scratch/jb6504/...`)."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n# Flux directives translated from SLURM\n#FLUX: -N 1\n#FLUX: -n 1\n#FLUX: -c 4\n#FLUX: -t 7-00:00:00\n#FLUX: -o log_train_emf_lhc_%t.log\n\n#\n# --- Omitted SLURM options and explanations ---\n#\n# --job-name=t-emf-l\n#   Omitted. The job name in Flux is generally set during submission (e.g.,\n#   'flux submit --job-name=...') or via the FLUX_JOB_NAME\n#   environment variable, not through a script directive.\n#\n# --mem=32GB\n#   Omitted. Flux does not have a direct batch script directive for memory.\n#   Performance implication: Without a memory constraint, the job may be\n#   scheduled on a node with insufficient memory, potentially causing it to\n#   fail with an out-of-memory error or perform poorly due to heavy swapping.\n#\n# --gres=gpu:1\n#   Omitted. This directive was commented out in the original SLURM script. If a\n#   GPU is required, add '#FLUX: -g 1' to the directives above.\n#\n# Job Array Context:\n#   The original script uses the SLURM_ARRAY_TASK_ID variable, implying it was\n#   submitted as a job array. Flux does not have a batch directive for this.\n#   Instead, arrays are submitted using 'flux bulksubmit'. For example:\n#   'flux bulksubmit --watch -n <number_of_tasks> ./your-flux-script.sh'\n#\n\n# module load cuda/10.1.105\nsource activate ml\nexport OMP_NUM_THREADS=1\ncd /scratch/jb6504/manifold-flow/experiments\n\n# Note: The SLURM environment variable ${SLURM_ARRAY_TASK_ID} has been replaced with\n# ${FLUX_TASK_ID}. This script is intended for submission with 'flux bulksubmit'.\npython -u train.py -c configs/train_mf_lhc_june.config --algorithm emf -i ${FLUX_TASK_ID}\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n\n#SBATCH --job-name=t-emf-l\n#SBATCH --output=log_train_emf_lhc_%a.log\n#SBATCH --nodes=1\n#SBATCH --cpus-per-task=4\n#SBATCH --mem=32GB\n#SBATCH --time=7-00:00:00\n# #SBATCH --gres=gpu:1\n\n# module load cuda/10.1.105\nsource activate ml\nexport OMP_NUM_THREADS=1\ncd /scratch/jb6504/manifold-flow/experiments\n\npython -u train.py -c configs/train_mf_lhc_june.config --algorithm emf -i ${SLURM_ARRAY_TASK_ID}\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

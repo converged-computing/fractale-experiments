@@ -1,0 +1,122 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash -l\n# Flux batch script converted from PBS\n\n# NOTE: Run with: flux batch <this_script>\n\n# PBS resources:\n#   -l nodes=3:ppn=128\n#   -l mem=64gb\n#   -l walltime=1:00:00\n#   -r n\n#   -j oe\n#   -q starq\n\n# Request 3 nodes. The original launch used -n 192 ranks.\n#flux: -N 3\n#flux: -n 192\n#flux: -c 1\n#flux: --time-limit=1h\n\n# Omitted PBS option: -l mem=64gb\n# Flux memory requests are site/config dependent and not universally portable.\n# Performance implication: job may be scheduled on nodes with insufficient memory, risking OOM kills or degraded performance.\n\n# Omitted PBS option: -q starq (queue)\n# Flux queues/partitions are site-specific; no portable equivalent.\n# Performance implication: job may run with different priority/limits or be rejected by policy.\n\n# Omitted PBS option: -j oe (join stdout/stderr)\n# Flux commonly manages stdout/stderr separately; a portable join directive is not guaranteed.\n# Performance implication: none on runtime performance, but logs may be split.\n\n# Omitted PBS option: -r n (non-rerunnable)\n# Flux does not have a universal portable directive for PBS rerunnable semantics.\n# Performance implication: none for performance, but restart behavior/policies may differ.\n\ncd /fs/lustre/cita/zack/jl/dev/LagrangianPerturbationTheory/projectamd\nmodule load openmpi\n\njulia --project -e 'using Pkg; Pkg.instantiate()'\njulia --project -e 'using Pkg; Pkg.precompile()'\n\n# PBS used mpiexecjl -n 192; under Flux, use flux-run to launch ranks.\nflux run -n 192 -c 1 /fs/lustre/cita/zack/jl/bin/mpiexecjl --project -n 192 julia fft_filter_6144.jl\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": false,
+                    "tool_call": false,
+                    "reasons": [
+                        "PBS requested 64GB of memory (`-l mem=64gb`) but the Flux resource section has no memory request; on systems that schedule/enforce memory this can under-provision the job and risk OOM or degraded performance.",
+                        "PBS specified a queue (`-q starq`) but the Flux resource section has no queue/partition selection; on sites where this affects eligibility/limits, scheduling behavior may differ or the job may be rejected."
+                    ],
+                    "issues": []
+                },
+                "attempts": 1
+            },
+            "transition": "failed -> manual_validate",
+            "complete": false,
+            "state": "failed"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash -l\n# Flux batch script converted from PBS\n\n# NOTE: Run with: flux batch <this_script>\n\n# PBS resources:\n#   -l nodes=3:ppn=128\n#   -l mem=64gb\n#   -l walltime=1:00:00\n#   -r n\n#   -j oe\n#   -q starq\n\n# Request 3 nodes. The original launch used -n 192 ranks.\n#flux: -N 3\n#flux: -n 192\n#flux: -c 1\n#flux: --time-limit=1h\n\n# Omitted PBS option: -l mem=64gb\n# Flux memory requests are site/config dependent and not universally portable.\n# Performance implication: job may be scheduled on nodes with insufficient memory, risking OOM kills or degraded performance.\n\n# Omitted PBS option: -q starq (queue)\n# Flux queues/partitions are site-specific; no portable equivalent.\n# Performance implication: job may run with different priority/limits or be rejected by policy.\n\n# Omitted PBS option: -j oe (join stdout/stderr)\n# Flux commonly manages stdout/stderr separately; a portable join directive is not guaranteed.\n# Performance implication: none on runtime performance, but logs may be split.\n\n# Omitted PBS option: -r n (non-rerunnable)\n# Flux does not have a universal portable directive for PBS rerunnable semantics.\n# Performance implication: none for performance, but restart behavior/policies may differ.\n\ncd /fs/lustre/cita/zack/jl/dev/LagrangianPerturbationTheory/projectamd\nmodule load openmpi\n\njulia --project -e 'using Pkg; Pkg.instantiate()'\njulia --project -e 'using Pkg; Pkg.precompile()'\n\n# PBS used mpiexecjl -n 192; under Flux, use flux-run to launch ranks.\nflux run -n 192 -c 1 /fs/lustre/cita/zack/jl/bin/mpiexecjl --project -n 192 julia fft_filter_6144.jl\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "pbs",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash -l\n#PBS -l nodes=3:ppn=128\n#PBS -l mem=64gb\n#PBS -l walltime=1:00:00\n#PBS -r n\n#PBS -j oe\n#PBS -q starq\n\n# go to your working directory containing the batch script, code and data\ncd /fs/lustre/cita/zack/jl/dev/LagrangianPerturbationTheory/projectamd\nmodule load openmpi\n\njulia --project -e 'using Pkg; Pkg.instantiate()'\njulia --project -e 'using Pkg; Pkg.precompile()'\n\n/fs/lustre/cita/zack/jl/bin/mpiexecjl --project -n 192 julia fft_filter_6144.jl\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "manual_validate",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

@@ -1,0 +1,124 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n# Flux directives translated from SLURM\n#FLUX: -N 1\n#FLUX: -n 1\n#FLUX: -g 1\n#FLUX: -t 24:00:00\n#FLUX: -q main\n#FLUX: -o somd-array-gpu-%J.%t.out\n\n#\n# --- Omitted SLURM options and explanations ---\n#\n# Job Array Context:\n#   The original script's output filename pattern ('%A.%a') implies it was\n#   submitted as a job array. Flux does not have a batch directive for this.\n#   Instead, arrays are submitted using 'flux bulksubmit'. For example:\n#   'flux bulksubmit --watch -n <number_of_tasks> ./your-flux-script.sh'\n#\n\necho \"CUDA DEVICES:\" $CUDA_VISIBLE_DEVICES\n\nmkdir 10cycles\ncd 10cycles\n\nexport OPENMM_PLUGIN_DIR=/home/julien/sire.app/lib/plugins/\n\n# The SLURM 'srun' command is replaced by 'flux run'.\nflux run ~/sire.app/bin/somd-freenrg -C ../sim10.cfg -l 0.50 -p CUDA\ncd ..\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "The script is missing explicit requests for CPU cores (`-c`) and memory. For a 24-hour molecular dynamics simulation, these are critical omissions. The job will receive a small default CPU and memory allocation, which could lead to a severe data pipeline bottleneck for the GPU and also creates a high risk of failure due to out-of-memory errors.",
+                        "The script is intended to be run as a job array, as indicated by the original output filename pattern. The comments correctly state that this requires a different submission command (`flux bulksubmit`). This is a critical change in user workflow. If submitted with a simple `flux submit`, it will only execute a single task, not the full array intended.",
+                        "The script is extremely non-portable. It uses hardcoded, user-specific absolute paths for the `OPENMM_PLUGIN_DIR` and the executable (`/home/julien/...`). It will fail for any other user or if the directory structure changes.",
+                        "The script uses a relative path for its configuration file (`../sim10.cfg`), which is fragile. Its success is dependent on the `cd 10cycles` command, which in turn depends on the job's initial working directory."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n# Flux directives translated from SLURM\n#FLUX: -N 1\n#FLUX: -n 1\n#FLUX: -g 1\n#FLUX: -t 24:00:00\n#FLUX: -q main\n#FLUX: -o somd-array-gpu-%J.%t.out\n\n#\n# --- Omitted SLURM options and explanations ---\n#\n# Job Array Context:\n#   The original script's output filename pattern ('%A.%a') implies it was\n#   submitted as a job array. Flux does not have a batch directive for this.\n#   Instead, arrays are submitted using 'flux bulksubmit'. For example:\n#   'flux bulksubmit --watch -n <number_of_tasks> ./your-flux-script.sh'\n#\n\necho \"CUDA DEVICES:\" $CUDA_VISIBLE_DEVICES\n\nmkdir 10cycles\ncd 10cycles\n\nexport OPENMM_PLUGIN_DIR=/home/julien/sire.app/lib/plugins/\n\n# The SLURM 'srun' command is replaced by 'flux run'.\nflux run ~/sire.app/bin/somd-freenrg -C ../sim10.cfg -l 0.50 -p CUDA\ncd ..\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n#SBATCH -o somd-array-gpu-%A.%a.out\n#SBATCH -p main\n#SBATCH -n 1\n#SBATCH --gres=gpu:1\n#SBATCH --time 24:00:00\n\necho \"CUDA DEVICES:\" $CUDA_VISIBLE_DEVICES\n\nmkdir 10cycles\ncd 10cycles\n\nexport OPENMM_PLUGIN_DIR=/home/julien/sire.app/lib/plugins/\n\nsrun ~/sire.app/bin/somd-freenrg -C ../sim10.cfg -l 0.50 -p CUDA\ncd ..\n\n\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

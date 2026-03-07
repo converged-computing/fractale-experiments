@@ -1,0 +1,110 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "content": "Error code: 400 - {'error': {'message': 'litellm.ContextWindowExceededError: litellm.BadRequestError: BedrockException: Context Window Error - {\"message\":\"The model returned the following errors: prompt is too long: 203237 tokens > 200000 maximum\"}\\nmodel=claude-sonnet-4.5. context_window_fallbacks=None. fallbacks=None.\\n\\nSet \\'context_window_fallback\\' - https://docs.litellm.ai/docs/routing#fallbacks. Received Model Group=claude-sonnet-4.5\\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '400'}}"
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "content": "Error code: 400 - {'error': {'message': 'litellm.ContextWindowExceededError: litellm.BadRequestError: BedrockException: Context Window Error - {\"message\":\"The model returned the following errors: prompt is too long: 203237 tokens > 200000 maximum\"}\\nmodel=claude-sonnet-4.5. context_window_fallbacks=None. fallbacks=None.\\n\\nSet \\'context_window_fallback\\' - https://docs.litellm.ai/docs/routing#fallbacks. Received Model Group=claude-sonnet-4.5\\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '400'}}"
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/sh\n#SBATCH --partition=GPUQ\n#SBATCH --account=ie-idi\n#SBATCH --time=5:00:00\n#SBATCH --gpus-per-node=1\n#SBATCH --nodes=1\n#SBATCH --ntasks-per-node=1\n#SBATCH --mem=20000\n#SBATCH --job-name=\"road_detector\"\n#SBATCH --output=srun.out\n#SBATCH --mail-user=joergen.rosager@gmail.com\n#SBATCH --mail-type=ALL\n\nWORKDIR=${SLURM_SUBMIT_DIR}\ncd ${WORKDIR}\necho \"we are running from this directory: $SLURM_SUBMIT_DIR\"\necho \" the name of the job is: $SLURM_JOB_NAME\"\necho \"Th job ID is $SLURM_JOB_ID\"\necho \"The job was run on these nodes: $SLURM_JOB_NODELIST\"\necho \"Number of nodes: $SLURM_JOB_NUM_NODES\"\necho \"We are using $SLURM_CPUS_ON_NODE cores\"\necho \"We are using $SLURM_CPUS_ON_NODE cores per node\"\necho \"Total of $SLURM_NTASKS cores\"\n\nmodule purge\nmodule load fosscuda/2020b\nmodule load Anaconda3/2020.07\nnvidia-smi\nPYTHONPATH=/cluster/home/jorgro/road-detector python ./tools/train.py ./configs/road_detector.py --work-dir ./runs\nuname -a\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "manual_validate",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

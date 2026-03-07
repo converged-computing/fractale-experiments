@@ -1,0 +1,122 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n# Flux batch script converted from LSF\n\n# NOTE:\n#   LSF used a job array: [1-10]. Flux does not have a universally portable\n#   batch-script directive for arrays.\n#\n# Run with:\n#   flux batch <this_script> -- <INDEX>\n# where <INDEX> corresponds to the former LSB_JOBINDEX (1-10).\n\n# LSF resources:\n#   -q airoldi\n#   -u jbischof@fas.harvard.edu\n#   -J \"process_reuters_lda_data_train[1-10]\"\n\n#flux: -N 1\n#flux: -n 1\n\n# Omitted LSF option: -q airoldi (queue)\n# Flux queues/partitions are site-specific; no portable equivalent.\n# Performance implication: job may run with different priority/limits or be rejected by policy.\n\n# Omitted LSF option: -u (email notifications)\n# Flux does not provide a universal, built-in email notification directive in batch scripts.\n# Performance implication: none on runtime performance, but you will not receive automatic job emails.\n\n# Omitted LSF option: job array [1-10]\n# Flux job arrays are not universally available as batch directives.\n# Performance implication: you must submit multiple jobs manually; this can increase scheduler overhead and reduce throughput.\n\nINDEX=$1\nif [ -z \"$INDEX\" ]; then\n  echo \"Usage: $0 <INDEX 1-10>\" >&2\n  exit 2\nfi\n\npartition=train\ncutoff=500\nmain_dir=/n/airoldifs2/lab/jbischof/reuters_output/mmm_folds/fold${INDEX}/\nout_dir=${main_dir}mmm_raw_data/parsed_${partition}_data${cutoff}/\n\nif [ ! -d \"$out_dir\" ]; then\n  mkdir -p \"$out_dir\"\nfi\n\npython ../process_parse_lda_data.py \"$partition\" \"$cutoff\" \"$main_dir\"\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": false,
+                    "tool_call": false,
+                    "reasons": [
+                        "The original LSF job used a job array (`process_reuters_lda_data_train[1-10]`), but the Flux resource section does not provide an equivalent array mechanism; this changes the intended number of scheduled job instances.",
+                        "The original LSF job specified a queue (`-q airoldi`) but the Flux resource section has no queue/partition selection; on sites where this affects eligibility/limits, scheduling behavior may differ or the job may be rejected."
+                    ],
+                    "issues": []
+                },
+                "attempts": 1
+            },
+            "transition": "failed -> manual_validate",
+            "complete": false,
+            "state": "failed"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n# Flux batch script converted from LSF\n\n# NOTE:\n#   LSF used a job array: [1-10]. Flux does not have a universally portable\n#   batch-script directive for arrays.\n#\n# Run with:\n#   flux batch <this_script> -- <INDEX>\n# where <INDEX> corresponds to the former LSB_JOBINDEX (1-10).\n\n# LSF resources:\n#   -q airoldi\n#   -u jbischof@fas.harvard.edu\n#   -J \"process_reuters_lda_data_train[1-10]\"\n\n#flux: -N 1\n#flux: -n 1\n\n# Omitted LSF option: -q airoldi (queue)\n# Flux queues/partitions are site-specific; no portable equivalent.\n# Performance implication: job may run with different priority/limits or be rejected by policy.\n\n# Omitted LSF option: -u (email notifications)\n# Flux does not provide a universal, built-in email notification directive in batch scripts.\n# Performance implication: none on runtime performance, but you will not receive automatic job emails.\n\n# Omitted LSF option: job array [1-10]\n# Flux job arrays are not universally available as batch directives.\n# Performance implication: you must submit multiple jobs manually; this can increase scheduler overhead and reduce throughput.\n\nINDEX=$1\nif [ -z \"$INDEX\" ]; then\n  echo \"Usage: $0 <INDEX 1-10>\" >&2\n  exit 2\nfi\n\npartition=train\ncutoff=500\nmain_dir=/n/airoldifs2/lab/jbischof/reuters_output/mmm_folds/fold${INDEX}/\nout_dir=${main_dir}mmm_raw_data/parsed_${partition}_data${cutoff}/\n\nif [ ! -d \"$out_dir\" ]; then\n  mkdir -p \"$out_dir\"\nfi\n\npython ../process_parse_lda_data.py \"$partition\" \"$cutoff\" \"$main_dir\"\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "lsf",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n\n# DO NOT CHANGE THE QUEUE! YOU **MUST** ONLY USE THE QUEUE: short_serial\n#BSUB -q airoldi\n\n# EDIT THE EMAIL-ADDRESS BELOW TO YOUR FAS EMAIL:\n#BSUB -u jbischof@fas.harvard.edu\n\n# THE JOB ARRAY:\n#BSUB -J \"process_reuters_lda_data_train[1-10]\"\n\n# THE COMMAND TO GIVE TO R, CHANGE TO THE APPROPRIATE FILENAME:\npartition=train\ncutoff=500\nmain_dir=/n/airoldifs2/lab/jbischof/reuters_output/mmm_folds/fold${LSB_JOBINDEX}/\nout_dir=${main_dir}mmm_raw_data/parsed_${partition}_data${cutoff}/\n\n# Create partition directory if doesn't already exist\nif [ ! -d $out_dir ]\nthen\n   mkdir $out_dir\nfi\n\n# Run python script\npython ../process_parse_lda_data.py $partition $cutoff $main_dir",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "manual_validate",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

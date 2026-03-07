@@ -1,0 +1,122 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n# Flux batch script converted from Slurm\n\n# NOTE:\n#   Slurm uses a job array (--array=0-39). Flux job arrays are not available as a\n#   universally portable batch-script directive.\n#\n# Run with:\n#   flux batch <this_script> -- <TASK_ID>\n# where <TASK_ID> is 0..39.\n\n# Slurm resources:\n#   -A phillipslab\n#   --partition=phillips\n#   --job-name=filt1\n#   --time=00:240:00\n#   --nodes=1\n#   --ntasks=1\n#   --array=0-39\n#   --cpus-per-task=4\n\n#flux: --job-name=filt1\n#flux: -N 1\n#flux: -n 1\n#flux: -c 4\n#flux: --time-limit=240m\n\n# Omitted Slurm option: --array=0-39\n# Flux job arrays are not available as a universally portable batch-script directive.\n# Performance implication: you must submit multiple jobs manually (or loop), increasing scheduler overhead and potentially reducing throughput.\n\n# Omitted Slurm options: -A phillipslab (account) and --partition=phillips\n# Flux accounting/project selection and queue/partition selection are site-specific; no portable equivalents.\n# Performance implication: job may be charged differently, have different priority/limits, run on different nodes, or be rejected.\n\nTASK_ID=${1:-0}\n\nexport OMP_NUM_THREADS=4\n\nmodule load easybuild icc/2017.1.132-GCC-6.3.0-2.27 impi/2017.1.132 skewer\n\ncd /projects/phillipslab/ateterina/CR_popgen/data/reads/\n\nLISTFILES=(*.fastq)\nfile=${LISTFILES[$TASK_ID]}\n\nskewer -x AGATCGGAAGAG -t 4 -q 20 -l 36 -d 0.1 -r 0.1 -o ${file/_1.fastq/.tr1} $file ${file/_1.fastq/_2.fastq}\n\nmv ${file/_1.fastq/.tr1-trimmed-pair1.fastq} ${file/_1.fastq/_fp1.ok.fastq}\nmv ${file/_1.fastq/.tr1-trimmed-pair2.fastq} ${file/_1.fastq/_fp2.ok.fastq}\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": false,
+                    "tool_call": false,
+                    "reasons": [
+                        "The original Slurm job used an array (`--array=0-39`) but the Flux resource section does not provide an equivalent array mechanism; this changes the intended number of scheduled job instances.",
+                        "The original Slurm job specified an account and partition (`-A phillipslab`, `--partition=phillips`) but the Flux resource section has no queue/account selection; on sites where these affect eligibility/limits, scheduling behavior may differ or the job may be rejected."
+                    ],
+                    "issues": []
+                },
+                "attempts": 1
+            },
+            "transition": "failed -> manual_validate",
+            "complete": false,
+            "state": "failed"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n# Flux batch script converted from Slurm\n\n# NOTE:\n#   Slurm uses a job array (--array=0-39). Flux job arrays are not available as a\n#   universally portable batch-script directive.\n#\n# Run with:\n#   flux batch <this_script> -- <TASK_ID>\n# where <TASK_ID> is 0..39.\n\n# Slurm resources:\n#   -A phillipslab\n#   --partition=phillips\n#   --job-name=filt1\n#   --time=00:240:00\n#   --nodes=1\n#   --ntasks=1\n#   --array=0-39\n#   --cpus-per-task=4\n\n#flux: --job-name=filt1\n#flux: -N 1\n#flux: -n 1\n#flux: -c 4\n#flux: --time-limit=240m\n\n# Omitted Slurm option: --array=0-39\n# Flux job arrays are not available as a universally portable batch-script directive.\n# Performance implication: you must submit multiple jobs manually (or loop), increasing scheduler overhead and potentially reducing throughput.\n\n# Omitted Slurm options: -A phillipslab (account) and --partition=phillips\n# Flux accounting/project selection and queue/partition selection are site-specific; no portable equivalents.\n# Performance implication: job may be charged differently, have different priority/limits, run on different nodes, or be rejected.\n\nTASK_ID=${1:-0}\n\nexport OMP_NUM_THREADS=4\n\nmodule load easybuild icc/2017.1.132-GCC-6.3.0-2.27 impi/2017.1.132 skewer\n\ncd /projects/phillipslab/ateterina/CR_popgen/data/reads/\n\nLISTFILES=(*.fastq)\nfile=${LISTFILES[$TASK_ID]}\n\nskewer -x AGATCGGAAGAG -t 4 -q 20 -l 36 -d 0.1 -r 0.1 -o ${file/_1.fastq/.tr1} $file ${file/_1.fastq/_2.fastq}\n\nmv ${file/_1.fastq/.tr1-trimmed-pair1.fastq} ${file/_1.fastq/_fp1.ok.fastq}\nmv ${file/_1.fastq/.tr1-trimmed-pair2.fastq} ${file/_1.fastq/_fp2.ok.fastq}\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n#SBATCH -A phillipslab\n#SBATCH --partition=phillips       ### Partition\n#SBATCH --job-name=filt1    ### Job Name\n#SBATCH --time=00:240:00        ### WallTime\n#SBATCH --nodes=1              ### Number of Nodes\n#SBATCH --ntasks=1             ### Number of tasks per array job\n#SBATCH --array=0-39           ### Array index\n#SBATCH --cpus-per-task=4            ### Number of CPU cores per task\nexport OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK\n\nmodule load easybuild  icc/2017.1.132-GCC-6.3.0-2.27  impi/2017.1.132 skewer\n\ncd /projects/phillipslab/ateterina/CR_popgen/data/reads/\nLISTFILES=(*.fastq)\n\nfile=${LISTFILES[$SLURM_ARRAY_TASK_ID]}\n\n#remove adapter + qc\nskewer -x AGATCGGAAGAG -t 4 -q 20 -l 36 -d 0.1 -r 0.1 -o ${file/_1.fastq/.tr1} $file ${file/_1.fastq/_2.fastq};\n\n\nmv ${file/_1.fastq/.tr1-trimmed-pair1.fastq} ${file/_1.fastq/_fp1.ok.fastq}\nmv ${file/_1.fastq/.tr1-trimmed-pair2.fastq} ${file/_1.fastq/_fp2.ok.fastq}\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "manual_validate",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

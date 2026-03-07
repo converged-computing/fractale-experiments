@@ -1,0 +1,119 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash -l\n# Flux batch script converted from Slurm\n\n# NOTE: Run with: flux batch <this_script>\n\n# Slurm resources:\n#   --nodes=6\n#   --ntasks=96\n#   --time=00:30:00\n\n#flux: -N 6\n#flux: -n 96\n#flux: -c 1\n#flux: --time-limit=30m\n\nsource /ssoft/spack/bin/slmodules.sh -r stable\n\nmodule purge\nmodule load gcc/5.3.0 mvapich2/2.2b openblas/0.2.18 cp2k/3.0-mpi\nexport OMP_NUM_THREADS=1\n\ndate_start=$(date +%s)\n\n# Slurm used srun; under Flux, use flux-run to launch MPI ranks.\nflux run -n 96 -c 1 cp2k.popt -i *.inp -o output.out\n\ndate_end=$(date +%s)\ntime_run=$((date_end-date_start))\necho \"096_cpus $time_run seconds\"\n\nrm -f GTH_BASIS_SETS POTENTIAL *xyz *restart\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": false,
+                    "reasons": [],
+                    "issues": []
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash -l\n# Flux batch script converted from Slurm\n\n# NOTE: Run with: flux batch <this_script>\n\n# Slurm resources:\n#   --nodes=6\n#   --ntasks=96\n#   --time=00:30:00\n\n#flux: -N 6\n#flux: -n 96\n#flux: -c 1\n#flux: --time-limit=30m\n\nsource /ssoft/spack/bin/slmodules.sh -r stable\n\nmodule purge\nmodule load gcc/5.3.0 mvapich2/2.2b openblas/0.2.18 cp2k/3.0-mpi\nexport OMP_NUM_THREADS=1\n\ndate_start=$(date +%s)\n\n# Slurm used srun; under Flux, use flux-run to launch MPI ranks.\nflux run -n 96 -c 1 cp2k.popt -i *.inp -o output.out\n\ndate_end=$(date +%s)\ntime_run=$((date_end-date_start))\necho \"096_cpus $time_run seconds\"\n\nrm -f GTH_BASIS_SETS POTENTIAL *xyz *restart\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash -l\n#SBATCH --nodes=6\n#SBATCH --ntasks=96\n#SBATCH --time=00:30:00\n\nsource /ssoft/spack/bin/slmodules.sh -r stable \n\nmodule purge\nmodule load gcc/5.3.0 mvapich2/2.2b openblas/0.2.18 cp2k/3.0-mpi\nexport OMP_NUM_THREADS=1\n\ndate_start=$(date +%s)\nsrun cp2k.popt -i *.inp -o output.out                 #running command\ndate_end=$(date +%s)\ntime_run=$((date_end-date_start))\necho \"096_cpus $time_run seconds\"\n\nrm -f GTH_BASIS_SETS POTENTIAL *xyz *restart          #remove useless big files (please!) \n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "manual_validate",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

@@ -1,0 +1,123 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/sh\n\n# Flux directives translated from PBS\n#FLUX: -N 1\n#FLUX: -t 10:00:00\n#FLUX: -o /hpc/stats/users/dbp2112/Janelia/logs/stdout.txt\n\n#\n# --- Omitted PBS options and explanations ---\n#\n# -W group_list=hpcstats\n#   Omitted. Flux accounting is typically managed through system configuration or job\n#   submission options, not a standard batch directive.\n#\n# -l mem=2gb\n#   Omitted. Flux does not have a direct batch script directive for memory.\n#   Performance implication: Without a memory constraint, the job may be\n#   scheduled on a node with insufficient memory, potentially causing it to\n#   fail with an out-of-memory error or perform poorly due to heavy swapping.\n#\n# -V\n#   Omitted. Flux automatically forwards the user's environment by default, so this\n#   directive is not needed.\n#\n# -e localhost:/hpc/stats/users/dbp2112/Janelia/logs/stderr.txt\n#   Omitted. Flux combines stdout and stderr into the single output file\n#   specified by the -o directive. To redirect stderr separately, you can\n#   use shell redirection in your command, e.g., 'command 2> error.file'.\n#\n\n# Note: The PBS environment variable $PBS_ARRAYID has been replaced with\n# $FLUX_TASK_ID. This script is intended for submission with 'flux bulksubmit',\n# which sets this variable for each task in the job array.\n/usr/local/bin/matlab-R2012b -r \"addpath(genpath('/hpc/stats/users/dbp2112/Janelia/quagga')); roiFromPatch($FLUX_TASK_ID,'$config_path');\"\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "The script uses hardcoded absolute paths for the output file, the Matlab executable, and the user's scripts directory. This makes the script highly non-portable and difficult to maintain.",
+                        "The Matlab command uses a shell variable `$config_path` which is not defined within the script. This variable must be exported in the environment where `flux submit` is called, or the script will fail.",
+                        "As noted in the comments, the original PBS memory request (`mem=2gb`) was omitted. This is a critical omission. Without a memory constraint, the job risks being scheduled on a node without enough memory, causing it to fail, or it could interfere with other jobs by consuming too many resources."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/sh\n\n# Flux directives translated from PBS\n#FLUX: -N 1\n#FLUX: -t 10:00:00\n#FLUX: -o /hpc/stats/users/dbp2112/Janelia/logs/stdout.txt\n\n#\n# --- Omitted PBS options and explanations ---\n#\n# -W group_list=hpcstats\n#   Omitted. Flux accounting is typically managed through system configuration or job\n#   submission options, not a standard batch directive.\n#\n# -l mem=2gb\n#   Omitted. Flux does not have a direct batch script directive for memory.\n#   Performance implication: Without a memory constraint, the job may be\n#   scheduled on a node with insufficient memory, potentially causing it to\n#   fail with an out-of-memory error or perform poorly due to heavy swapping.\n#\n# -V\n#   Omitted. Flux automatically forwards the user's environment by default, so this\n#   directive is not needed.\n#\n# -e localhost:/hpc/stats/users/dbp2112/Janelia/logs/stderr.txt\n#   Omitted. Flux combines stdout and stderr into the single output file\n#   specified by the -o directive. To redirect stderr separately, you can\n#   use shell redirection in your command, e.g., 'command 2> error.file'.\n#\n\n# Note: The PBS environment variable $PBS_ARRAYID has been replaced with\n# $FLUX_TASK_ID. This script is intended for submission with 'flux bulksubmit',\n# which sets this variable for each task in the job array.\n/usr/local/bin/matlab-R2012b -r \"addpath(genpath('/hpc/stats/users/dbp2112/Janelia/quagga')); roiFromPatch($FLUX_TASK_ID,'$config_path');\"\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "pbs",
+                    "to_manager": "flux",
+                    "script": "#!/bin/sh\n# roiFromPatch.sh - runs sparse PCA on a single patch specified by the data\n#PBS -W group_list=hpcstats\n#PBS -l nodes=1,walltime=10:00:00,mem=2gb\n#PBS -V\n#PBS -e localhost:/hpc/stats/users/dbp2112/Janelia/logs/stderr.txt\n#PBS -o localhost:/hpc/stats/users/dbp2112/Janelia/logs/stdout.txt\n\n/usr/local/bin/matlab-R2012b -r \"addpath(genpath('/hpc/stats/users/dbp2112/Janelia/quagga')); roiFromPatch($PBS_ARRAYID,'$config_path');\"\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

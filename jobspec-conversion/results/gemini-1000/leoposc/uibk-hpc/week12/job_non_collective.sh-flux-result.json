@@ -1,0 +1,123 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n# Flux directives translated from SLURM\n#FLUX: -N 1\n#FLUX: -n 12\n#FLUX: -q lva\n#FLUX: -o output.log\n#FLUX: --exclusive\n\n#\n# --- Omitted SLURM options and explanations ---\n#\n# --job-name test\n#   Omitted. The job name in Flux is generally set during submission (e.g.,\n#   'flux submit --job-name=test ...') or via the FLUX_JOB_NAME\n#   environment variable, not through a script directive.\n#\n# Note: The original SLURM script did not request a specific amount of memory or\n# a time limit. These have also been omitted. The job will run with system\n# defaults, which could lead to it being killed prematurely or failing with\n# out-of-memory errors.\n#\n\n# 'mpirun' is replaced by 'flux run'. Flux automatically discovers the allocated\n# resources and will launch the 12 tasks requested by '#FLUX: -n 12'. The\n# mpirun-specific MCA parameter has been omitted as it does not have a direct\n# equivalent in Flux. It may be possible to set a similar option via an\n# environment variable if supported by the MPI implementation being used.\nflux run ./bin/saveBufferNonCollective\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "The script is missing critical resource directives for a time limit (`-t`) and memory. As correctly noted in the comments, the original SLURM script also lacked these. Submitting a job without a time limit or memory request is very risky, as it may be killed for exceeding default system or queue limits, or fail with an out-of-memory error.",
+                        "The OpenMPI-specific MCA parameter `--mca fs_ufs_lock_algorithm 1` was omitted during translation. If this parameter was intended to work around a specific filesystem issue (e.g., problems with file locking on a Lustre filesystem), its omission could cause the application to hang or fail with I/O errors.",
+                        "The script executes `./bin/saveBufferNonCollective` using a relative path, which requires that the job be submitted from the correct parent directory for the executable to be found. This is a fragile practice."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n# Flux directives translated from SLURM\n#FLUX: -N 1\n#FLUX: -n 12\n#FLUX: -q lva\n#FLUX: -o output.log\n#FLUX: --exclusive\n\n#\n# --- Omitted SLURM options and explanations ---\n#\n# --job-name test\n#   Omitted. The job name in Flux is generally set during submission (e.g.,\n#   'flux submit --job-name=test ...') or via the FLUX_JOB_NAME\n#   environment variable, not through a script directive.\n#\n# Note: The original SLURM script did not request a specific amount of memory or\n# a time limit. These have also been omitted. The job will run with system\n# defaults, which could lead to it being killed prematurely or failing with\n# out-of-memory errors.\n#\n\n# 'mpirun' is replaced by 'flux run'. Flux automatically discovers the allocated\n# resources and will launch the 12 tasks requested by '#FLUX: -n 12'. The\n# mpirun-specific MCA parameter has been omitted as it does not have a direct\n# equivalent in Flux. It may be possible to set a similar option via an\n# environment variable if supported by the MPI implementation being used.\nflux run ./bin/saveBufferNonCollective\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n\n# Execute job in the partition \"lva\" unless you have special requirements.\n#SBATCH --partition=lva\n# Name your job to be able to identify it later\n#SBATCH --job-name test\n# Redirect output stream to this file\n#SBATCH --output=output.log\n# Maximum number of tasks (=processes) to start in total\n#SBATCH --ntasks-per-node=12\n#SBATCH --nodes=1\n# Maximum number of tasks (=processes) to start per node\n# Enforce exclusive node allocation, do not share with other jobs\n#SBATCH --exclusive\n\n#!/bin/bash\nmpirun --mca fs_ufs_lock_algorithm 1 -np 12 ./bin/saveBufferNonCollective",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

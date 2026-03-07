@@ -1,0 +1,124 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n# Flux directives translated from LSF\n#FLUX: -t 100:00:00\n#FLUX: -o log.pos_ab_tri\n\n#\n# --- Omitted LSF options and explanations ---\n#\n# -e err.pos_ab_tri\n#   Omitted. Flux combines stdout and stderr into the single output file\n#   specified by the -o directive. To redirect stderr separately, you can use\n#   shell redirection in your command, e.g., 'command 2> err.pos_ab_tri'.\n#\n# Note: The original LSF script did not request any specific resources like nodes\n# or cores. The job will receive a default allocation (typically one core).\n# If the application requires more resources, they should be added, e.g., '#FLUX: -n 1'.\n#\n\nmodule load cuda/4.2.9\nmodule load pycuda/2012.1\n\nmodule load R\n##module load cuda-sim\n\n\nexport PYTHONPATH=$PYTHONPATH:/home/ucl/eisuc058/code/abc-sysbio\nexport PYTHONPATH=$PYTHONPATH:/home/ucl/eisuc058/code/cuda-sim\n\nexe=/home/ucl/eisuc058/work/StabilityChecker/stabilitychecker\nexport PYTHONPATH=$PYTHONPATH:/home/ucbtle1/cuda-sim-code\n\n\npython $exe/my_abc.py -i input_file_pos_ab_tri.xml -o results_pos_ab_tri -l pos_ab_tri.log;# Rscript plot_posterior.R;\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "The most critical resource-related issue is the lack of a GPU request. The script loads `cuda` and `pycuda` modules, which strongly implies it requires a GPU. However, no GPU is requested in the `#FLUX` resource directives (e.g., using `-g 1`). The job will fail if it is scheduled on a non-GPU node.",
+                        "The script is missing explicit requests for cores (`-n` or `-c`) and memory. As noted in the comments, it will receive a small default allocation (typically 1 core and a small amount of memory). For a very long-running (100 hours) scientific computing job, this is a critical omission that will likely lead to poor performance or out-of-memory failures.",
+                        "The script is extremely non-portable. It repeatedly modifies the `PYTHONPATH` with hardcoded, user-specific absolute paths. It also defines a variable `exe` with another hardcoded path. This makes the script impossible for anyone else to run and difficult for the original user to maintain.",
+                        "The final command line has a commented-out R script call (`# Rscript ...`). This is confusing and suggests the script may be incomplete or that this part of the workflow is being skipped."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n# Flux directives translated from LSF\n#FLUX: -t 100:00:00\n#FLUX: -o log.pos_ab_tri\n\n#\n# --- Omitted LSF options and explanations ---\n#\n# -e err.pos_ab_tri\n#   Omitted. Flux combines stdout and stderr into the single output file\n#   specified by the -o directive. To redirect stderr separately, you can use\n#   shell redirection in your command, e.g., 'command 2> err.pos_ab_tri'.\n#\n# Note: The original LSF script did not request any specific resources like nodes\n# or cores. The job will receive a default allocation (typically one core).\n# If the application requires more resources, they should be added, e.g., '#FLUX: -n 1'.\n#\n\nmodule load cuda/4.2.9\nmodule load pycuda/2012.1\n\nmodule load R\n##module load cuda-sim\n\n\nexport PYTHONPATH=$PYTHONPATH:/home/ucl/eisuc058/code/abc-sysbio\nexport PYTHONPATH=$PYTHONPATH:/home/ucl/eisuc058/code/cuda-sim\n\nexe=/home/ucl/eisuc058/work/StabilityChecker/stabilitychecker\nexport PYTHONPATH=$PYTHONPATH:/home/ucbtle1/cuda-sim-code\n\n\npython $exe/my_abc.py -i input_file_pos_ab_tri.xml -o results_pos_ab_tri -l pos_ab_tri.log;# Rscript plot_posterior.R;\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "lsf",
+                    "to_manager": "flux",
+                    "script": "module load cuda/4.2.9\nmodule load pycuda/2012.1\n\nmodule load R\n##module load cuda-sim\n\n#BSUB -o log.pos_ab_tri\n#BSUB -e err.pos_ab_tri\n#BSUB -W 100:00\n\nexport PYTHONPATH=$PYTHONPATH:/home/ucl/eisuc058/code/abc-sysbio\nexport PYTHONPATH=$PYTHONPATH:/home/ucl/eisuc058/code/cuda-sim\n\nexe=/home/ucl/eisuc058/work/StabilityChecker/stabilitychecker\nexport PYTHONPATH=$PYTHONPATH:/home/ucbtle1/cuda-sim-code\n\n\npython $exe/my_abc.py -i input_file_pos_ab_tri.xml -o results_pos_ab_tri -l pos_ab_tri.log;# Rscript plot_posterior.R;\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

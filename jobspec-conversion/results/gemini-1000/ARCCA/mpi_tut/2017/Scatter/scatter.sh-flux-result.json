@@ -1,0 +1,122 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n# Flux directives translated from PBS\n#FLUX: -N 1\n#FLUX: -n 12\n#FLUX: -t 00:00:30\n#FLUX: -q training\n\n#\n# --- Omitted PBS options and explanations ---\n#\n# -l select=1:ncpus=12:mpiprocs=12:mem=1MB\n#   Partially translated. The memory request 'mem=1MB' is omitted.\n#   Flux does not have a direct batch script directive for memory.\n#   Performance implication: Although the requested memory is very small, omitting\n#   this directive means the scheduler does not consider memory, which could\n#   lead to job placement on a node without sufficient memory if the request were\n#   larger, potentially causing an out-of-memory error.\n#\n# -N Scatter\n#   Omitted. The job name in Flux is generally set during submission (e.g.,\n#   'flux submit --job-name=Scatter ...') or via the FLUX_JOB_NAME\n#   environment variable, not through a script directive.\n#\n# -P PR66\n#   Omitted. Flux accounting is typically managed through system configuration or job\n#   submission options, not a standard batch directive.\n#\n\n# Load required modules.\nmodule purge\nmodule load python/2.7.9-mpi\n\n# Create an output directory on the fast scratch filesystem, and\n# run from this directory.\n# The PBS environment variable $PBS_JOBID is replaced by the Flux equivalent $FLUX_JOB_ID.\nWDPATH=/scratch/$USER/raven_training/$FLUX_JOB_ID\nmkdir -p $WDPATH\ncd $WDPATH\n\n# Copy the python code to the run directory\n# The PBS environment variable $PBS_O_WORKDIR is replaced by the Flux equivalent $FLUX_SUBMIT_DIR.\ncp $FLUX_SUBMIT_DIR/scatter.py .\n\n# Run a number of copies of the code equal to the number of\n# MPI processes requested.\n# 'flux run' is the native job launcher for Flux and will automatically start\n# the number of tasks specified by the '#FLUX: -n' directive.\nflux run ./scatter.py\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "The script's logic of creating a temporary working directory on a scratch filesystem and copying the executable there is a good practice for performance and for keeping output files organized. The use of `$FLUX_JOB_ID` ensures a unique directory per job.",
+                        "As noted in the script's comments, the original PBS memory request (`mem=1MB`) was omitted. Although the amount is negligible in this specific case, failing to specify a memory limit is poor practice. For jobs with significant memory usage, this omission would be a critical risk, potentially leading to out-of-memory errors or the job being killed by the system."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n# Flux directives translated from PBS\n#FLUX: -N 1\n#FLUX: -n 12\n#FLUX: -t 00:00:30\n#FLUX: -q training\n\n#\n# --- Omitted PBS options and explanations ---\n#\n# -l select=1:ncpus=12:mpiprocs=12:mem=1MB\n#   Partially translated. The memory request 'mem=1MB' is omitted.\n#   Flux does not have a direct batch script directive for memory.\n#   Performance implication: Although the requested memory is very small, omitting\n#   this directive means the scheduler does not consider memory, which could\n#   lead to job placement on a node without sufficient memory if the request were\n#   larger, potentially causing an out-of-memory error.\n#\n# -N Scatter\n#   Omitted. The job name in Flux is generally set during submission (e.g.,\n#   'flux submit --job-name=Scatter ...') or via the FLUX_JOB_NAME\n#   environment variable, not through a script directive.\n#\n# -P PR66\n#   Omitted. Flux accounting is typically managed through system configuration or job\n#   submission options, not a standard batch directive.\n#\n\n# Load required modules.\nmodule purge\nmodule load python/2.7.9-mpi\n\n# Create an output directory on the fast scratch filesystem, and\n# run from this directory.\n# The PBS environment variable $PBS_JOBID is replaced by the Flux equivalent $FLUX_JOB_ID.\nWDPATH=/scratch/$USER/raven_training/$FLUX_JOB_ID\nmkdir -p $WDPATH\ncd $WDPATH\n\n# Copy the python code to the run directory\n# The PBS environment variable $PBS_O_WORKDIR is replaced by the Flux equivalent $FLUX_SUBMIT_DIR.\ncp $FLUX_SUBMIT_DIR/scatter.py .\n\n# Run a number of copies of the code equal to the number of\n# MPI processes requested.\n# 'flux run' is the native job launcher for Flux and will automatically start\n# the number of tasks specified by the '#FLUX: -n' directive.\nflux run ./scatter.py\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "pbs",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n#PBS -l select=1:ncpus=12:mpiprocs=12:mem=1MB\n#PBS -l walltime=00:00:30\n#PBS -N Scatter\n#PBS -P PR66\n#PBS -q training\n\n# Load required modules.\nmodule purge\nmodule load python/2.7.9-mpi\n\n# Create an output directory on the fast scratch filesystem, and\n# run from this directory.\nWDPATH=/scratch/$USER/raven_training/$PBS_JOBID\nmkdir -p $WDPATH\ncd $WDPATH\n\n# Copy the python code to the run directory\ncp $PBS_O_WORKDIR/scatter.py .\n\n# Run a number of copies of the code equal to the number of\n# MPI processes requested.\nmpirun -np 12 ./scatter.py\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

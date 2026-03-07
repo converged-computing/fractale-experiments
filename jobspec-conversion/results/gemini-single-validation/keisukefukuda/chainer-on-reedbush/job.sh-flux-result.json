@@ -1,0 +1,170 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n#flux: -q h-debug\n\n# The PBS 'select' directive is translated to Flux's node, tasks-per-node, and cpus-per-task options.\n# 2 nodes, 2 MPI processes per node, 1 thread (CPU) per process.\n#flux: -N 2\n#flux: --ntasks-per-node=2\n#flux: -c 1\n\n# The PBS '-W group_list' is a site-specific directive. The closest standard equivalent in Flux is '--account'.\n# This may need to be adjusted based on the target system's configuration.\n#flux: --account=pz0xxx\n\n#flux: -t 00:15:00\n\n# The script logic for setting the working directory is preserved.\nGROUP=$(id -ng)\nMYDIR=/lustre/${GROUP}/${USER}\nexport HOME=$MYDIR\n\n# Sourcing the environment is preserved.\n. $MYDIR/env.sh\n\ncd $MYDIR\n\n# \u30c7\u30d0\u30c3\u30b0\u51fa\u529b\uff1a Chainer \u3068 CuPy \u306e\u30d0\u30fc\u30b8\u30e7\u30f3\u3092\u8868\u793a\npython -c \"import chainer; print(chainer.__version__)\"\npython -c \"import cupy; print(cupy.cuda.nccl.get_version())\"\n\n# The 'mpiexec' command is replaced with 'flux run'.\n# 'flux run' automatically launches the number of tasks specified in the job directives (2 nodes * 2 tasks/node = 4 tasks).\n# The environment variable PYTHONUSERBASE will be propagated to the tasks by default.\nflux run python ./train_mnist.py -g --communicator pure_nccl\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": false,
+                    "tool_call": true,
+                    "reasons": [
+                        "Validation failed at directive: --account=pz0xxx. This is not a standard Flux job option. Account information is typically handled by site-specific scheduler policies and is not specified directly by the user at submission time."
+                    ],
+                    "issues": [
+                        "The script uses CuPy and NCCL, which indicates a requirement for GPUs. However, the job specification is missing a directive to request GPU resources (e.g., --gpus-per-task=N). The job will likely be allocated to nodes without GPUs and fail at runtime."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "failed -> manual_validate",
+            "complete": false,
+            "state": "failed"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": true,
+                "data": {
+                    "jobspec": "#!/bin/bash\n#flux: -q h-debug\n\n# The PBS 'select' directive is translated to Flux's node, tasks-per-node, and cpus-per-task options.\n# 2 nodes, 2 MPI processes per node, 1 thread (CPU) per process.\n#flux: -N 2\n#flux: --ntasks-per-node=2\n#flux: -c 1\n\n# The PBS '-W group_list' is a site-specific directive. The closest standard equivalent in Flux is '--account'.\n# This may need to be adjusted based on the target system's configuration.\n#flux: --account=pz0xxx\n\n#flux: -t 00:15:00\n\n# The script logic for setting the working directory is preserved.\nGROUP=$(id -ng)\nMYDIR=/lustre/${GROUP}/${USER}\nexport HOME=$MYDIR\n\n# Sourcing the environment is preserved.\n. $MYDIR/env.sh\n\ncd $MYDIR\n\n# \u30c7\u30d0\u30c3\u30b0\u51fa\u529b\uff1a Chainer \u3068 CuPy \u306e\u30d0\u30fc\u30b8\u30e7\u30f3\u3092\u8868\u793a\npython -c \"import chainer; print(chainer.__version__)\"\npython -c \"import cupy; print(cupy.cuda.nccl.get_version())\"\n\n# The 'mpiexec' command is replaced with 'flux run'.\n# 'flux run' automatically launches the number of tasks specified in the job directives (2 nodes * 2 tasks/node = 4 tasks).\n# The environment variable PYTHONUSERBASE will be propagated to the tasks by default.\nflux run python ./train_mnist.py -g --communicator pure_nccl\n",
+                    "errors": [
+                        "Validation failed at directives:\n--ntasks-per-node=2\n--account=pz0xxx"
+                    ],
+                    "valid": false
+                }
+            },
+            "transition": "failed -> transform",
+            "complete": false,
+            "state": "failed"
+        },
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n#flux: -q h-debug\n\n# The PBS 'select' directive is translated to Flux's total nodes and total tasks options.\n# 2 nodes, 4 total tasks (Flux will distribute these as 2 per node), 1 CPU per task.\n#flux: -N 2\n#flux: -n 4\n#flux: -c 1\n\n# The following PBS directive was not translated as this is not a standard Flux job option.\n# Group/account information is typically handled by site-specific policies.\n# #PBS -W group_list=pz0xxx\n\n#flux: -t 00:15:00\n\n# The script logic for setting the working directory is preserved.\nGROUP=$(id -ng)\nMYDIR=/lustre/${GROUP}/${USER}\nexport HOME=$MYDIR\n\n# Sourcing the environment is preserved.\n. $MYDIR/env.sh\n\ncd $MYDIR\n\n# \u30c7\u30d0\u30c3\u30b0\u51fa\u529b\uff1a Chainer \u3068 CuPy \u306e\u30d0\u30fc\u30b8\u30e7\u30f3\u3092\u8868\u793a\npython -c \"import chainer; print(chainer.__version__)\"\npython -c \"import cupy; print(cupy.cuda.nccl.get_version())\"\n\n# The 'mpiexec' command is replaced with 'flux run'.\n# 'flux run' automatically launches the number of tasks specified in the job directives (-n 4).\n# The environment variable PYTHONUSERBASE will be propagated to the tasks by default.\nflux run python ./train_mnist.py -g --communicator pure_nccl\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "The script uses CuPy and NCCL, which are libraries for GPU computing. However, the job specification is missing a directive to request GPU resources (e.g., --gpus-per-task=N). The job will likely be allocated to nodes without GPUs and will fail at runtime when the Python script attempts to access a GPU device."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n#flux: -q h-debug\n\n# The PBS 'select' directive is translated to Flux's total nodes and total tasks options.\n# 2 nodes, 4 total tasks (Flux will distribute these as 2 per node), 1 CPU per task.\n#flux: -N 2\n#flux: -n 4\n#flux: -c 1\n\n# The following PBS directive was not translated as this is not a standard Flux job option.\n# Group/account information is typically handled by site-specific policies.\n# #PBS -W group_list=pz0xxx\n\n#flux: -t 00:15:00\n\n# The script logic for setting the working directory is preserved.\nGROUP=$(id -ng)\nMYDIR=/lustre/${GROUP}/${USER}\nexport HOME=$MYDIR\n\n# Sourcing the environment is preserved.\n. $MYDIR/env.sh\n\ncd $MYDIR\n\n# \u30c7\u30d0\u30c3\u30b0\u51fa\u529b\uff1a Chainer \u3068 CuPy \u306e\u30d0\u30fc\u30b8\u30e7\u30f3\u3092\u8868\u793a\npython -c \"import chainer; print(chainer.__version__)\"\npython -c \"import cupy; print(cupy.cuda.nccl.get_version())\"\n\n# The 'mpiexec' command is replaced with 'flux run'.\n# 'flux run' automatically launches the number of tasks specified in the job directives (-n 4).\n# The environment variable PYTHONUSERBASE will be propagated to the tasks by default.\nflux run python ./train_mnist.py -g --communicator pure_nccl\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "pbs",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n#PBS -q h-debug              # <-------------- \u6295\u5165\u3059\u308b\u30ad\u30e5\u30fc\u3092\u6307\u5b9a\u3059\u308b\n#PBS -l select=2:mpiprocs=2:ompthreads=1  #<-- \u5b9f\u884c\u3057\u305f\u3044\u30ce\u30fc\u30c9\u6570\u3068\u3001\u30ce\u30fc\u30c9\u3042\u305f\u308a\u30d7\u30ed\u30bb\u30b9\u6570\u3092\u8a18\u8ff0\u3059\u308b\uff08\u3053\u3053\u3067\u306f\u5408\u8a08\uff14\u30d7\u30ed\u30bb\u30b9\uff09\n#PBS -W group_list=pz0xxx    # <-------------- \u81ea\u5206\u306e\u30b0\u30eb\u30fc\u30d7\u540d\u306b\u66f8\u304d\u63db\u3048\u308b\n#PBS -l walltime=00:15:00    # <-------------- \u5b9f\u884c\u6642\u9593\u4e0a\u9650\u3092\u6307\u5b9a\u3059\u308b\n\nGROUP=$(id -ng)\nMYDIR=/lustre/${GROUP}/${USER}\nexport HOME=$MYDIR\n\n. $MYDIR/env.sh\n\ncd $MYDIR\n\n# \u30c7\u30d0\u30c3\u30b0\u51fa\u529b\uff1a Chainer \u3068 CuPy \u306e\u30d0\u30fc\u30b8\u30e7\u30f3\u3092\u8868\u793a\npython -c \"import chainer; print(chainer.__version__)\"\npython -c \"import cupy; print(cupy.cuda.nccl.get_version())\"\n\nmpiexec -x PYTHONUSERBASE \\\n        python ./train_mnist.py -g --communicator pure_nccl\n\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "manual_validate",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

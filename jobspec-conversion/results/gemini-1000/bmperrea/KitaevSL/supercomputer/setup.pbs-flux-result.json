@@ -1,0 +1,123 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash -l\n\n# Flux directives translated from PBS\n# The PBS request for 1 node with 13 processors for a single command is interpreted\n# as a request for 1 task with 13 CPUs.\n#FLUX: -N 1\n#FLUX: -n 1\n#FLUX: -c 13\n#FLUX: -t 96:00:00\n\n#\n# --- Omitted PBS options and explanations ---\n#\n# -l mem=2580mb\n#   Omitted. Flux does not have a direct batch script directive for memory.\n#   Performance implication: Without a memory constraint, the job may be\n#   scheduled on a node with insufficient memory, potentially causing it to\n#   fail with an out-of-memory error or perform poorly due to heavy swapping.\n#\n# -m abe and -M perre035@umn.edu\n#   Omitted. Flux core does not have built-in support for email notifications via\n#   batch directives. This functionality may be provided by site-specific\n#   plugins or wrappers.\n#\n\ncd ~/kitaev\nmodule load matlab\nmatlab -nodisplay -r \"maxNumCompThreads(13)\" < do_some_mcmc.m\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "As correctly noted in the script's comments, the original PBS memory request (`-l mem=2580mb`) was omitted. This is a critical omission for a very long-running (96 hours) job. Without a memory constraint, the job is at high risk of being scheduled on a node with insufficient memory, leading to an out-of-memory failure, or it could be killed by the system for over-subscription.",
+                        "The script is non-portable as it uses a home-directory-relative path (`cd ~/kitaev`). This makes the script dependent on a specific user's directory structure.",
+                        "The script uses shell input redirection (`< do_some_mcmc.m`) to pass commands to Matlab. This requires that the job be submitted from the directory where the `do_some_mcmc.m` file is located, which is a fragile practice and a common source of 'file not found' errors."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash -l\n\n# Flux directives translated from PBS\n# The PBS request for 1 node with 13 processors for a single command is interpreted\n# as a request for 1 task with 13 CPUs.\n#FLUX: -N 1\n#FLUX: -n 1\n#FLUX: -c 13\n#FLUX: -t 96:00:00\n\n#\n# --- Omitted PBS options and explanations ---\n#\n# -l mem=2580mb\n#   Omitted. Flux does not have a direct batch script directive for memory.\n#   Performance implication: Without a memory constraint, the job may be\n#   scheduled on a node with insufficient memory, potentially causing it to\n#   fail with an out-of-memory error or perform poorly due to heavy swapping.\n#\n# -m abe and -M perre035@umn.edu\n#   Omitted. Flux core does not have built-in support for email notifications via\n#   batch directives. This functionality may be provided by site-specific\n#   plugins or wrappers.\n#\n\ncd ~/kitaev\nmodule load matlab\nmatlab -nodisplay -r \"maxNumCompThreads(13)\" < do_some_mcmc.m\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "pbs",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash -l\n#PBS -l walltime=96:00:00,nodes=1:ppn=13,mem=2580mb\n#PBS -m abe\n#PBS -M perre035@umn.edu\n\ncd ~/kitaev\nmodule load matlab\nmatlab -nodisplay -r \"maxNumCompThreads(13)\" < do_some_mcmc.m",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

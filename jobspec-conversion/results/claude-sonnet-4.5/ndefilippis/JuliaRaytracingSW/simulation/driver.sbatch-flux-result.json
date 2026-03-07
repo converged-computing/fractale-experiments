@@ -1,0 +1,130 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n# Flux batch script converted from Slurm\n# Note: Flux does not support in-script directives for resource specification\n# This script should be submitted with the following command:\n# flux batch -N 1 -n 1 -c 1 -g 1 -t 12h --setattr=system.memory=40960M --job-name=2Lsim script.sh\n#\n# Resource specifications:\n# -N 1         : 1 node (from --nodes=1)\n# -n 1         : 1 task (from --ntasks-per-node=1)\n# -c 1         : 1 core per task (from --cpus-per-task=1)\n# -g 1         : 1 GPU (from --gres=gpu:1)\n# -t 12h       : 12 hour walltime (from --time=12:00:00)\n# --setattr=system.memory=40960M : 40GB memory (from --mem=40GB, 40 * 1024 MB)\n# --job-name=2Lsim : job name (from --job-name=2Lsim)\n#\n# Note: Memory specification syntax may vary by Flux version\n# Alternative: --setattr=system.memory=40G if supported\n\n# Original job name: 2Lsim\n# Set at submission: flux batch --job-name=2Lsim ...\n\n# GPU allocation: 1 GPU\n# Note: Flux uses -g for GPU count\n# GPU type cannot be specified in standard Flux syntax\n# Performance impact: Job may be allocated any available GPU type\n\n# Memory: 40GB\n# Note: Flux memory specification using --setattr=system.memory\n# Verify correct attribute path for your Flux version\n# Performance impact: Without explicit memory request, job gets default allocation\n\nmodule purge\n\n# Thread configuration\n# Note: Using nproc in the original, but with cpus-per-task=1, this would be 1\nexport NUM_JULIA_THREADS=`nproc`\n\n# Working directory setup\n# Slurm: $SLURM_JOB_ID provides the job ID\n# Flux: Use $FLUX_JOB_ID for the job ID\n# Note: FLUX_JOB_ID format may differ from Slurm (may include '\u0192' prefix or be hex)\nrundir=$SCRATCH/twolayer_simulation/${FLUX_JOB_ID}\nmkdir -p $rundir\ncp TwoLayerSimulation.jl Driver.jl driver.sbatch $rundir\ncp Parameters.jl $rundir/Parameters.jl\ncd $rundir\n\n# Julia execution\n# Slurm: $SLURM_CPUS_PER_TASK provides cores per task\n# Flux: Use $FLUX_TASK_SLOTS or $FLUX_CPUS_PER_TASK (depending on Flux version)\n# Note: Variable name may vary; FLUX_CPUS_PER_TASK is not universally available\n# Using fallback to explicit value based on allocation\n# With -c 1, this is 1 core per task\njulia -t ${FLUX_CPUS_PER_TASK:-1} Driver.jl > run.log\n\n# Alternative using Flux environment variables:\n# Some Flux versions may provide:\n# - FLUX_JOB_SIZE (total tasks)\n# - FLUX_TASK_SLOTS (resources per task)\n# Verify available variables: flux getattr job.resources\n\nexit\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": false,
+                    "reasons": [],
+                    "issues": [
+                        "The script correctly documents resource specifications and properly converts Slurm options to Flux equivalents.",
+                        "Memory attribute syntax '--setattr=system.memory=40960M' may not be correct for all Flux versions. The 'system.memory' attribute path should be verified. Flux typically uses different attribute paths or may require resource specification through other mechanisms. Common alternatives include '--setattr=memory=40960M' or resource specification within jobspec.",
+                        "The script allocates only 1 core (-c 1) but sets NUM_JULIA_THREADS using `nproc`, which will return the total number of processors on the node, not the allocated cores. This mismatch could cause oversubscription. The NUM_JULIA_THREADS should be set to 1 or use the allocated core count.",
+                        "The julia command uses '-t ${FLUX_CPUS_PER_TASK:-1}' with a fallback to 1, which is appropriate given the allocation. However, FLUX_CPUS_PER_TASK may not be a standard Flux environment variable across all versions. The fallback mechanism is good, but this should be verified.",
+                        "FLUX_JOB_ID format varies by Flux version and may include special characters or be in hexadecimal format. The script acknowledges this but doesn't sanitize the ID for use in filesystem paths. Consider using a sanitized version or alternative job identifier.",
+                        "The $SCRATCH variable is used but not validated. If this environment variable is not set, the script will fail silently or create directories in unexpected locations. Consider adding validation: [ -z \"$SCRATCH\" ] && echo \"ERROR: SCRATCH not set\" && exit 1",
+                        "No error checking after 'cd $rundir'. If the directory creation or cd fails, the julia command will execute in the wrong directory. Add: cd $rundir || exit 1",
+                        "The script copies 'driver.sbatch' which is a Slurm batch file, but this is likely unnecessary for the Flux execution and may cause confusion.",
+                        "GPU allocation uses -g 1 which is correct for Flux, but GPU visibility and indexing should be verified within the Julia script to ensure proper GPU utilization.",
+                        "The resource allocation (-c 1) with a GPU may be suboptimal. GPU workloads often benefit from multiple CPU cores for data preprocessing and I/O operations. Consider if 1 core is sufficient for the workflow."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n# Flux batch script converted from Slurm\n# Note: Flux does not support in-script directives for resource specification\n# This script should be submitted with the following command:\n# flux batch -N 1 -n 1 -c 1 -g 1 -t 12h --setattr=system.memory=40960M --job-name=2Lsim script.sh\n#\n# Resource specifications:\n# -N 1         : 1 node (from --nodes=1)\n# -n 1         : 1 task (from --ntasks-per-node=1)\n# -c 1         : 1 core per task (from --cpus-per-task=1)\n# -g 1         : 1 GPU (from --gres=gpu:1)\n# -t 12h       : 12 hour walltime (from --time=12:00:00)\n# --setattr=system.memory=40960M : 40GB memory (from --mem=40GB, 40 * 1024 MB)\n# --job-name=2Lsim : job name (from --job-name=2Lsim)\n#\n# Note: Memory specification syntax may vary by Flux version\n# Alternative: --setattr=system.memory=40G if supported\n\n# Original job name: 2Lsim\n# Set at submission: flux batch --job-name=2Lsim ...\n\n# GPU allocation: 1 GPU\n# Note: Flux uses -g for GPU count\n# GPU type cannot be specified in standard Flux syntax\n# Performance impact: Job may be allocated any available GPU type\n\n# Memory: 40GB\n# Note: Flux memory specification using --setattr=system.memory\n# Verify correct attribute path for your Flux version\n# Performance impact: Without explicit memory request, job gets default allocation\n\nmodule purge\n\n# Thread configuration\n# Note: Using nproc in the original, but with cpus-per-task=1, this would be 1\nexport NUM_JULIA_THREADS=`nproc`\n\n# Working directory setup\n# Slurm: $SLURM_JOB_ID provides the job ID\n# Flux: Use $FLUX_JOB_ID for the job ID\n# Note: FLUX_JOB_ID format may differ from Slurm (may include '\u0192' prefix or be hex)\nrundir=$SCRATCH/twolayer_simulation/${FLUX_JOB_ID}\nmkdir -p $rundir\ncp TwoLayerSimulation.jl Driver.jl driver.sbatch $rundir\ncp Parameters.jl $rundir/Parameters.jl\ncd $rundir\n\n# Julia execution\n# Slurm: $SLURM_CPUS_PER_TASK provides cores per task\n# Flux: Use $FLUX_TASK_SLOTS or $FLUX_CPUS_PER_TASK (depending on Flux version)\n# Note: Variable name may vary; FLUX_CPUS_PER_TASK is not universally available\n# Using fallback to explicit value based on allocation\n# With -c 1, this is 1 core per task\njulia -t ${FLUX_CPUS_PER_TASK:-1} Driver.jl > run.log\n\n# Alternative using Flux environment variables:\n# Some Flux versions may provide:\n# - FLUX_JOB_SIZE (total tasks)\n# - FLUX_TASK_SLOTS (resources per task)\n# Verify available variables: flux getattr job.resources\n\nexit\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n\n#SBATCH --nodes=1\n#SBATCH --ntasks-per-node=1\n#SBATCH --cpus-per-task=1\n#SBATCH --gres=gpu:1\n#SBATCH --mem=40GB\n#SBATCH --time=12:00:00\n#SBATCH --job-name=2Lsim\n\nmodule purge\n\nexport NUM_JULIA_THREADS=`nproc`\n\nrundir=$SCRATCH/twolayer_simulation/$SLURM_JOB_ID\nmkdir -p $rundir\ncp TwoLayerSimulation.jl Driver.jl driver.sbatch $rundir\ncp Parameters.jl $rundir/Parameters.jl\ncd $rundir\n\njulia -t $SLURM_CPUS_PER_TASK Driver.jl > run.log\n\nexit\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "manual_validate",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

@@ -1,0 +1,124 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#! /usr/bin/env bash\n# Flux job script translated from LSF\n\n#flux: --job-name=NET-seq\n\n# The LSF output/error directives are combined into a single output file.\n# The '%J' variable is replaced with Flux's '{job.id}'.\n#flux: -o logs/snake_{job.id}.out\n\n# This master script itself only needs minimal resources.\n#flux: -n 1\n#flux: -t 24:00:00 # Defaulting to 24 hours, as none was specified.\n\nset -o nounset -o pipefail -o errexit -x\n\nmodule load fastqc\nmodule load bowtie2\nmodule load samtools\nmodule load subread\nmodule load gcc/7.4.0\nmodule load R/4.0.3\n\nmkdir -p logs\n\n\n# Function to run snakemake\nrun_snakemake() {\n    local snake_file=$1\n    local config_file=$2\n\n    # WARNING: The '--drmaa' arguments have been translated from LSF to Flux.\n    # This requires a correctly configured Snakemake DRMAA profile for Flux.\n    # LSF's memory request ('rusage[mem=...]') has no standard Flux equivalent and has been OMITTED.\n    # Sub-jobs will get default memory, which may cause them to fail.\n    args=' \\\n        -o {log.out} \\\n        -J {params.job_name} \\\n        -c {threads} '\n\n    # Snakemake is run with a dry-run (-n) flag. This should be removed for a production run.\n    snakemake -n \\\n        --snakefile $snake_file \\\n        --drmaa \"$args\" \\\n        --jobs 100 \\\n        --configfiles $config_file\n}\n\n\n# Run pipeline to process mNET-seq reads\npipe_dir=src/pipelines\nsamples=SAMPLES.yaml\n\nsnake=$pipe_dir/NETseq.snake\nconfig=NETseq.yaml\n\nrun_snakemake $snake \"$samples $config\"\n\n# Run pipeline to identify pause sites\nsnake=$pipe_dir/pauses.snake\nconfig=pauses.yaml\n\nrun_snakemake $snake \"$samples $config\"\n\n\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "CRITICAL: As noted in the script's comments, the LSF memory request (`rusage[mem={params.memory}]`) for the sub-jobs submitted by Snakemake has been omitted from the `--drmaa` arguments. This means all jobs submitted by this workflow will receive the system's default memory allocation, which is highly likely to be insufficient and cause many of the workflow's steps to fail.",
+                        "The `snakemake` commands are run with the `-n` (dry-run) flag. This will print the jobs that would be run but will not actually execute them. This flag must be removed for a production run.",
+                        "The script relies on a Snakemake DRMAA profile being correctly configured for Flux. If this profile is not set up, or if the `snakemake` command cannot find the necessary DRMAA library, the job will fail to submit any sub-jobs.",
+                        "The original LSF script did not specify a walltime. A default of 24 hours has been added, but this may be insufficient for the entire Snakemake workflow to complete."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#! /usr/bin/env bash\n# Flux job script translated from LSF\n\n#flux: --job-name=NET-seq\n\n# The LSF output/error directives are combined into a single output file.\n# The '%J' variable is replaced with Flux's '{job.id}'.\n#flux: -o logs/snake_{job.id}.out\n\n# This master script itself only needs minimal resources.\n#flux: -n 1\n#flux: -t 24:00:00 # Defaulting to 24 hours, as none was specified.\n\nset -o nounset -o pipefail -o errexit -x\n\nmodule load fastqc\nmodule load bowtie2\nmodule load samtools\nmodule load subread\nmodule load gcc/7.4.0\nmodule load R/4.0.3\n\nmkdir -p logs\n\n\n# Function to run snakemake\nrun_snakemake() {\n    local snake_file=$1\n    local config_file=$2\n\n    # WARNING: The '--drmaa' arguments have been translated from LSF to Flux.\n    # This requires a correctly configured Snakemake DRMAA profile for Flux.\n    # LSF's memory request ('rusage[mem=...]') has no standard Flux equivalent and has been OMITTED.\n    # Sub-jobs will get default memory, which may cause them to fail.\n    args=' \\\n        -o {log.out} \\\n        -J {params.job_name} \\\n        -c {threads} '\n\n    # Snakemake is run with a dry-run (-n) flag. This should be removed for a production run.\n    snakemake -n \\\n        --snakefile $snake_file \\\n        --drmaa \"$args\" \\\n        --jobs 100 \\\n        --configfiles $config_file\n}\n\n\n# Run pipeline to process mNET-seq reads\npipe_dir=src/pipelines\nsamples=SAMPLES.yaml\n\nsnake=$pipe_dir/NETseq.snake\nconfig=NETseq.yaml\n\nrun_snakemake $snake \"$samples $config\"\n\n# Run pipeline to identify pause sites\nsnake=$pipe_dir/pauses.snake\nconfig=pauses.yaml\n\nrun_snakemake $snake \"$samples $config\"\n\n\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "lsf",
+                    "to_manager": "flux",
+                    "script": "#! /usr/bin/env bash\n\n#BSUB -J NET-seq\n#BSUB -o logs/snake_%J.out\n#BSUB -e logs/snake_%J.err\n\nset -o nounset -o pipefail -o errexit -x\n\nmodule load fastqc\nmodule load bowtie2\nmodule load samtools\nmodule load subread\nmodule load gcc/7.4.0\nmodule load R/4.0.3\n\nmkdir -p logs\n\n\n# Function to run snakemake\nrun_snakemake() {\n    local snake_file=$1\n    local config_file=$2\n\n    args='\n        -oo {log.out} \n        -eo {log.err} \n        -J {params.job_name}\n        -R \"rusage[mem={params.memory}] span[hosts=1]\"\n        -n {threads} '\n\n    snakemake -n \\\n        --snakefile $snake_file \\\n        --drmaa \"$args\" \\\n        --jobs 100 \\\n        --configfiles $config_file\n}\n\n\n# Run pipeline to process mNET-seq reads\npipe_dir=src/pipelines\nsamples=SAMPLES.yaml\n\nsnake=$pipe_dir/NETseq.snake\nconfig=NETseq.yaml\n\nrun_snakemake $snake \"$samples $config\"\n\n# Run pipeline to identify pause sites\nsnake=$pipe_dir/pauses.snake\nconfig=pauses.yaml\n\nrun_snakemake $snake \"$samples $config\"\n\n\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "manual_validate",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

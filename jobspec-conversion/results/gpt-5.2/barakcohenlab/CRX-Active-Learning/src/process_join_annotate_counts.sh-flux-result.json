@@ -1,0 +1,121 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n# Flux batch script converted from Slurm\n\n# NOTE: Run with: flux batch <this_script>\n\n# Slurm resources:\n#   -N 1\n#   -n 1\n#   --mem=16G\n#   -o log/process_join_annotate_counts.out\n#   -e log/process_join_annotate_counts.err\n#   --mail-type=BEGIN,END,FAIL\n\n#flux: -N 1\n#flux: -n 1\n#flux: --output=log/process_join_annotate_counts.out\n#flux: --error=log/process_join_annotate_counts.err\n\n# Omitted Slurm option: --mem=16G\n# Flux memory requests are site/config dependent and not universally portable.\n# Performance implication: job may be scheduled on a node with insufficient memory, risking OOM kills or degraded performance.\n\n# Omitted Slurm option: --mail-type=BEGIN,END,FAIL\n# Flux does not provide a universal, built-in email notification directive in batch scripts.\n# Performance implication: none on runtime performance, but you will not receive automatic job emails.\n\neval \"$(spack load --sh miniconda3)\"\nsource activate active-learning\n\npython3 src/process_and_join_counts.py\npython3 src/annotate_data.py\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": false,
+                    "tool_call": false,
+                    "reasons": [
+                        "The original Slurm job requested 16G of memory (`--mem=16G`) but the Flux resource section has no memory request; on systems that schedule/enforce memory this can under-provision the job and risk OOM or degraded performance."
+                    ],
+                    "issues": []
+                },
+                "attempts": 1
+            },
+            "transition": "failed -> manual_validate",
+            "complete": false,
+            "state": "failed"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n# Flux batch script converted from Slurm\n\n# NOTE: Run with: flux batch <this_script>\n\n# Slurm resources:\n#   -N 1\n#   -n 1\n#   --mem=16G\n#   -o log/process_join_annotate_counts.out\n#   -e log/process_join_annotate_counts.err\n#   --mail-type=BEGIN,END,FAIL\n\n#flux: -N 1\n#flux: -n 1\n#flux: --output=log/process_join_annotate_counts.out\n#flux: --error=log/process_join_annotate_counts.err\n\n# Omitted Slurm option: --mem=16G\n# Flux memory requests are site/config dependent and not universally portable.\n# Performance implication: job may be scheduled on a node with insufficient memory, risking OOM kills or degraded performance.\n\n# Omitted Slurm option: --mail-type=BEGIN,END,FAIL\n# Flux does not provide a universal, built-in email notification directive in batch scripts.\n# Performance implication: none on runtime performance, but you will not receive automatic job emails.\n\neval \"$(spack load --sh miniconda3)\"\nsource activate active-learning\n\npython3 src/process_and_join_counts.py\npython3 src/annotate_data.py\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n#SBATCH -N 1\n#SBATCH -n 1\n#SBATCH --mem=16G\n#SBATCH -o log/process_join_annotate_counts.out\n#SBATCH -e log/process_join_annotate_counts.err\n#SBATCH --mail-type=BEGIN,END,FAIL\n\neval $(spack load --sh miniconda3)\nsource activate active-learning\npython3 src/process_and_join_counts.py\npython3 src/annotate_data.py\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "manual_validate",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

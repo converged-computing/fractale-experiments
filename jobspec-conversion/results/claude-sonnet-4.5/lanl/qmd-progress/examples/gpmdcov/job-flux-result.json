@@ -1,0 +1,133 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n# Flux batch script converted from Slurm\n# Note: Flux does not support in-script directives for resource specification\n# This script should be submitted with the following command:\n# flux batch -N 16 -n 640 -c 1 -t 24h --job-name=<jobname> --output=<output_file> script.sh\n#\n# Resource specifications:\n# -N 16        : 16 nodes (from -N16)\n# -n 640       : 640 tasks total (40 tasks/node \u00d7 16 nodes, from -n40 --ntasks-per-node=40)\n# -c 1         : 1 core per task (implicit, adjust if needed)\n# -t 24h       : 24 hour walltime (from --time=24:00:00)\n#\n# IMPORTANT CLARIFICATION ON ORIGINAL SLURM SCRIPT:\n# The original script has ambiguous resource specification:\n# - '#SBATCH -n40 -N16' could mean:\n#   Option A: 40 total tasks across 16 nodes (~2-3 tasks per node)\n#   Option B: Intended 40 tasks per node \u00d7 16 nodes = 640 total tasks\n# - '#SBATCH --ntasks-per-node=40' suggests 40 tasks per node\n# \n# Given --ntasks-per-node=40 and -N16, the likely intent is:\n# 16 nodes \u00d7 40 tasks/node = 640 total tasks\n#\n# However, the '#SBATCH -n40' conflicts with this interpretation.\n# Slurm would use --ntasks-per-node=40 with -N16 to give 640 tasks,\n# and the -n40 would be overridden or cause an error.\n#\n# For Flux conversion, assuming the intent is 640 total tasks:\n# flux batch -N 16 -n 640 ...\n#\n# If the original intent was actually 40 total tasks, use:\n# flux batch -N 16 -n 40 ...\n\n# Partition: general\n# Note: Flux does not have partitions in the same way as Slurm\n# Queue/partition selection is handled through Flux's scheduling configuration\n# Performance impact: Job scheduling depends on site-specific Flux queue policies\n# Consult site documentation for equivalent resource pools or queues\n\n# OpenMP and Threading:\n# The script sets OMP_NUM_THREADS=40 and KMP_STACKSIZE=3200M\n# This suggests each MPI task may use 40 OpenMP threads\n# If this is the case, Flux allocation should be:\n# flux batch -N 16 -n 16 -c 40 ...\n# (16 nodes, 1 task per node, 40 cores per task)\n#\n# OR if running 40 MPI tasks per node with 1 thread each:\n# flux batch -N 16 -n 640 -c 1 ...\n#\n# The user should clarify the parallelization model:\n# - Pure MPI: multiple tasks, 1 thread each\n# - Hybrid MPI+OpenMP: fewer tasks, multiple threads per task\n# - Pure OpenMP: 1 task, many threads\n\n# System limits and environment\nulimit -s unlimited\n\n# Module loads\nmodule load gcc/5.4.0\nmodule load openmpi/1.10.3-gcc_5.4.0\nmodule load cmake\nmodule load mkl\n\nsource /projects/opt/intel/parallel_studio_xe_2016/mkl/bin/mklvars.sh intel64\n\n# Thread configuration\nexport OMP_NUM_THREADS=40\nexport KMP_STACKSIZE=3200M\n\n# Note on resource allocation:\n# If OMP_NUM_THREADS=40 means each process uses 40 threads,\n# the Flux submission should allocate cores accordingly:\n# - If running 1 MPI task per node: flux batch -N 16 -n 16 -c 40\n# - If running 40 MPI tasks per node with 1 thread: flux batch -N 16 -n 640 -c 1\n# Verify the application's parallelization model and adjust submission command\n\n## Copy files to work directory:\n#cp $SUBMITDIR/YourDatafile $SCRATCH\n\n## Mark outfiles for automatic copying to $SUBMITDIR:\n#chkfile YourOutputfile\n\n# Note: SUBMITDIR and SCRATCH environment variables\n# Slurm sets SLURM_SUBMIT_DIR automatically\n# Flux does not set equivalent variables by default\n# Use FLUX_JOB_SUBMITDIR or set manually if needed:\n# export SUBMITDIR=${FLUX_JOB_SUBMITDIR:-$PWD}\n\n## Run command\n./run.sh\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": false,
+                    "tool_call": false,
+                    "reasons": [
+                        "Resource specification conflict: The recommended submission command 'flux batch -N 16 -n 640 -c 1' allocates 640 tasks with 1 core each (640 cores total), but the script sets OMP_NUM_THREADS=40, indicating each task expects 40 threads. This creates a severe resource mismatch where 640 tasks would each try to use 40 threads (25,600 threads total) but only 640 cores are allocated.",
+                        "The documented resource allocation does not match the application's threading model. With OMP_NUM_THREADS=40, the correct allocation should likely be either: (1) flux batch -N 16 -n 16 -c 40 (one task per node, 40 cores per task), or (2) the OMP_NUM_THREADS should be set to 1 if truly running 640 MPI tasks.",
+                        "The cores-per-task specification '-c 1' is incompatible with OMP_NUM_THREADS=40. Each task will attempt to spawn 40 threads but only have 1 core allocated, causing severe oversubscription and performance degradation."
+                    ],
+                    "issues": [
+                        "The script correctly identifies the ambiguity in the original Slurm specification but makes an incorrect assumption about the resolution. The presence of OMP_NUM_THREADS=40 strongly suggests a hybrid MPI+OpenMP model, not pure MPI.",
+                        "Critical resource allocation error: The script documents two possible allocation strategies but recommends the wrong one. The default recommendation 'flux batch -N 16 -n 640 -c 1' is incompatible with OMP_NUM_THREADS=40.",
+                        "The correct allocation for a hybrid MPI+OpenMP application with OMP_NUM_THREADS=40 on 16 nodes would most likely be: flux batch -N 16 -n 16 -c 40 (assuming nodes have at least 40 cores each and running 1 MPI rank per node).",
+                        "Alternative interpretation: If the application truly needs 40 MPI tasks per node AND each uses OpenMP with 40 threads, it would require 1600 cores per node (40 tasks \u00d7 40 threads), which is unrealistic. This suggests the original Slurm script may have been misconfigured.",
+                        "The script mentions both FLUX_JOB_SUBMITDIR and the need to set SUBMITDIR manually, but doesn't actually implement this. The commented code references $SUBMITDIR which would be undefined.",
+                        "No validation is performed to check if the allocated resources match the threading configuration before running ./run.sh.",
+                        "The script should include resource verification commands like checking the actual number of cores allocated with commands specific to Flux or checking if OMP_NUM_THREADS matches the cores-per-task allocation.",
+                        "Missing job name and output file specifications in the documented submission command (shows '<jobname>' and '<output_file>' as placeholders).",
+                        "The KMP_STACKSIZE=3200M setting suggests each of the 40 threads per task needs 3.2GB of stack space, totaling ~128GB per task. This memory requirement is not specified in the Flux submission command and could cause out-of-memory errors."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "failed -> manual_validate",
+            "complete": false,
+            "state": "failed"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n# Flux batch script converted from Slurm\n# Note: Flux does not support in-script directives for resource specification\n# This script should be submitted with the following command:\n# flux batch -N 16 -n 640 -c 1 -t 24h --job-name=<jobname> --output=<output_file> script.sh\n#\n# Resource specifications:\n# -N 16        : 16 nodes (from -N16)\n# -n 640       : 640 tasks total (40 tasks/node \u00d7 16 nodes, from -n40 --ntasks-per-node=40)\n# -c 1         : 1 core per task (implicit, adjust if needed)\n# -t 24h       : 24 hour walltime (from --time=24:00:00)\n#\n# IMPORTANT CLARIFICATION ON ORIGINAL SLURM SCRIPT:\n# The original script has ambiguous resource specification:\n# - '#SBATCH -n40 -N16' could mean:\n#   Option A: 40 total tasks across 16 nodes (~2-3 tasks per node)\n#   Option B: Intended 40 tasks per node \u00d7 16 nodes = 640 total tasks\n# - '#SBATCH --ntasks-per-node=40' suggests 40 tasks per node\n# \n# Given --ntasks-per-node=40 and -N16, the likely intent is:\n# 16 nodes \u00d7 40 tasks/node = 640 total tasks\n#\n# However, the '#SBATCH -n40' conflicts with this interpretation.\n# Slurm would use --ntasks-per-node=40 with -N16 to give 640 tasks,\n# and the -n40 would be overridden or cause an error.\n#\n# For Flux conversion, assuming the intent is 640 total tasks:\n# flux batch -N 16 -n 640 ...\n#\n# If the original intent was actually 40 total tasks, use:\n# flux batch -N 16 -n 40 ...\n\n# Partition: general\n# Note: Flux does not have partitions in the same way as Slurm\n# Queue/partition selection is handled through Flux's scheduling configuration\n# Performance impact: Job scheduling depends on site-specific Flux queue policies\n# Consult site documentation for equivalent resource pools or queues\n\n# OpenMP and Threading:\n# The script sets OMP_NUM_THREADS=40 and KMP_STACKSIZE=3200M\n# This suggests each MPI task may use 40 OpenMP threads\n# If this is the case, Flux allocation should be:\n# flux batch -N 16 -n 16 -c 40 ...\n# (16 nodes, 1 task per node, 40 cores per task)\n#\n# OR if running 40 MPI tasks per node with 1 thread each:\n# flux batch -N 16 -n 640 -c 1 ...\n#\n# The user should clarify the parallelization model:\n# - Pure MPI: multiple tasks, 1 thread each\n# - Hybrid MPI+OpenMP: fewer tasks, multiple threads per task\n# - Pure OpenMP: 1 task, many threads\n\n# System limits and environment\nulimit -s unlimited\n\n# Module loads\nmodule load gcc/5.4.0\nmodule load openmpi/1.10.3-gcc_5.4.0\nmodule load cmake\nmodule load mkl\n\nsource /projects/opt/intel/parallel_studio_xe_2016/mkl/bin/mklvars.sh intel64\n\n# Thread configuration\nexport OMP_NUM_THREADS=40\nexport KMP_STACKSIZE=3200M\n\n# Note on resource allocation:\n# If OMP_NUM_THREADS=40 means each process uses 40 threads,\n# the Flux submission should allocate cores accordingly:\n# - If running 1 MPI task per node: flux batch -N 16 -n 16 -c 40\n# - If running 40 MPI tasks per node with 1 thread: flux batch -N 16 -n 640 -c 1\n# Verify the application's parallelization model and adjust submission command\n\n## Copy files to work directory:\n#cp $SUBMITDIR/YourDatafile $SCRATCH\n\n## Mark outfiles for automatic copying to $SUBMITDIR:\n#chkfile YourOutputfile\n\n# Note: SUBMITDIR and SCRATCH environment variables\n# Slurm sets SLURM_SUBMIT_DIR automatically\n# Flux does not set equivalent variables by default\n# Use FLUX_JOB_SUBMITDIR or set manually if needed:\n# export SUBMITDIR=${FLUX_JOB_SUBMITDIR:-$PWD}\n\n## Run command\n./run.sh\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n\n#SBATCH -n40 -N16 #Number of cores and nodes\n#SBATCH --ntasks-per-node=40\n#SBATCH -p general --time=24:00:00\n## OMP_NUM_THREADS controls the number of threads your application use\n## This variable cat be set by the following command :\n\nulimit -s unlimited\nmodule load gcc/5.4.0\nmodule load openmpi/1.10.3-gcc_5.4.0\nmodule load cmake\nmodule load mkl\n\nsource /projects/opt/intel/parallel_studio_xe_2016/mkl/bin/mklvars.sh intel64\nexport OMP_NUM_THREADS=40\nexport KMP_STACKSIZE=3200M\n\n\n## Copy files to work directory:\n#cp $SUBMITDIR/YourDatafile $SCRATCH\n\n## Mark outfiles for automatic copying to $SUBMITDIR:\n#chkfile YourOutputfile\n\n## Run command\n./run.sh \n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "manual_validate",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

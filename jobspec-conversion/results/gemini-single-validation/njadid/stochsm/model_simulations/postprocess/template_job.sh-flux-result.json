@@ -1,0 +1,123 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n# Flux job script translated from PBS.\n\n# The original job name was dynamic ('GPM_$1'). Flux parses directives before shell expansion,\n# so a static name is used here. You may need to rename the job at submission time if desired.\n##PBS -N GPM_$1\n#flux: --job-name=GPM_job\n\n# The following PBS directive for account was not translated as this is not a standard Flux option.\n# Account information is often handled by site-specific policies or plugins.\n# #PBS -A GT-rbras6-CODA20\n\n# number of nodes and cores per node required\n#flux: -N 1\n#flux: -n 15\n\n# CRITICAL: The PBS memory request 'mem=20gb' was not translated as Flux does not have a direct, simple equivalent.\n# The job will receive the default memory allocation. If this is less than 20GB, the job will likely fail.\n# This functionality is often handled by queue configurations.\n# #PBS -l mem=20gb\n\n# duration of the job\n#flux: -t 00:30:00\n\n# The PBS '-j oe' (combine output/error) is the default behavior in Flux when a single output file is specified,\n# or when no output file is specified (as is the case here).\n\n# The original script had commented-out directives for email notifications.\n# Flux does not support email notifications directly; this is typically a system-level configuration.\n##PBS -m e\n##PBS -M navidj@gatech.edu\n\n/bin/echo Running on host: `hostname`.\n/bin/echo In directory: `pwd`\n/bin/echo Starting on: `date`\n\nsource activate ~/venvs/pydask\n\n/bin/echo Parition $1\n\npython /storage/coda1/p-rbras6/0/njadidoleslam3/projects/stochsm/model_simulations/postprocess/create_unified_data.py $1\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "CRITICAL: As noted in the script's comments, the original PBS memory request for 20GB was omitted. The job will receive the system's default memory allocation, which is highly likely to be insufficient and cause the application to fail at runtime.",
+                        "The script requires a positional command-line argument (`$1`) to be passed when it is submitted (e.g., `flux batch script.sh arg1`). If this argument is missing, the Python script will likely fail.",
+                        "The script contains hardcoded, user-specific paths for both the conda environment and the Python script, making it non-portable and difficult for others to use or maintain."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n# Flux job script translated from PBS.\n\n# The original job name was dynamic ('GPM_$1'). Flux parses directives before shell expansion,\n# so a static name is used here. You may need to rename the job at submission time if desired.\n##PBS -N GPM_$1\n#flux: --job-name=GPM_job\n\n# The following PBS directive for account was not translated as this is not a standard Flux option.\n# Account information is often handled by site-specific policies or plugins.\n# #PBS -A GT-rbras6-CODA20\n\n# number of nodes and cores per node required\n#flux: -N 1\n#flux: -n 15\n\n# CRITICAL: The PBS memory request 'mem=20gb' was not translated as Flux does not have a direct, simple equivalent.\n# The job will receive the default memory allocation. If this is less than 20GB, the job will likely fail.\n# This functionality is often handled by queue configurations.\n# #PBS -l mem=20gb\n\n# duration of the job\n#flux: -t 00:30:00\n\n# The PBS '-j oe' (combine output/error) is the default behavior in Flux when a single output file is specified,\n# or when no output file is specified (as is the case here).\n\n# The original script had commented-out directives for email notifications.\n# Flux does not support email notifications directly; this is typically a system-level configuration.\n##PBS -m e\n##PBS -M navidj@gatech.edu\n\n/bin/echo Running on host: `hostname`.\n/bin/echo In directory: `pwd`\n/bin/echo Starting on: `date`\n\nsource activate ~/venvs/pydask\n\n/bin/echo Parition $1\n\npython /storage/coda1/p-rbras6/0/njadidoleslam3/projects/stochsm/model_simulations/postprocess/create_unified_data.py $1\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "pbs",
+                    "to_manager": "flux",
+                    "script": "##PBS -N GPM_$1          # job name\n#PBS -A GT-rbras6-CODA20               # account to which job is charged, ex: GT-gburdell3\n#PBS -l nodes=1:ppn=15           # number of nodes and cores per node required\n#PBS -l mem=20gb                # memory per core\n#PBS -l walltime=00:30:00      # duration of the job (ex: 15 min)\n#PBS -j oe                      # combine output and error messages into 1 file\n##PBS -o ST4_().out      # output file name\n##PBS -m e                    # event notification, set to email on start, end, or fail\n##PBS -M navidj@gatech.edu       # email to send notifications to\n\n/bin/echo Running on host: `hostname`.\n/bin/echo In directory: `pwd`\n/bin/echo Starting on: `date`\n\nsource activate ~/venvs/pydask\n\n/bin/echo Parition $1\n\npython /storage/coda1/p-rbras6/0/njadidoleslam3/projects/stochsm/model_simulations/postprocess/create_unified_data.py $1",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "manual_validate",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

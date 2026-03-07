@@ -1,0 +1,123 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash -l\n# Flux job script translated from Slurm\n\n# The script requests 96 tasks distributed across 6 nodes.\n# This results in 16 tasks per node.\n#flux: -N 6\n#flux: -n 96\n\n#flux: -t 00:30:00\n\n\nsource /ssoft/spack/bin/slmodules.sh -r stable \n\nmodule purge\nmodule load gcc/5.3.0 mvapich2/2.2b openblas/0.2.18 cp2k/3.0-mpi\nexport OMP_NUM_THREADS=1\n\ndate_start=$(date +%s)\n\n# 'srun' is replaced by 'flux run'. It will launch the 96 tasks requested.\nflux run cp2k.popt -i *.inp -o output.out\n\ndate_end=$(date +%s)\ntime_run=$((date_end-date_start))\necho \"096_cpus $time_run seconds\"\n\nrm -f GTH_BASIS_SETS POTENTIAL *xyz *restart          #remove useless big files (please!) \n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "The use of a shell wildcard (`*.inp`) as an argument to an MPI program is not robust. The wildcard will be expanded by the shell in the submission environment *before* `flux run` is executed. If this expansion results in zero or more than one filename, the `cp2k.popt` application will likely fail. The script will only work correctly if exactly one file ending in `.inp` exists in the working directory.",
+                        "The script sources a file named `slmodules.sh`, which is likely specific to a SLURM environment. This may fail or behave unexpectedly in a Flux environment if it relies on SLURM-specific variables or configurations.",
+                        "The job requests 96 tasks but does not specify the number of CPUs per task (e.g., `-c N`). It will receive a default of 1 CPU core per task. This is consistent with `OMP_NUM_THREADS=1`, but it may be an inefficient use of the nodes if they have more than 16 cores each (96 tasks / 6 nodes = 16 tasks/node)."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash -l\n# Flux job script translated from Slurm\n\n# The script requests 96 tasks distributed across 6 nodes.\n# This results in 16 tasks per node.\n#flux: -N 6\n#flux: -n 96\n\n#flux: -t 00:30:00\n\n\nsource /ssoft/spack/bin/slmodules.sh -r stable \n\nmodule purge\nmodule load gcc/5.3.0 mvapich2/2.2b openblas/0.2.18 cp2k/3.0-mpi\nexport OMP_NUM_THREADS=1\n\ndate_start=$(date +%s)\n\n# 'srun' is replaced by 'flux run'. It will launch the 96 tasks requested.\nflux run cp2k.popt -i *.inp -o output.out\n\ndate_end=$(date +%s)\ntime_run=$((date_end-date_start))\necho \"096_cpus $time_run seconds\"\n\nrm -f GTH_BASIS_SETS POTENTIAL *xyz *restart          #remove useless big files (please!) \n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash -l\n#SBATCH --nodes=6\n#SBATCH --ntasks=96\n#SBATCH --time=00:30:00\n\nsource /ssoft/spack/bin/slmodules.sh -r stable \n\nmodule purge\nmodule load gcc/5.3.0 mvapich2/2.2b openblas/0.2.18 cp2k/3.0-mpi\nexport OMP_NUM_THREADS=1\n\ndate_start=$(date +%s)\nsrun cp2k.popt -i *.inp -o output.out                 #running command\ndate_end=$(date +%s)\ntime_run=$((date_end-date_start))\necho \"096_cpus $time_run seconds\"\n\nrm -f GTH_BASIS_SETS POTENTIAL *xyz *restart          #remove useless big files (please!) \n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "manual_validate",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

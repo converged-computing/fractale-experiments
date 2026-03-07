@@ -1,0 +1,122 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/usr/bin/env bash\n# Flux batch script converted from Slurm\n\n# NOTE: Run with: flux batch <this_script>\n\n# Slurm resources:\n#   --nodes=1\n#   --ntasks-per-node=1\n#   --gres=gpu:1\n#   --time=12:00:00\n#   --mem=20GB\n\n#flux: -N 1\n#flux: -n 1\n#flux: --time-limit=12h\n\n# Omitted Slurm option: --gres=gpu:1\n# Flux GPU requests are site/config dependent (often via custom resource types).\n# Performance implication: job may start without a GPU, causing failure or severe slowdown.\n\n# Omitted Slurm option: --mem=20GB\n# Flux memory requests are site/config dependent and not universally portable.\n# Performance implication: job may be scheduled on a node with insufficient memory, risking OOM kills or degraded performance.\n\nmodule load pytorch/1.4.0-py36-cuda90\nmodule load torchvision/0.5.0-py36\n\npython3 pvae/main.py --model mnist --manifold PoincareBall --c 0.1 --latent-dim 40 --hidden-dim 600 --prior WrappedNormal --posterior WrappedNormal --dec Geo --enc Wrapped --lr 5e-4 --epochs 80 --save-freq 80 --batch-size 128 --iwae-samples 5000\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": false,
+                    "tool_call": false,
+                    "reasons": [
+                        "The original Slurm job required a GPU (`--gres=gpu:1`) but the Flux resource section does not request any GPU resources; on GPU-managed systems this may allocate CPU-only resources and the job may fail or run much slower.",
+                        "The original Slurm job requested 20GB of memory (`--mem=20GB`) but the Flux resource section has no memory request; on systems that schedule/enforce memory this may under-provision the job and risk OOM."
+                    ],
+                    "issues": []
+                },
+                "attempts": 1
+            },
+            "transition": "failed -> manual_validate",
+            "complete": false,
+            "state": "failed"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/usr/bin/env bash\n# Flux batch script converted from Slurm\n\n# NOTE: Run with: flux batch <this_script>\n\n# Slurm resources:\n#   --nodes=1\n#   --ntasks-per-node=1\n#   --gres=gpu:1\n#   --time=12:00:00\n#   --mem=20GB\n\n#flux: -N 1\n#flux: -n 1\n#flux: --time-limit=12h\n\n# Omitted Slurm option: --gres=gpu:1\n# Flux GPU requests are site/config dependent (often via custom resource types).\n# Performance implication: job may start without a GPU, causing failure or severe slowdown.\n\n# Omitted Slurm option: --mem=20GB\n# Flux memory requests are site/config dependent and not universally portable.\n# Performance implication: job may be scheduled on a node with insufficient memory, risking OOM kills or degraded performance.\n\nmodule load pytorch/1.4.0-py36-cuda90\nmodule load torchvision/0.5.0-py36\n\npython3 pvae/main.py --model mnist --manifold PoincareBall --c 0.1 --latent-dim 40 --hidden-dim 600 --prior WrappedNormal --posterior WrappedNormal --dec Geo --enc Wrapped --lr 5e-4 --epochs 80 --save-freq 80 --batch-size 128 --iwae-samples 5000\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/usr/bin/env bash\n\n#SBATCH --nodes=1\n#SBATCH --ntasks-per-node=1\n#SBATCH --gres=gpu:1\n#SBATCH --time=12:00:00\n#SBATCH --mem=20GB\n\nmodule load pytorch/1.4.0-py36-cuda90\nmodule load torchvision/0.5.0-py36\n\n#pip install geoopt\n#pip install git+https://github.com/geoopt/geoopt.git\npython3 pvae/main.py --model mnist --manifold PoincareBall --c 0.1  --latent-dim 40 --hidden-dim 600 --prior WrappedNormal --posterior WrappedNormal --dec Geo     --enc Wrapped --lr 5e-4 --epochs 80 --save-freq 80 --batch-size 128 --iwae-samples 5000\n\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "manual_validate",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

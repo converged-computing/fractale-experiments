@@ -1,0 +1,130 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n# Flux batch script converted from Slurm\n# Note: Flux does not support in-script directives for resource specification\n# This script should be submitted with the following command:\n# flux batch -N 3 -n 96 -t 30m --job-name=EQ_POCG_60 --output=starting.out script.sh\n#\n# Resource specifications:\n# -N 3         : 3 nodes (from -N 3)\n# -n 96        : 96 tasks (from -n 96)\n# -t 30m       : 30 minute walltime (from -t 00:30:00)\n# --job-name=EQ_POCG_60 : job name (from -J EQ_POCG_60)\n# --output=starting.out : output file (from --output=starting.out)\n#\n# Note: The original has conflicting --output directives:\n# - out%j.amarel.log (with job ID)\n# - starting.out (fixed name)\n# Using starting.out as it appears last and would override\n\n# Alternative resource configuration (commented out in original):\n# -N 1 -n 32  : 1 node with 32 tasks\n\n# Memory: 6000 MB (--mem=6000)\n# Note: Flux memory specification varies by version\n# Add to submission command: --setattr=system.memory=6000M\n# Or: --setattr=memory=6000M (verify for your Flux version)\n# Complete command:\n# flux batch -N 3 -n 96 -t 30m --setattr=system.memory=6000M --job-name=EQ_POCG_60 --output=starting.out script.sh\n# Performance impact: Without explicit memory request, job gets default allocation\n# which may be insufficient for NAMD molecular dynamics simulation\n\n# Export environment: --export=ALL\n# Slurm: --export=ALL exports all environment variables\n# Note: Flux batch jobs inherit the environment from submission shell by default\n# Performance impact: Environment inheritance behavior similar\n# If specific environment control is needed, use --env or --env-remove at submission\n\n# Partition: cmain\n# Slurm: --partition=cmain\n# Note: Flux does not have partitions in the same way as Slurm\n# Partition selection is handled through Flux's scheduling configuration\n# Performance impact: Job scheduling depends on site-specific Flux configuration\n# Consult site documentation for equivalent resource pools or queues\n\n# Requeue: --requeue\n# Slurm: --requeue allows automatic requeue on node failure\n# Note: Flux does not have a direct --requeue equivalent\n# Flux handles job failure and restart differently through its job management\n# Performance impact: Jobs will not automatically requeue on node failure\n# Consider implementing application-level checkpointing for fault tolerance\n# Or use Flux's job exception handling mechanisms if available\n\n# Output file disambiguation:\n# Original has two --output directives:\n# 1. -o out%j.amarel.log (with job ID placeholder %j)\n# 2. --output=starting.out (fixed filename)\n# Slurm would use the last one (starting.out)\n# Flux: --output=starting.out (fixed name, no job ID)\n# To include job ID in Flux: --output=out{{id}}.amarel.log\n# Current conversion uses starting.out to match original behavior\n\n# Module environment\nmodule purge\nmodule load gcc cuda mvapich2/2.2\n\n# Application paths\nNAMD=\"/projects/jdb252_1/tj227/bin/namd2-2.13-gcc-mvapich2\"\n\n# MPI launcher\n# Original: SRUN=\"srun --mpi=pmi2\"\n# Slurm: srun with PMI2 process management interface\n# Flux: Use flux run for launching MPI tasks\n# PMI2 support in Flux depends on MPI implementation and configuration\n# MVAPICH2 typically supports PMI/PMI2\n# Flux equivalent:\nFLUX_RUN=\"flux run -n 96\"\n\n# Execute NAMD simulation\n# Original: $SRUN $NAMD starting.POCG_60.namd > starting.POCG_60.log\n# Flux: flux run launches MPI tasks within the allocation\n$FLUX_RUN $NAMD starting.POCG_60.namd > starting.POCG_60.log\n\n# Note on MPI execution:\n# - flux run is used instead of srun\n# - -n 96 specifies 96 MPI tasks (matching the allocation)\n# - Flux will distribute tasks across the 3 allocated nodes\n# - MVAPICH2 should work with Flux's PMI implementation\n# - If PMI2 is specifically required, ensure MVAPICH2 is built with Flux PMI support\n# - For explicit node distribution, use: flux run -N 3 -n 96\n\n# Complete submission command with all options:\n# flux batch -N 3 -n 96 -t 30m \\\n#   --setattr=system.memory=6000M \\\n#   --job-name=EQ_POCG_60 \\\n#   --output=starting.out \\\n#   script.sh\n#\n# Or with job ID in output:\n# flux batch -N 3 -n 96 -t 30m \\\n#   --setattr=system.memory=6000M \\\n#   --job-name=EQ_POCG_60 \\\n#   --output=out{{id}}.amarel.log \\\n#   script.sh\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": false,
+                    "reasons": [],
+                    "issues": [
+                        "The script correctly documents resource specifications and properly converts Slurm directives to Flux command-line options.",
+                        "Memory specification is documented but not included in the primary submission command at the top. The primary command should be: 'flux batch -N 3 -n 96 -t 30m --setattr=system.memory=6000M --job-name=EQ_POCG_60 --output=starting.out script.sh'",
+                        "The memory attribute syntax '--setattr=system.memory=6000M' should be verified for the specific Flux version. Alternative syntax '--setattr=memory=6000M' may be needed depending on the Flux installation.",
+                        "The 'flux run' command inside the script specifies '-n 96' which matches the batch allocation, but this is redundant. When running inside a batch job with 96 tasks allocated, 'flux run' without '-n' would use all allocated tasks by default. However, explicit specification is acceptable and makes intent clear.",
+                        "The memory allocation of 6000MB (approximately 6GB) total across 3 nodes for 96 tasks results in only ~62.5MB per task. This may be insufficient for NAMD molecular dynamics simulations, which typically require more memory per process. Consider if this should be --mem-per-cpu or if the memory value needs to be increased.",
+                        "The conversion correctly notes that Slurm's --mem=6000 is total memory for the job, but NAMD with 96 MPI ranks typically needs significantly more than 6GB total. Verify this memory specification meets application requirements.",
+                        "No cores-per-task specification is provided. With 96 tasks on 3 nodes, this implies 32 tasks per node. Ensure nodes have sufficient cores to support this distribution (at least 32 cores per node).",
+                        "The script does not specify any node-specific constraints or topology requirements. For multi-node NAMD jobs, network topology and node capabilities may affect performance.",
+                        "The requeue behavior from Slurm is not replicated in Flux. For long-running molecular dynamics simulations, consider implementing checkpointing within NAMD to enable manual restart on failure.",
+                        "Output redirection to 'starting.POCG_60.log' is done via shell redirection (>) rather than Flux's output handling. This means Flux's stdout/stderr capture (--output=starting.out) and the application's log file will be separate, which may be intentional but should be noted."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n# Flux batch script converted from Slurm\n# Note: Flux does not support in-script directives for resource specification\n# This script should be submitted with the following command:\n# flux batch -N 3 -n 96 -t 30m --job-name=EQ_POCG_60 --output=starting.out script.sh\n#\n# Resource specifications:\n# -N 3         : 3 nodes (from -N 3)\n# -n 96        : 96 tasks (from -n 96)\n# -t 30m       : 30 minute walltime (from -t 00:30:00)\n# --job-name=EQ_POCG_60 : job name (from -J EQ_POCG_60)\n# --output=starting.out : output file (from --output=starting.out)\n#\n# Note: The original has conflicting --output directives:\n# - out%j.amarel.log (with job ID)\n# - starting.out (fixed name)\n# Using starting.out as it appears last and would override\n\n# Alternative resource configuration (commented out in original):\n# -N 1 -n 32  : 1 node with 32 tasks\n\n# Memory: 6000 MB (--mem=6000)\n# Note: Flux memory specification varies by version\n# Add to submission command: --setattr=system.memory=6000M\n# Or: --setattr=memory=6000M (verify for your Flux version)\n# Complete command:\n# flux batch -N 3 -n 96 -t 30m --setattr=system.memory=6000M --job-name=EQ_POCG_60 --output=starting.out script.sh\n# Performance impact: Without explicit memory request, job gets default allocation\n# which may be insufficient for NAMD molecular dynamics simulation\n\n# Export environment: --export=ALL\n# Slurm: --export=ALL exports all environment variables\n# Note: Flux batch jobs inherit the environment from submission shell by default\n# Performance impact: Environment inheritance behavior similar\n# If specific environment control is needed, use --env or --env-remove at submission\n\n# Partition: cmain\n# Slurm: --partition=cmain\n# Note: Flux does not have partitions in the same way as Slurm\n# Partition selection is handled through Flux's scheduling configuration\n# Performance impact: Job scheduling depends on site-specific Flux configuration\n# Consult site documentation for equivalent resource pools or queues\n\n# Requeue: --requeue\n# Slurm: --requeue allows automatic requeue on node failure\n# Note: Flux does not have a direct --requeue equivalent\n# Flux handles job failure and restart differently through its job management\n# Performance impact: Jobs will not automatically requeue on node failure\n# Consider implementing application-level checkpointing for fault tolerance\n# Or use Flux's job exception handling mechanisms if available\n\n# Output file disambiguation:\n# Original has two --output directives:\n# 1. -o out%j.amarel.log (with job ID placeholder %j)\n# 2. --output=starting.out (fixed filename)\n# Slurm would use the last one (starting.out)\n# Flux: --output=starting.out (fixed name, no job ID)\n# To include job ID in Flux: --output=out{{id}}.amarel.log\n# Current conversion uses starting.out to match original behavior\n\n# Module environment\nmodule purge\nmodule load gcc cuda mvapich2/2.2\n\n# Application paths\nNAMD=\"/projects/jdb252_1/tj227/bin/namd2-2.13-gcc-mvapich2\"\n\n# MPI launcher\n# Original: SRUN=\"srun --mpi=pmi2\"\n# Slurm: srun with PMI2 process management interface\n# Flux: Use flux run for launching MPI tasks\n# PMI2 support in Flux depends on MPI implementation and configuration\n# MVAPICH2 typically supports PMI/PMI2\n# Flux equivalent:\nFLUX_RUN=\"flux run -n 96\"\n\n# Execute NAMD simulation\n# Original: $SRUN $NAMD starting.POCG_60.namd > starting.POCG_60.log\n# Flux: flux run launches MPI tasks within the allocation\n$FLUX_RUN $NAMD starting.POCG_60.namd > starting.POCG_60.log\n\n# Note on MPI execution:\n# - flux run is used instead of srun\n# - -n 96 specifies 96 MPI tasks (matching the allocation)\n# - Flux will distribute tasks across the 3 allocated nodes\n# - MVAPICH2 should work with Flux's PMI implementation\n# - If PMI2 is specifically required, ensure MVAPICH2 is built with Flux PMI support\n# - For explicit node distribution, use: flux run -N 3 -n 96\n\n# Complete submission command with all options:\n# flux batch -N 3 -n 96 -t 30m \\\n#   --setattr=system.memory=6000M \\\n#   --job-name=EQ_POCG_60 \\\n#   --output=starting.out \\\n#   script.sh\n#\n# Or with job ID in output:\n# flux batch -N 3 -n 96 -t 30m \\\n#   --setattr=system.memory=6000M \\\n#   --job-name=EQ_POCG_60 \\\n#   --output=out{{id}}.amarel.log \\\n#   script.sh\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash \n#SBATCH -J EQ_POCG_60\n#SBATCH -o out%j.amarel.log\n#SBATCH --export=ALL\n#SBATCH --partition=cmain\n#SBATCH -N 3 -n 96\n##SBATCH -N 1 -n 32\n#SBATCH --mem=6000\n#SBATCH -t 00:30:00       # max time\n#SBATCH --output=starting.out     # STDOUT output file\n#SBATCH --requeue\nmodule purge\nmodule load gcc cuda mvapich2/2.2\nNAMD=\"/projects/jdb252_1/tj227/bin/namd2-2.13-gcc-mvapich2\"\nSRUN=\"srun --mpi=pmi2\"\n$SRUN $NAMD starting.POCG_60.namd > starting.POCG_60.log\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "manual_validate",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

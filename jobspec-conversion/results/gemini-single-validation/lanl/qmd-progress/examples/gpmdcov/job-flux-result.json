@@ -1,0 +1,122 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n# Flux job script translated from Slurm\n\n# WARNING: The original Slurm script contained contradictory resource requests\n# ('-n40 -N16' vs '--ntasks-per-node=40').\n# Based on the 'OMP_NUM_THREADS=40' setting, this translation assumes the user\n# intended to run a single multi-threaded application on one node.\n\n# Requesting 1 node, 1 task, and 40 CPUs for that task.\n#flux: -N 1\n#flux: -n 1\n#flux: -c 40\n\n#flux: -q general\n#flux: -t 24:00:00\n\nulimit -s unlimited\nmodule load gcc/5.4.0\nmodule load openmpi/1.10.3-gcc_5.4.0\nmodule load cmake\nmodule load mkl\n\nsource /projects/opt/intel/parallel_studio_xe_2016/mkl/bin/mklvars.sh intel64\n\n# This value should match the number of CPUs requested with the '-c' directive.\nexport OMP_NUM_THREADS=40\nexport KMP_STACKSIZE=3200M\n\n\n## Copy files to work directory:\n#cp $SUBMITDIR/YourDatafile $SCRATCH\n\n## Mark outfiles for automatic copying to $SUBMITDIR:\n# The 'chkfile' command has no equivalent in Flux.\n\n## Run command\n# Since this is a single-task job, the command is run directly.\n./run.sh \n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": true,
+                    "reasons": [],
+                    "issues": [
+                        "As noted in the script's comments, the original Slurm directives were contradictory. This translation makes a reasonable assumption that a single multi-threaded job was intended. However, if the user actually intended a 16-node MPI job, this script will run on only one node, a fundamental difference in execution scale.",
+                        "The script launches the application with a relative path (`./run.sh`). This requires the executable to be present in the submission directory, which can be fragile. Using an absolute path or ensuring the application is in the `$PATH` is more robust."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n# Flux job script translated from Slurm\n\n# WARNING: The original Slurm script contained contradictory resource requests\n# ('-n40 -N16' vs '--ntasks-per-node=40').\n# Based on the 'OMP_NUM_THREADS=40' setting, this translation assumes the user\n# intended to run a single multi-threaded application on one node.\n\n# Requesting 1 node, 1 task, and 40 CPUs for that task.\n#flux: -N 1\n#flux: -n 1\n#flux: -c 40\n\n#flux: -q general\n#flux: -t 24:00:00\n\nulimit -s unlimited\nmodule load gcc/5.4.0\nmodule load openmpi/1.10.3-gcc_5.4.0\nmodule load cmake\nmodule load mkl\n\nsource /projects/opt/intel/parallel_studio_xe_2016/mkl/bin/mklvars.sh intel64\n\n# This value should match the number of CPUs requested with the '-c' directive.\nexport OMP_NUM_THREADS=40\nexport KMP_STACKSIZE=3200M\n\n\n## Copy files to work directory:\n#cp $SUBMITDIR/YourDatafile $SCRATCH\n\n## Mark outfiles for automatic copying to $SUBMITDIR:\n# The 'chkfile' command has no equivalent in Flux.\n\n## Run command\n# Since this is a single-task job, the command is run directly.\n./run.sh \n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n\n#SBATCH -n40 -N16 #Number of cores and nodes\n#SBATCH --ntasks-per-node=40\n#SBATCH -p general --time=24:00:00\n## OMP_NUM_THREADS controls the number of threads your application use\n## This variable cat be set by the following command :\n\nulimit -s unlimited\nmodule load gcc/5.4.0\nmodule load openmpi/1.10.3-gcc_5.4.0\nmodule load cmake\nmodule load mkl\n\nsource /projects/opt/intel/parallel_studio_xe_2016/mkl/bin/mklvars.sh intel64\nexport OMP_NUM_THREADS=40\nexport KMP_STACKSIZE=3200M\n\n\n## Copy files to work directory:\n#cp $SUBMITDIR/YourDatafile $SCRATCH\n\n## Mark outfiles for automatic copying to $SUBMITDIR:\n#chkfile YourOutputfile\n\n## Run command\n./run.sh \n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "manual_validate",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

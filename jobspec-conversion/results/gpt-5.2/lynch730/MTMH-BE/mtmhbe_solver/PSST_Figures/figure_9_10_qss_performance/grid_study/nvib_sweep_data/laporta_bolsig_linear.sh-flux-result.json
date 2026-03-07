@@ -1,0 +1,123 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n# Flux batch script converted from Slurm\n\n# NOTE: Run with: flux batch <this_script>\n\n# Slurm resources:\n#   --time=01:00:00\n#   --nodes=1\n#   --ntasks-per-node=18\n#   --mem=8G\n#   --job-name=\"glap_bol_lin\"\n#   --output=\"laporta_grid_study_nvib_bolsig_linear.out\"\n\n# Map to Flux: 1 node, 18 tasks.\n#flux: -N 1\n#flux: -n 18\n#flux: --time-limit=1h\n#flux: --job-name=\"glap_bol_lin\"\n#flux: --output=laporta_grid_study_nvib_bolsig_linear.out\n\n# Omitted Slurm option: --mem=8G\n# Flux memory requests are site/config dependent and not universally portable.\n# Performance implication: job may be scheduled on a node with insufficient memory, risking OOM kills or degraded performance.\n\n# Omitted Slurm option: --ntasks-per-node=18 (explicit per-node placement)\n# Flux does not have a universally portable batch directive for tasks-per-node.\n# Performance implication: if the job were to span multiple nodes, rank placement might differ; here we force -N 1 to preserve intent.\n\nmodule load matlab/R2022a\nmodule load intel\n\nexport omp_num_threads=8\n\ncd /home/lynch/boltzmann_solvers/mtmhbe_solver/performance/laporta/grid_study/nvib_sweep_data/\n\n# Slurm did not explicitly use srun. If you intend to use all 18 tasks, launch under Flux.\n# Otherwise, requesting 18 tasks may waste resources.\nflux run -n 18 matlab -nodisplay -nosplash -nodesktop -r \"laporta_bolsig_linear;exit;\"\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": false,
+                    "tool_call": false,
+                    "reasons": [
+                        "The original Slurm job requested 8G of memory (`--mem=8G`) but the Flux resource section has no memory request; on systems that schedule/enforce memory this may under-provision the job and risk OOM or degraded performance."
+                    ],
+                    "issues": [
+                        "The resource section allocates 18 tasks and the script launches 18 MATLAB instances (`flux run -n 18 matlab ...`). If the intent was one MATLAB process using threads (as suggested by `omp_num_threads=8`), the resource request and launch strategy may be incorrect and could oversubscribe the node."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "failed -> manual_validate",
+            "complete": false,
+            "state": "failed"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n# Flux batch script converted from Slurm\n\n# NOTE: Run with: flux batch <this_script>\n\n# Slurm resources:\n#   --time=01:00:00\n#   --nodes=1\n#   --ntasks-per-node=18\n#   --mem=8G\n#   --job-name=\"glap_bol_lin\"\n#   --output=\"laporta_grid_study_nvib_bolsig_linear.out\"\n\n# Map to Flux: 1 node, 18 tasks.\n#flux: -N 1\n#flux: -n 18\n#flux: --time-limit=1h\n#flux: --job-name=\"glap_bol_lin\"\n#flux: --output=laporta_grid_study_nvib_bolsig_linear.out\n\n# Omitted Slurm option: --mem=8G\n# Flux memory requests are site/config dependent and not universally portable.\n# Performance implication: job may be scheduled on a node with insufficient memory, risking OOM kills or degraded performance.\n\n# Omitted Slurm option: --ntasks-per-node=18 (explicit per-node placement)\n# Flux does not have a universally portable batch directive for tasks-per-node.\n# Performance implication: if the job were to span multiple nodes, rank placement might differ; here we force -N 1 to preserve intent.\n\nmodule load matlab/R2022a\nmodule load intel\n\nexport omp_num_threads=8\n\ncd /home/lynch/boltzmann_solvers/mtmhbe_solver/performance/laporta/grid_study/nvib_sweep_data/\n\n# Slurm did not explicitly use srun. If you intend to use all 18 tasks, launch under Flux.\n# Otherwise, requesting 18 tasks may waste resources.\nflux run -n 18 matlab -nodisplay -nosplash -nodesktop -r \"laporta_bolsig_linear;exit;\"\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n\n# Copy/paste this job script into a text file and submit with the command:\n#    sbatch thefilename\n# job standard output will go to the file slurm-%j.out (where %j is the job ID)\n\n#SBATCH --time=01:00:00   # walltime limit (HH:MM:SS)\n#SBATCH --nodes=1   # number of nodes\n#SBATCH --ntasks-per-node=18   # 36 processor core(s) per node \n#SBATCH --mem=8G   # maximum memory per node\n#SBATCH --job-name=\"glap_bol_lin\"\n#SBATCH --output=\"laporta_grid_study_nvib_bolsig_linear.out\"\n\nmodule load matlab/R2022a\nmodule load intel\nexport omp_num_threads=8\ncd /home/lynch/boltzmann_solvers/mtmhbe_solver/performance/laporta/grid_study/nvib_sweep_data/\nmatlab -nodisplay -nosplash -nodesktop -r \"laporta_bolsig_linear;exit;\"\n\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "manual_validate",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

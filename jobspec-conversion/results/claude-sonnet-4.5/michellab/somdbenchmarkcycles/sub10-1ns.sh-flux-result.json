@@ -1,0 +1,129 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n# Flux batch script converted from Slurm\n# Note: Flux does not support in-script directives for resource specification\n# This script should be submitted with the following command:\n# flux batch -N 1 -n 1 -g 1 -t 24h --job-name=somd-array-gpu --output=somd-array-gpu-{{id}}.{{taskid}}.out script.sh\n#\n# Resource specifications:\n# -N 1         : 1 node (implicit from -n 1)\n# -n 1         : 1 task (from -n 1)\n# -g 1         : 1 GPU (from --gres=gpu:1)\n# -t 24h       : 24 hour walltime (from --time 24:00:00)\n# --job-name=somd-array-gpu : job name (derived from output filename pattern)\n# --output=somd-array-gpu-{{id}}.{{taskid}}.out : output file with job ID and task ID\n#\n# Note: Flux uses {{id}} for job ID and {{taskid}} for array task ID\n# Slurm uses %A for job array master ID and %a for task ID\n\n# Original Slurm output: -o somd-array-gpu-%A.%a.out\n# This suggests the job was intended as an array job\n# Slurm: %A = job array master ID, %a = array task ID\n# Flux: {{id}} = job ID, {{taskid}} = array task ID\n#\n# For job arrays in Flux, submit with --array option:\n# flux batch --array=<range> -N 1 -n 1 -g 1 -t 24h \\\n#   --job-name=somd-array-gpu \\\n#   --output=somd-array-gpu-{{id}}.{{taskid}}.out \\\n#   script.sh\n# Example: --array=0-9 for 10 array tasks\n\n# Partition: main\n# Slurm: -p main\n# Note: Flux does not have partitions in the same way as Slurm\n# Partition selection is handled through Flux's scheduling configuration\n# Performance impact: Job scheduling depends on site-specific Flux configuration\n# Consult site documentation for equivalent resource pools or queues\n\n# Tasks: 1\n# Slurm: -n 1\n# Flux: -n 1 specifies 1 task\n\n# GPU allocation: 1 GPU\n# Slurm: --gres=gpu:1\n# Flux: -g 1 allocates 1 GPU\n# Note: GPU type cannot be specified in standard Flux syntax\n# Performance impact: Job may be allocated any available GPU type\n\n# Walltime: 24 hours\n# Slurm: --time 24:00:00\n# Flux: -t 24h or -t 1440m or -t 86400s\n\necho \"CUDA DEVICES:\" $CUDA_VISIBLE_DEVICES\n\nmkdir 10cycles\ncd 10cycles\n\nexport OPENMM_PLUGIN_DIR=/home/julien/sire.app/lib/plugins/\n\n# Execute application\n# Slurm: srun launches task in allocation\n# Flux: Use flux run to launch task within the batch allocation\n# For single-task jobs, direct execution is also acceptable\n# Using flux run for consistency with Flux task launching\nflux run -n 1 -g 1 ~/sire.app/bin/somd-freenrg -C ../sim10.cfg -l 0.50 -p CUDA\n\ncd ..\n\n# Note on execution:\n# - flux run is used instead of srun\n# - -n 1 specifies 1 task (matching allocation)\n# - -g 1 ensures 1 GPU is allocated to the task\n# - For single-task jobs, the flux run options are technically redundant\n#   with the batch allocation, but make intent explicit\n\n# Complete submission command for regular job:\n# flux batch -N 1 -n 1 -g 1 -t 24h \\\n#   --job-name=somd-array-gpu \\\n#   --output=somd-array-gpu-{{id}}.out \\\n#   script.sh\n#\n# Complete submission command for array job (if multiple array tasks needed):\n# flux batch --array=0-9 -N 1 -n 1 -g 1 -t 24h \\\n#   --job-name=somd-array-gpu \\\n#   --output=somd-array-gpu-{{id}}.{{taskid}}.out \\\n#   script.sh\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": false,
+                    "reasons": [],
+                    "issues": [
+                        "The script correctly documents resource specifications and properly converts Slurm directives to Flux command-line options.",
+                        "The output file pattern uses '{{taskid}}' which is only valid for array jobs. For a single job submission (non-array), this will likely result in a literal '{{taskid}}' in the filename or an error. The documented single-job submission command should use '--output=somd-array-gpu-{{id}}.out' without the taskid component.",
+                        "The 'flux run' command inside the batch script specifies '-n 1 -g 1' which is redundant when the batch allocation already provides these resources. While not incorrect, this could be simplified to just 'flux run ~/sire.app/bin/somd-freenrg ...' to use all allocated resources.",
+                        "The script creates a directory '10cycles' without checking if it already exists. Consider using 'mkdir -p 10cycles' to avoid errors on repeated runs.",
+                        "No memory specification is included. For GPU-accelerated molecular dynamics with OpenMM, explicit memory allocation may be beneficial to ensure sufficient resources.",
+                        "The script does not validate that CUDA_VISIBLE_DEVICES is properly set by Flux before proceeding. Consider adding a check or validation step.",
+                        "The script changes directory multiple times (cd 10cycles, then cd ..). The final 'cd ..' assumes the script started in a specific location. If the batch submission uses --cwd or the script is called from a different location, this could cause unexpected behavior.",
+                        "For array jobs, the script does not use any array-specific logic (like referencing FLUX_TASK_ID or similar). If this is intended to be an array job, the script should likely use the array task ID to differentiate between runs.",
+                        "The 24-hour walltime is quite long. Verify this is within the site's maximum walltime limits."
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n# Flux batch script converted from Slurm\n# Note: Flux does not support in-script directives for resource specification\n# This script should be submitted with the following command:\n# flux batch -N 1 -n 1 -g 1 -t 24h --job-name=somd-array-gpu --output=somd-array-gpu-{{id}}.{{taskid}}.out script.sh\n#\n# Resource specifications:\n# -N 1         : 1 node (implicit from -n 1)\n# -n 1         : 1 task (from -n 1)\n# -g 1         : 1 GPU (from --gres=gpu:1)\n# -t 24h       : 24 hour walltime (from --time 24:00:00)\n# --job-name=somd-array-gpu : job name (derived from output filename pattern)\n# --output=somd-array-gpu-{{id}}.{{taskid}}.out : output file with job ID and task ID\n#\n# Note: Flux uses {{id}} for job ID and {{taskid}} for array task ID\n# Slurm uses %A for job array master ID and %a for task ID\n\n# Original Slurm output: -o somd-array-gpu-%A.%a.out\n# This suggests the job was intended as an array job\n# Slurm: %A = job array master ID, %a = array task ID\n# Flux: {{id}} = job ID, {{taskid}} = array task ID\n#\n# For job arrays in Flux, submit with --array option:\n# flux batch --array=<range> -N 1 -n 1 -g 1 -t 24h \\\n#   --job-name=somd-array-gpu \\\n#   --output=somd-array-gpu-{{id}}.{{taskid}}.out \\\n#   script.sh\n# Example: --array=0-9 for 10 array tasks\n\n# Partition: main\n# Slurm: -p main\n# Note: Flux does not have partitions in the same way as Slurm\n# Partition selection is handled through Flux's scheduling configuration\n# Performance impact: Job scheduling depends on site-specific Flux configuration\n# Consult site documentation for equivalent resource pools or queues\n\n# Tasks: 1\n# Slurm: -n 1\n# Flux: -n 1 specifies 1 task\n\n# GPU allocation: 1 GPU\n# Slurm: --gres=gpu:1\n# Flux: -g 1 allocates 1 GPU\n# Note: GPU type cannot be specified in standard Flux syntax\n# Performance impact: Job may be allocated any available GPU type\n\n# Walltime: 24 hours\n# Slurm: --time 24:00:00\n# Flux: -t 24h or -t 1440m or -t 86400s\n\necho \"CUDA DEVICES:\" $CUDA_VISIBLE_DEVICES\n\nmkdir 10cycles\ncd 10cycles\n\nexport OPENMM_PLUGIN_DIR=/home/julien/sire.app/lib/plugins/\n\n# Execute application\n# Slurm: srun launches task in allocation\n# Flux: Use flux run to launch task within the batch allocation\n# For single-task jobs, direct execution is also acceptable\n# Using flux run for consistency with Flux task launching\nflux run -n 1 -g 1 ~/sire.app/bin/somd-freenrg -C ../sim10.cfg -l 0.50 -p CUDA\n\ncd ..\n\n# Note on execution:\n# - flux run is used instead of srun\n# - -n 1 specifies 1 task (matching allocation)\n# - -g 1 ensures 1 GPU is allocated to the task\n# - For single-task jobs, the flux run options are technically redundant\n#   with the batch allocation, but make intent explicit\n\n# Complete submission command for regular job:\n# flux batch -N 1 -n 1 -g 1 -t 24h \\\n#   --job-name=somd-array-gpu \\\n#   --output=somd-array-gpu-{{id}}.out \\\n#   script.sh\n#\n# Complete submission command for array job (if multiple array tasks needed):\n# flux batch --array=0-9 -N 1 -n 1 -g 1 -t 24h \\\n#   --job-name=somd-array-gpu \\\n#   --output=somd-array-gpu-{{id}}.{{taskid}}.out \\\n#   script.sh\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n#SBATCH -o somd-array-gpu-%A.%a.out\n#SBATCH -p main\n#SBATCH -n 1\n#SBATCH --gres=gpu:1\n#SBATCH --time 24:00:00\n\necho \"CUDA DEVICES:\" $CUDA_VISIBLE_DEVICES\n\nmkdir 10cycles\ncd 10cycles\n\nexport OPENMM_PLUGIN_DIR=/home/julien/sire.app/lib/plugins/\n\nsrun ~/sire.app/bin/somd-freenrg -C ../sim10.cfg -l 0.50 -p CUDA\ncd ..\n\n\n",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "manual_validate",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}

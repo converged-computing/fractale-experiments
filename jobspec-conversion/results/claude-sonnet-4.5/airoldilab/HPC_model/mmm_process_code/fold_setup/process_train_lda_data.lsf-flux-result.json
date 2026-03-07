@@ -1,0 +1,127 @@
+{
+    "steps": [
+        {
+            "agent": "transform",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n# Flux batch script converted from LSF\n# Note: Flux does not support in-script directives for resource specification\n# This script should be submitted with the following command:\n# flux batch --job-name=\"process_reuters_lda_data_train[1-10]\" --array=1-10 script.sh\n#\n# Alternatively, submit individual jobs in a loop:\n# for i in {1..10}; do\n#   flux batch --job-name=\"process_reuters_lda_data_train[$i]\" --env=FLUX_TASK_ID=$i script.sh\n# done\n\n# Original queue: airoldi\n# Note: Flux does not have queues/partitions in the same way as LSF\n# Queue selection and priority are managed through Flux's scheduling policies\n# Performance impact: Job prioritization depends on site-specific Flux configuration\n# Consult your site's Flux documentation for equivalent resource pools or banks\n\n# Email notification: jbischof@fas.harvard.edu\n# Note: Flux does not have built-in email notification directives\n# Performance impact: User must manually monitor job status or implement external\n# monitoring solutions using flux job events or flux watch commands\n\n# Job Array: process_reuters_lda_data_train[1-10]\n# Note: Flux supports job arrays via --array flag at submission time\n# Use: flux batch --array=1-10 script.sh\n# Array index is available via ${FLUX_TASK_ID} environment variable\n# (LSF uses ${LSB_JOBINDEX})\n\n# THE COMMAND TO GIVE TO R, CHANGE TO THE APPROPRIATE FILENAME:\npartition=train\ncutoff=500\n\n# Replace LSB_JOBINDEX with FLUX_TASK_ID for Flux job arrays\nmain_dir=/n/airoldifs2/lab/jbischof/reuters_output/mmm_folds/fold${FLUX_TASK_ID}/\nout_dir=${main_dir}mmm_raw_data/parsed_${partition}_data${cutoff}/\n\n# Create partition directory if doesn't already exist\nif [ ! -d $out_dir ]\nthen\n   mkdir $out_dir\nfi\n\n# Run python script\npython ../process_parse_lda_data.py $partition $cutoff $main_dir\n"
+                },
+                "attempts": 1
+            },
+            "transition": "success -> validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "valid": true,
+                    "tool_call": false,
+                    "reasons": [],
+                    "issues": [
+                        "The script correctly documents that Flux does not support in-script resource directives and provides proper submission command syntax in comments.",
+                        "The script properly replaces LSF's ${LSB_JOBINDEX} with Flux's ${FLUX_TASK_ID} for job array indexing.",
+                        "No explicit resource requests are specified. The script will run with default resources (typically 1 node, 1 core). If the Python script requires specific CPU, memory, or time limits, these should be specified at submission time using: flux batch -N <nodes> -n <tasks> -c <cores-per-task> --time-limit=<duration> --array=1-10 script.sh",
+                        "The alternative submission method shown in comments (using a loop with --env=FLUX_TASK_ID=$i) is not the standard way to submit job arrays in Flux. The --array flag automatically sets FLUX_TASK_ID, so manually setting it via --env is redundant and could cause confusion.",
+                        "Consider adding resource specifications in the submission command documentation, e.g., 'flux batch --array=1-10 -n 1 -c 1 --time-limit=1h script.sh' to ensure adequate resources.",
+                        "The script assumes FLUX_TASK_ID will be set by the job array mechanism. If the script is submitted without --array flag, FLUX_TASK_ID will be undefined, causing the paths to be malformed.",
+                        "Consider adding a check at the beginning: 'if [ -z \"${FLUX_TASK_ID}\" ]; then echo \"Error: Must submit as job array\"; exit 1; fi'"
+                    ]
+                },
+                "attempts": 1
+            },
+            "transition": "success -> manual_validate",
+            "complete": false,
+            "state": "success"
+        },
+        {
+            "agent": "manual_validate",
+            "result": {
+                "has_error": false,
+                "data": {
+                    "jobspec": "#!/bin/bash\n\n# Flux batch script converted from LSF\n# Note: Flux does not support in-script directives for resource specification\n# This script should be submitted with the following command:\n# flux batch --job-name=\"process_reuters_lda_data_train[1-10]\" --array=1-10 script.sh\n#\n# Alternatively, submit individual jobs in a loop:\n# for i in {1..10}; do\n#   flux batch --job-name=\"process_reuters_lda_data_train[$i]\" --env=FLUX_TASK_ID=$i script.sh\n# done\n\n# Original queue: airoldi\n# Note: Flux does not have queues/partitions in the same way as LSF\n# Queue selection and priority are managed through Flux's scheduling policies\n# Performance impact: Job prioritization depends on site-specific Flux configuration\n# Consult your site's Flux documentation for equivalent resource pools or banks\n\n# Email notification: jbischof@fas.harvard.edu\n# Note: Flux does not have built-in email notification directives\n# Performance impact: User must manually monitor job status or implement external\n# monitoring solutions using flux job events or flux watch commands\n\n# Job Array: process_reuters_lda_data_train[1-10]\n# Note: Flux supports job arrays via --array flag at submission time\n# Use: flux batch --array=1-10 script.sh\n# Array index is available via ${FLUX_TASK_ID} environment variable\n# (LSF uses ${LSB_JOBINDEX})\n\n# THE COMMAND TO GIVE TO R, CHANGE TO THE APPROPRIATE FILENAME:\npartition=train\ncutoff=500\n\n# Replace LSB_JOBINDEX with FLUX_TASK_ID for Flux job arrays\nmain_dir=/n/airoldifs2/lab/jbischof/reuters_output/mmm_folds/fold${FLUX_TASK_ID}/\nout_dir=${main_dir}mmm_raw_data/parsed_${partition}_data${cutoff}/\n\n# Create partition directory if doesn't already exist\nif [ ! -d $out_dir ]\nthen\n   mkdir $out_dir\nfi\n\n# Run python script\npython ../process_parse_lda_data.py $partition $cutoff $main_dir\n",
+                    "errors": [],
+                    "valid": true
+                }
+            },
+            "transition": "complete",
+            "complete": true,
+            "state": "complete"
+        }
+    ],
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "lsf",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n\n# DO NOT CHANGE THE QUEUE! YOU **MUST** ONLY USE THE QUEUE: short_serial\n#BSUB -q airoldi\n\n# EDIT THE EMAIL-ADDRESS BELOW TO YOUR FAS EMAIL:\n#BSUB -u jbischof@fas.harvard.edu\n\n# THE JOB ARRAY:\n#BSUB -J \"process_reuters_lda_data_train[1-10]\"\n\n# THE COMMAND TO GIVE TO R, CHANGE TO THE APPROPRIATE FILENAME:\npartition=train\ncutoff=500\nmain_dir=/n/airoldifs2/lab/jbischof/reuters_output/mmm_folds/fold${LSB_JOBINDEX}/\nout_dir=${main_dir}mmm_raw_data/parsed_${partition}_data${cutoff}/\n\n# Create partition directory if doesn't already exist\nif [ ! -d $out_dir ]\nthen\n   mkdir $out_dir\nfi\n\n# Run python script\npython ../process_parse_lda_data.py $partition $cutoff $main_dir",
+                    "error": "{{ steps.manual_validate.outputs.errors }}",
+                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "manual_validate",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    }
+}
