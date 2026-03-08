@@ -93,19 +93,8 @@ AGENTIC_PLAN = {
             "rules": {"failed": ["not jobspec"], "success": ["jobspec"]},
         },
         {
-            # Agentic validate - can (but doesn't have to) call tools
-            # TODO the bug is that this is sometimes not set, it's not clear why.
-            "name": "validate",
-            "type": "prompt",
-            "prompt": "validate_jobspec_expert",
-            "allow_tools": False,
-            "inputs": {"script": "{{steps.transform.outputs.jobspec}}"},
-            "transitions": {"failed": "manual_validate", "success": "manual_validate"},
-            "rules": {"success": ["valid"], "failed": ["not valid"]},
-        },
-        {
             # Manual, forced tool call
-            "name": "manual_validate",
+            "name": "validate",
             "type": "tool",
             "tool": "validate_flux_jobspec",
             "inputs": {"content": "{{steps.transform.outputs.jobspec}}"},
@@ -254,8 +243,8 @@ def main():
                 "from_manager": from_manager,
                 "to_manager": to_manager,
                 "script": original_script,
-                "error": "{{ steps.manual_validate.outputs.errors }}", 
-                "jobspec": "{{ steps.manual_validate.outputs.jobspec }}",
+                "error": "{{ steps.validate.outputs.errors }}", 
+                "jobspec": "{{ steps.validate.outputs.jobspec }}",
             }
 
             try:
@@ -265,13 +254,9 @@ def main():
                 engine.reset(Plan(plan))
 
                 # The core agentic call replaces the old transformer.convert()
-                steps = engine.run()
-
-                # Metadata includes full steps
-                result = {
-                    "steps": steps,
-                    "plan": plan,
-                }
+                result = engine.run()
+                result['plan'] = plan
+                result['filename'] = filename
 
                 # Save the new jobspec to the equivalent place on the filesystem
                 outdir = os.path.dirname(outfile_path)

@@ -1,59 +1,122 @@
 {
-    "steps": [
+    "events": [
         {
-            "agent": "transform",
-            "result": {
-                "has_error": false,
-                "data": {
-                    "jobspec": "#!/bin/bash\n\n# Flux batch script converted from Slurm\n# Note: Flux does not support in-script directives for resource specification\n# This script should be submitted with the following command:\n# flux batch -N 1 -n 16 -t 8h --job-name=dsmc_job --output=logs/dsmc_job_{{id}}.out --error=logs/dsmc_job_{{id}}.err script.sh\n#\n# Resource specifications:\n# -N 1         : 1 node (from -N 1)\n# -n 16        : 16 cores/tasks (from -n 16)\n# -t 8h        : 8 hour runtime (from -t 0-08:00)\n# --job-name=dsmc_job : job name (derived from output file pattern)\n# --output=logs/dsmc_job_{{id}}.out : stdout file with job ID\n# --error=logs/dsmc_job_{{id}}.err : stderr file with job ID\n#\n# Note: Flux uses {{id}} for job ID instead of %j\n\n# Original Slurm partition: shared\n# Slurm: -p shared\n# Note: Flux does not have partitions in the same way as Slurm\n# Partition selection is handled through Flux's scheduling configuration\n# Performance impact: Job scheduling priority depends on site-specific Flux configuration\n# Consult site documentation for equivalent resource pools or queues\n\n# Original Slurm memory per CPU: 512 MB\n# Slurm: --mem-per-cpu 512\n# Note: Flux memory specification can be done at submission:\n# Add to submission command: --setattr=system.memory-per-task=512M\n# Or total memory: --setattr=system.memory=8192M (512 MB \u00d7 16 cores)\n# Performance impact: Without explicit memory specification, job may get default allocation\n# which could be insufficient or excessive\n\n# Original Slurm open-mode: append\n# Slurm: --open-mode=append\n# Note: Flux does not have a direct equivalent for --open-mode=append\n# Performance impact: Output files will be truncated (overwritten) rather than appended\n# If append behavior is critical, use shell redirection (>>) in the script\n# or manage output files manually\n\n# Load required modules\nmodule load intel/19.0.5-fasrc01 openmpi/4.0.2-fasrc01 fftw/3.3.8-fasrc01 cmake/3.12.1-fasrc01 Anaconda3/2019.10 python/3.7.7-fasrc01\nmodule list\n\n# Environment variables for OpenMP threading\nexport OMP_PROC_BIND=spread\nexport OMP_PLACES=threads\n\n# Set Julia thread count\n# Note: SLURM_CPUS_ON_NODE is Slurm-specific\n# Flux equivalent: Use FLUX_JOB_SIZE or set explicitly based on allocation\n# For this job with 16 cores on 1 node:\nexport JULIA_NUM_THREADS=16\n# Alternative: export JULIA_NUM_THREADS=${FLUX_JOB_SIZE}\n\necho \"running....\"\n\n# Execute Julia script\njulia RunCells.jl -l 0.001 -L 0.02\n\n# Complete submission command:\n# flux batch -N 1 -n 16 -t 8h \\\n#   --job-name=dsmc_job \\\n#   --output=logs/dsmc_job_{{id}}.out \\\n#   --error=logs/dsmc_job_{{id}}.err \\\n#   --setattr=system.memory=8192M \\\n#   script.sh\n"
-                },
-                "attempts": 1
-            },
-            "transition": "success -> validate",
-            "complete": false,
-            "state": "success"
+            "timestamp": 1772926671.6792965,
+            "event": "enter",
+            "step": "transform",
+            "type": "prompt",
+            "data": {
+                "input": null
+            }
         },
         {
-            "agent": "validate",
-            "result": {
-                "has_error": false,
-                "data": {
-                    "valid": true,
-                    "tool_call": false,
-                    "reasons": [],
-                    "issues": [
-                        "The script correctly documents resource specifications and properly converts Slurm directives to Flux command-line options.",
-                        "Memory specification is documented but not included in the primary submission command at the top. The complete submission command at the bottom includes '--setattr=system.memory=8192M' which is correct (16 cores \u00d7 512 MB = 8192 MB).",
-                        "The JULIA_NUM_THREADS is hardcoded to 16. While correct for this specific job, using FLUX_JOB_SIZE environment variable would be more portable: 'export JULIA_NUM_THREADS=${FLUX_JOB_SIZE:-16}' with a fallback to 16.",
-                        "The logs directory path is used but no check exists to ensure it exists before job submission. Consider adding 'mkdir -p logs' or validating the directory exists.",
-                        "Output file pattern uses {{id}} which is correct for Flux, but should verify this syntax is supported in the specific Flux version being used.",
-                        "The --open-mode=append behavior from Slurm is lost. If appending to existing logs is important for this workflow, the script should implement this with shell redirection or file management logic.",
-                        "No cores-per-task specification. With -n 16 on -N 1, this allocates 16 tasks on 1 node. If the job actually needs 16 threads (as suggested by JULIA_NUM_THREADS=16), consider using -n 1 -c 16 instead.",
-                        "The module loading may fail silently. Consider adding error checking after module loads.",
-                        "The 8-hour runtime may be insufficient for some workloads. No checkpointing or restart capability is mentioned."
-                    ]
-                },
-                "attempts": 1
-            },
-            "transition": "success -> manual_validate",
-            "complete": false,
-            "state": "success"
+            "timestamp": 1772926677.4900098,
+            "event": "exit",
+            "step": "transform",
+            "type": "prompt",
+            "data": {
+                "output": "{\n  \"jobspec\": \"#!/bin/bash\\n#flux: -n 16\\n#flux: -N 1\\n#flux: --time-limit=8h\\n#flux: --output=logs/dsmc_job_{{id}}.out\\n#flux: --error=logs/dsmc_job_{{id}}.err\\n\\n# Note: Slurm -p directive (shared) does not have a direct Flux equivalent.\\n# Performance consideration: Queue/partition selection not preserved. Job may run on different hardware.\\n# Note: Slurm --mem-per-cpu directive (512 MB per CPU) does not have a direct Flux equivalent.\\n# Performance consideration: Memory limits not enforced. Job may be killed if exceeding node memory.\\n# Note: Slurm --open-mode directive (append) does not have a direct Flux equivalent.\\n# Performance consideration: Output file behavior may differ.\\n# Note: Flux uses {{id}} for job ID substitution instead of %j.\\n\\nhostname\\n\\nmodule load intel/19.0.5-fasrc01 openmpi/4.0.2-fasrc01 fftw/3.3.8-fasrc01 cmake/3.12.1-fasrc01 Anaconda3/2019.10 python/3.7.7-fasrc01\\nmodule list\\n\\nexport OMP_PROC_BIND=spread\\nexport OMP_PLACES=threads\\n# Note: SLURM_CPUS_ON_NODE needs to be replaced with Flux equivalent.\\n# Flux does not have a direct equivalent, but we can use the -n value (16 in this case).\\nexport JULIA_NUM_THREADS=16\\n\\necho \\\"running....\\\"\\n\\njulia RunCells.jl -l 0.001 -L 0.02\\n\"\n}"
+            }
         },
         {
-            "agent": "manual_validate",
-            "result": {
-                "has_error": false,
-                "data": {
-                    "jobspec": "#!/bin/bash\n\n# Flux batch script converted from Slurm\n# Note: Flux does not support in-script directives for resource specification\n# This script should be submitted with the following command:\n# flux batch -N 1 -n 16 -t 8h --job-name=dsmc_job --output=logs/dsmc_job_{{id}}.out --error=logs/dsmc_job_{{id}}.err script.sh\n#\n# Resource specifications:\n# -N 1         : 1 node (from -N 1)\n# -n 16        : 16 cores/tasks (from -n 16)\n# -t 8h        : 8 hour runtime (from -t 0-08:00)\n# --job-name=dsmc_job : job name (derived from output file pattern)\n# --output=logs/dsmc_job_{{id}}.out : stdout file with job ID\n# --error=logs/dsmc_job_{{id}}.err : stderr file with job ID\n#\n# Note: Flux uses {{id}} for job ID instead of %j\n\n# Original Slurm partition: shared\n# Slurm: -p shared\n# Note: Flux does not have partitions in the same way as Slurm\n# Partition selection is handled through Flux's scheduling configuration\n# Performance impact: Job scheduling priority depends on site-specific Flux configuration\n# Consult site documentation for equivalent resource pools or queues\n\n# Original Slurm memory per CPU: 512 MB\n# Slurm: --mem-per-cpu 512\n# Note: Flux memory specification can be done at submission:\n# Add to submission command: --setattr=system.memory-per-task=512M\n# Or total memory: --setattr=system.memory=8192M (512 MB \u00d7 16 cores)\n# Performance impact: Without explicit memory specification, job may get default allocation\n# which could be insufficient or excessive\n\n# Original Slurm open-mode: append\n# Slurm: --open-mode=append\n# Note: Flux does not have a direct equivalent for --open-mode=append\n# Performance impact: Output files will be truncated (overwritten) rather than appended\n# If append behavior is critical, use shell redirection (>>) in the script\n# or manage output files manually\n\n# Load required modules\nmodule load intel/19.0.5-fasrc01 openmpi/4.0.2-fasrc01 fftw/3.3.8-fasrc01 cmake/3.12.1-fasrc01 Anaconda3/2019.10 python/3.7.7-fasrc01\nmodule list\n\n# Environment variables for OpenMP threading\nexport OMP_PROC_BIND=spread\nexport OMP_PLACES=threads\n\n# Set Julia thread count\n# Note: SLURM_CPUS_ON_NODE is Slurm-specific\n# Flux equivalent: Use FLUX_JOB_SIZE or set explicitly based on allocation\n# For this job with 16 cores on 1 node:\nexport JULIA_NUM_THREADS=16\n# Alternative: export JULIA_NUM_THREADS=${FLUX_JOB_SIZE}\n\necho \"running....\"\n\n# Execute Julia script\njulia RunCells.jl -l 0.001 -L 0.02\n\n# Complete submission command:\n# flux batch -N 1 -n 16 -t 8h \\\n#   --job-name=dsmc_job \\\n#   --output=logs/dsmc_job_{{id}}.out \\\n#   --error=logs/dsmc_job_{{id}}.err \\\n#   --setattr=system.memory=8192M \\\n#   script.sh\n",
+            "timestamp": 1772926677.491724,
+            "event": "enter",
+            "step": "validate_flux_jobspec",
+            "type": "tool",
+            "data": {
+                "inputs": {
+                    "content": "#!/bin/bash\n#flux: -n 16\n#flux: -N 1\n#flux: --time-limit=8h\n#flux: --output=logs/dsmc_job_{{id}}.out\n#flux: --error=logs/dsmc_job_{{id}}.err\n\n# Note: Slurm -p directive (shared) does not have a direct Flux equivalent.\n# Performance consideration: Queue/partition selection not preserved. Job may run on different hardware.\n# Note: Slurm --mem-per-cpu directive (512 MB per CPU) does not have a direct Flux equivalent.\n# Performance consideration: Memory limits not enforced. Job may be killed if exceeding node memory.\n# Note: Slurm --open-mode directive (append) does not have a direct Flux equivalent.\n# Performance consideration: Output file behavior may differ.\n# Note: Flux uses {{id}} for job ID substitution instead of %j.\n\nhostname\n\nmodule load intel/19.0.5-fasrc01 openmpi/4.0.2-fasrc01 fftw/3.3.8-fasrc01 cmake/3.12.1-fasrc01 Anaconda3/2019.10 python/3.7.7-fasrc01\nmodule list\n\nexport OMP_PROC_BIND=spread\nexport OMP_PLACES=threads\n# Note: SLURM_CPUS_ON_NODE needs to be replaced with Flux equivalent.\n# Flux does not have a direct equivalent, but we can use the -n value (16 in this case).\nexport JULIA_NUM_THREADS=16\n\necho \"running....\"\n\njulia RunCells.jl -l 0.001 -L 0.02\n"
+                }
+            }
+        },
+        {
+            "timestamp": 1772926677.4934247,
+            "event": "enter",
+            "step": "validate_flux_jobspec",
+            "type": "tool",
+            "data": {
+                "inputs": {
+                    "content": "#!/bin/bash\n#flux: -n 16\n#flux: -N 1\n#flux: --time-limit=8h\n#flux: --output=logs/dsmc_job_{{id}}.out\n#flux: --error=logs/dsmc_job_{{id}}.err\n\n# Note: Slurm -p directive (shared) does not have a direct Flux equivalent.\n# Performance consideration: Queue/partition selection not preserved. Job may run on different hardware.\n# Note: Slurm --mem-per-cpu directive (512 MB per CPU) does not have a direct Flux equivalent.\n# Performance consideration: Memory limits not enforced. Job may be killed if exceeding node memory.\n# Note: Slurm --open-mode directive (append) does not have a direct Flux equivalent.\n# Performance consideration: Output file behavior may differ.\n# Note: Flux uses {{id}} for job ID substitution instead of %j.\n\nhostname\n\nmodule load intel/19.0.5-fasrc01 openmpi/4.0.2-fasrc01 fftw/3.3.8-fasrc01 cmake/3.12.1-fasrc01 Anaconda3/2019.10 python/3.7.7-fasrc01\nmodule list\n\nexport OMP_PROC_BIND=spread\nexport OMP_PLACES=threads\n# Note: SLURM_CPUS_ON_NODE needs to be replaced with Flux equivalent.\n# Flux does not have a direct equivalent, but we can use the -n value (16 in this case).\nexport JULIA_NUM_THREADS=16\n\necho \"running....\"\n\njulia RunCells.jl -l 0.001 -L 0.02\n"
+                }
+            }
+        },
+        {
+            "timestamp": 1772926677.5180979,
+            "event": "exit",
+            "step": "validate_flux_jobspec",
+            "type": "tool",
+            "data": {
+                "outputs": {
+                    "jobspec": "#!/bin/bash\n#flux: -n 16\n#flux: -N 1\n#flux: --time-limit=8h\n#flux: --output=logs/dsmc_job_{{id}}.out\n#flux: --error=logs/dsmc_job_{{id}}.err\n\n# Note: Slurm -p directive (shared) does not have a direct Flux equivalent.\n# Performance consideration: Queue/partition selection not preserved. Job may run on different hardware.\n# Note: Slurm --mem-per-cpu directive (512 MB per CPU) does not have a direct Flux equivalent.\n# Performance consideration: Memory limits not enforced. Job may be killed if exceeding node memory.\n# Note: Slurm --open-mode directive (append) does not have a direct Flux equivalent.\n# Performance consideration: Output file behavior may differ.\n# Note: Flux uses {{id}} for job ID substitution instead of %j.\n\nhostname\n\nmodule load intel/19.0.5-fasrc01 openmpi/4.0.2-fasrc01 fftw/3.3.8-fasrc01 cmake/3.12.1-fasrc01 Anaconda3/2019.10 python/3.7.7-fasrc01\nmodule list\n\nexport OMP_PROC_BIND=spread\nexport OMP_PLACES=threads\n# Note: SLURM_CPUS_ON_NODE needs to be replaced with Flux equivalent.\n# Flux does not have a direct equivalent, but we can use the -n value (16 in this case).\nexport JULIA_NUM_THREADS=16\n\necho \"running....\"\n\njulia RunCells.jl -l 0.001 -L 0.02\n",
                     "errors": [],
                     "valid": true
                 }
-            },
-            "transition": "complete",
-            "complete": true,
-            "state": "complete"
+            }
+        },
+        {
+            "timestamp": 1772926677.520083,
+            "event": "exit",
+            "step": "validate",
+            "type": "tool",
+            "data": {
+                "outputs": {
+                    "jobspec": "#!/bin/bash\n#flux: -n 16\n#flux: -N 1\n#flux: --time-limit=8h\n#flux: --output=logs/dsmc_job_{{id}}.out\n#flux: --error=logs/dsmc_job_{{id}}.err\n\n# Note: Slurm -p directive (shared) does not have a direct Flux equivalent.\n# Performance consideration: Queue/partition selection not preserved. Job may run on different hardware.\n# Note: Slurm --mem-per-cpu directive (512 MB per CPU) does not have a direct Flux equivalent.\n# Performance consideration: Memory limits not enforced. Job may be killed if exceeding node memory.\n# Note: Slurm --open-mode directive (append) does not have a direct Flux equivalent.\n# Performance consideration: Output file behavior may differ.\n# Note: Flux uses {{id}} for job ID substitution instead of %j.\n\nhostname\n\nmodule load intel/19.0.5-fasrc01 openmpi/4.0.2-fasrc01 fftw/3.3.8-fasrc01 cmake/3.12.1-fasrc01 Anaconda3/2019.10 python/3.7.7-fasrc01\nmodule list\n\nexport OMP_PROC_BIND=spread\nexport OMP_PLACES=threads\n# Note: SLURM_CPUS_ON_NODE needs to be replaced with Flux equivalent.\n# Flux does not have a direct equivalent, but we can use the -n value (16 in this case).\nexport JULIA_NUM_THREADS=16\n\necho \"running....\"\n\njulia RunCells.jl -l 0.001 -L 0.02\n",
+                    "errors": [],
+                    "valid": true
+                }
+            }
         }
     ],
+    "metrics": [
+        {
+            "timestamp": 1772926677.4857118,
+            "data": {
+                "use_tools": null,
+                "metrics": {
+                    "prompt_tokens": 68880,
+                    "completion_tokens": 461,
+                    "total_tokens": 69341
+                },
+                "memory": true,
+                "tools": null,
+                "prompt": "### PERSONA\nYou are a job specification generation expert.\n\n### CONTEXT\nWe need to convert between workload manager job specification formats.\n\n### GOAL\nI need to convert the provided job specification from 'slurm' to 'flux'. The desired output format is a 'batch' script.\n\n### REQUIREMENTS & CONSTRAINTS\nYou MUST not make up directives that do not exist.\nYou MUST preserve as many options as possible from the original.\nIf there is a directive that does not translate, you MUST leave it out and add a comment about the performance implications of the omission.\n\n### INSTRUCTIONS\n1. Analyze the provided script below.\n2. Write a new script and return in a json structure with a \"jobspec\"\n3. If the input script is not a workload manager batch file, you MUST return the json jobspec structure as \"noop\"\n\n#!/bin/bash\n#SBATCH -n 16 # Number of cores requested\n#SBATCH -N 1 # Ensure that all cores are on one machine\n#SBATCH -t 0-08:00 # Runtime in minutes\n#SBATCH -p shared # Partition to submit to\n#SBATCH --mem-per-cpu 512 # Memory per cpu in MB (see also ?mem-per-cpu)\n#SBATCH --open-mode=append\n#SBATCH -o logs/dsmc_job_%j.out # Standard out goes to this file\n#SBATCH -e logs/dsmc_job_%j.err # Standard err goes to this filehostname\n\nmodule load intel/19.0.5-fasrc01 openmpi/4.0.2-fasrc01 fftw/3.3.8-fasrc01 cmake/3.12.1-fasrc01 Anaconda3/2019.10 python/3.7.7-fasrc01\nmodule list\n\nexport OMP_PROC_BIND=spread\nexport OMP_PLACES=threads\nexport JULIA_NUM_THREADS=$SLURM_CPUS_ON_NODE\n\necho \"running....\"\n\njulia RunCells.jl -l 0.001 -L 0.02\n\n"
+            }
+        }
+    ],
+    "metadata": {
+        "steps": [
+            {
+                "agent": "transform",
+                "result": {
+                    "has_error": false,
+                    "data": {
+                        "jobspec": "#!/bin/bash\n#flux: -n 16\n#flux: -N 1\n#flux: --time-limit=8h\n#flux: --output=logs/dsmc_job_{{id}}.out\n#flux: --error=logs/dsmc_job_{{id}}.err\n\n# Note: Slurm -p directive (shared) does not have a direct Flux equivalent.\n# Performance consideration: Queue/partition selection not preserved. Job may run on different hardware.\n# Note: Slurm --mem-per-cpu directive (512 MB per CPU) does not have a direct Flux equivalent.\n# Performance consideration: Memory limits not enforced. Job may be killed if exceeding node memory.\n# Note: Slurm --open-mode directive (append) does not have a direct Flux equivalent.\n# Performance consideration: Output file behavior may differ.\n# Note: Flux uses {{id}} for job ID substitution instead of %j.\n\nhostname\n\nmodule load intel/19.0.5-fasrc01 openmpi/4.0.2-fasrc01 fftw/3.3.8-fasrc01 cmake/3.12.1-fasrc01 Anaconda3/2019.10 python/3.7.7-fasrc01\nmodule list\n\nexport OMP_PROC_BIND=spread\nexport OMP_PLACES=threads\n# Note: SLURM_CPUS_ON_NODE needs to be replaced with Flux equivalent.\n# Flux does not have a direct equivalent, but we can use the -n value (16 in this case).\nexport JULIA_NUM_THREADS=16\n\necho \"running....\"\n\njulia RunCells.jl -l 0.001 -L 0.02\n"
+                    },
+                    "attempts": 1
+                },
+                "transition": "success -> validate",
+                "complete": false,
+                "state": "success"
+            },
+            {
+                "agent": "validate",
+                "result": {
+                    "has_error": false,
+                    "data": {
+                        "jobspec": "#!/bin/bash\n#flux: -n 16\n#flux: -N 1\n#flux: --time-limit=8h\n#flux: --output=logs/dsmc_job_{{id}}.out\n#flux: --error=logs/dsmc_job_{{id}}.err\n\n# Note: Slurm -p directive (shared) does not have a direct Flux equivalent.\n# Performance consideration: Queue/partition selection not preserved. Job may run on different hardware.\n# Note: Slurm --mem-per-cpu directive (512 MB per CPU) does not have a direct Flux equivalent.\n# Performance consideration: Memory limits not enforced. Job may be killed if exceeding node memory.\n# Note: Slurm --open-mode directive (append) does not have a direct Flux equivalent.\n# Performance consideration: Output file behavior may differ.\n# Note: Flux uses {{id}} for job ID substitution instead of %j.\n\nhostname\n\nmodule load intel/19.0.5-fasrc01 openmpi/4.0.2-fasrc01 fftw/3.3.8-fasrc01 cmake/3.12.1-fasrc01 Anaconda3/2019.10 python/3.7.7-fasrc01\nmodule list\n\nexport OMP_PROC_BIND=spread\nexport OMP_PLACES=threads\n# Note: SLURM_CPUS_ON_NODE needs to be replaced with Flux equivalent.\n# Flux does not have a direct equivalent, but we can use the -n value (16 in this case).\nexport JULIA_NUM_THREADS=16\n\necho \"running....\"\n\njulia RunCells.jl -l 0.001 -L 0.02\n",
+                        "errors": [],
+                        "valid": true
+                    }
+                },
+                "transition": "complete",
+                "complete": true,
+                "state": "complete"
+            }
+        ],
+        "model_name": "claude-sonnet-4.5",
+        "plan_source": "memory",
+        "state_machine_loops": 1
+    },
     "plan": {
         "name": "Transform Jobspec Between Managers",
         "steps": [
@@ -66,8 +129,8 @@
                     "from_manager": "slurm",
                     "to_manager": "flux",
                     "script": "#!/bin/bash\n#SBATCH -n 16 # Number of cores requested\n#SBATCH -N 1 # Ensure that all cores are on one machine\n#SBATCH -t 0-08:00 # Runtime in minutes\n#SBATCH -p shared # Partition to submit to\n#SBATCH --mem-per-cpu 512 # Memory per cpu in MB (see also ?mem-per-cpu)\n#SBATCH --open-mode=append\n#SBATCH -o logs/dsmc_job_%j.out # Standard out goes to this file\n#SBATCH -e logs/dsmc_job_%j.err # Standard err goes to this filehostname\n\nmodule load intel/19.0.5-fasrc01 openmpi/4.0.2-fasrc01 fftw/3.3.8-fasrc01 cmake/3.12.1-fasrc01 Anaconda3/2019.10 python/3.7.7-fasrc01\nmodule list\n\nexport OMP_PROC_BIND=spread\nexport OMP_PLACES=threads\nexport JULIA_NUM_THREADS=$SLURM_CPUS_ON_NODE\n\necho \"running....\"\n\njulia RunCells.jl -l 0.001 -L 0.02\n",
-                    "error": "{{ steps.manual_validate.outputs.errors }}",
-                    "jobspec": "{{ steps.manual_validate.outputs.jobspec }}"
+                    "error": "{{ steps.validate.outputs.errors }}",
+                    "jobspec": "{{ steps.validate.outputs.jobspec }}"
                 },
                 "transitions": {
                     "failed": "transform",
@@ -85,27 +148,6 @@
             },
             {
                 "name": "validate",
-                "type": "prompt",
-                "prompt": "validate_jobspec_expert",
-                "allow_tools": false,
-                "inputs": {
-                    "script": "{{steps.transform.outputs.jobspec}}"
-                },
-                "transitions": {
-                    "failed": "manual_validate",
-                    "success": "manual_validate"
-                },
-                "rules": {
-                    "success": [
-                        "valid"
-                    ],
-                    "failed": [
-                        "not valid"
-                    ]
-                }
-            },
-            {
-                "name": "manual_validate",
                 "type": "tool",
                 "tool": "validate_flux_jobspec",
                 "inputs": {
@@ -125,5 +167,6 @@
             }
         ],
         "inputs": {}
-    }
+    },
+    "filename": "data/cal-miller-harvard/DSMC_Simulations/5_25_20_cold_second_stage/run_1mm.slurm"
 }
