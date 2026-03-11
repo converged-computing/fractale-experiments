@@ -60,9 +60,7 @@ def prepare_data(root_dir, output_file="data.js"):
 
             if flux_output is None or final_status == "Unknown":
                 print("ISSUE getting flux output")
-                import IPython
-
-                IPython.embed()
+                flux_output = "noop"
 
             # 3. METRICS
             total_time = (
@@ -80,9 +78,10 @@ def prepare_data(root_dir, output_file="data.js"):
             valid_events = [
                 x
                 for x in events
-                if x["step"] in ["transform", "validate"] and x["event"] == "exit"
+                if x["step"] in ["transform", "validate", "manual-validate", "manual_validate"] and x["event"] == "exit"
             ]
             step_count = len(valid_events)
+            print(valid_events)
 
             # Populate entry matching the keys index.html expects
             experiments[exp_id].append(

@@ -1,0 +1,203 @@
+{
+    "events": [
+        {
+            "timestamp": 1773199517.6795018,
+            "event": "enter",
+            "step": "transform",
+            "type": "prompt",
+            "data": {
+                "input": null
+            }
+        },
+        {
+            "timestamp": 1773199521.053139,
+            "event": "exit",
+            "step": "transform",
+            "type": "prompt",
+            "data": {
+                "output": "Error code: 400 - {'error': {'message': 'litellm.BadRequestError: AzureException BadRequestError - Input tokens exceed the configured limit of 272000 tokens. Your messages resulted in 276552 tokens. Please reduce the length of the messages.. Received Model Group=gpt-5.2\\nAvailable Model Group Fallbacks=None', 'type': 'invalid_request_error', 'param': 'messages', 'code': '400'}}"
+            }
+        },
+        {
+            "timestamp": 1773199521.0547059,
+            "event": "enter",
+            "step": "validate",
+            "type": "prompt",
+            "data": {
+                "input": null
+            }
+        },
+        {
+            "timestamp": 1773199523.9799645,
+            "event": "exit",
+            "step": "validate",
+            "type": "prompt",
+            "data": {
+                "output": "Error code: 400 - {'error': {'message': 'litellm.BadRequestError: AzureException BadRequestError - Input tokens exceed the configured limit of 272000 tokens. Your messages resulted in 276814 tokens. Please reduce the length of the messages.. Received Model Group=gpt-5.2\\nAvailable Model Group Fallbacks=None', 'type': 'invalid_request_error', 'param': 'messages', 'code': '400'}}"
+            }
+        },
+        {
+            "timestamp": 1773199523.9822152,
+            "event": "enter",
+            "step": "validate_flux_jobspec",
+            "type": "tool",
+            "data": {
+                "inputs": {
+                    "content": ""
+                }
+            }
+        },
+        {
+            "timestamp": 1773199523.9838603,
+            "event": "enter",
+            "step": "validate_flux_jobspec",
+            "type": "tool",
+            "data": {
+                "inputs": {
+                    "content": ""
+                }
+            }
+        },
+        {
+            "timestamp": 1773199524.008683,
+            "event": "exit",
+            "step": "validate_flux_jobspec",
+            "type": "tool",
+            "data": {
+                "outputs": {
+                    "jobspec": "",
+                    "errors": [],
+                    "valid": true
+                }
+            }
+        },
+        {
+            "timestamp": 1773199524.0102956,
+            "event": "exit",
+            "step": "manual_validate",
+            "type": "tool",
+            "data": {
+                "outputs": {
+                    "jobspec": "",
+                    "errors": [],
+                    "valid": true
+                }
+            }
+        }
+    ],
+    "metrics": [],
+    "metadata": {
+        "steps": [
+            {
+                "agent": "transform",
+                "result": {
+                    "has_error": false,
+                    "content": "Error code: 400 - {'error': {'message': 'litellm.BadRequestError: AzureException BadRequestError - Input tokens exceed the configured limit of 272000 tokens. Your messages resulted in 276552 tokens. Please reduce the length of the messages.. Received Model Group=gpt-5.2\\nAvailable Model Group Fallbacks=None', 'type': 'invalid_request_error', 'param': 'messages', 'code': '400'}}"
+                },
+                "transition": "success -> validate",
+                "complete": false,
+                "state": "success"
+            },
+            {
+                "agent": "validate",
+                "result": {
+                    "has_error": false,
+                    "content": "Error code: 400 - {'error': {'message': 'litellm.BadRequestError: AzureException BadRequestError - Input tokens exceed the configured limit of 272000 tokens. Your messages resulted in 276814 tokens. Please reduce the length of the messages.. Received Model Group=gpt-5.2\\nAvailable Model Group Fallbacks=None', 'type': 'invalid_request_error', 'param': 'messages', 'code': '400'}}"
+                },
+                "transition": "success -> manual_validate",
+                "complete": false,
+                "state": "success"
+            },
+            {
+                "agent": "manual_validate",
+                "result": {
+                    "has_error": false,
+                    "data": {
+                        "jobspec": "",
+                        "errors": [],
+                        "valid": true
+                    }
+                },
+                "transition": "complete",
+                "complete": true,
+                "state": "complete"
+            }
+        ],
+        "model_name": "gpt-5.2",
+        "plan_source": "memory",
+        "state_machine_loops": 1
+    },
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n#SBATCH --qos lowprio\n#SBATCH -c 4\n##SBATCH --gres=gpu:1\n#SBATCH --mem=10GB\n\nsrun singularity exec --nv ../images/bark_ml.img python3 -u ./configuration ",
+                    "error": "{{ steps.validate.outputs.errors }}",
+                    "jobspec": "{{ steps.validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    },
+    "filename": "data/mrcoliva/bark-ml/utils/cluster/run.sh"
+}
