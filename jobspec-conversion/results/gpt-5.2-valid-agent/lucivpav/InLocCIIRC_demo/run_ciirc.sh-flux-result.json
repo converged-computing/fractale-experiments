@@ -1,0 +1,203 @@
+{
+    "events": [
+        {
+            "timestamp": 1773199892.6563036,
+            "event": "enter",
+            "step": "transform",
+            "type": "prompt",
+            "data": {
+                "input": null
+            }
+        },
+        {
+            "timestamp": 1773199896.022802,
+            "event": "exit",
+            "step": "transform",
+            "type": "prompt",
+            "data": {
+                "output": "Error code: 400 - {'error': {'message': 'litellm.BadRequestError: AzureException BadRequestError - Input tokens exceed the configured limit of 272000 tokens. Your messages resulted in 290208 tokens. Please reduce the length of the messages.. Received Model Group=gpt-5.2\\nAvailable Model Group Fallbacks=None', 'type': 'invalid_request_error', 'param': 'messages', 'code': '400'}}"
+            }
+        },
+        {
+            "timestamp": 1773199896.0243726,
+            "event": "enter",
+            "step": "validate",
+            "type": "prompt",
+            "data": {
+                "input": null
+            }
+        },
+        {
+            "timestamp": 1773199899.6966412,
+            "event": "exit",
+            "step": "validate",
+            "type": "prompt",
+            "data": {
+                "output": "Error code: 400 - {'error': {'message': 'litellm.BadRequestError: AzureException BadRequestError - Input tokens exceed the configured limit of 272000 tokens. Your messages resulted in 290470 tokens. Please reduce the length of the messages.. Received Model Group=gpt-5.2\\nAvailable Model Group Fallbacks=None', 'type': 'invalid_request_error', 'param': 'messages', 'code': '400'}}"
+            }
+        },
+        {
+            "timestamp": 1773199899.698958,
+            "event": "enter",
+            "step": "validate_flux_jobspec",
+            "type": "tool",
+            "data": {
+                "inputs": {
+                    "content": ""
+                }
+            }
+        },
+        {
+            "timestamp": 1773199899.7006927,
+            "event": "enter",
+            "step": "validate_flux_jobspec",
+            "type": "tool",
+            "data": {
+                "inputs": {
+                    "content": ""
+                }
+            }
+        },
+        {
+            "timestamp": 1773199899.725007,
+            "event": "exit",
+            "step": "validate_flux_jobspec",
+            "type": "tool",
+            "data": {
+                "outputs": {
+                    "jobspec": "",
+                    "errors": [],
+                    "valid": true
+                }
+            }
+        },
+        {
+            "timestamp": 1773199899.7266426,
+            "event": "exit",
+            "step": "manual_validate",
+            "type": "tool",
+            "data": {
+                "outputs": {
+                    "jobspec": "",
+                    "errors": [],
+                    "valid": true
+                }
+            }
+        }
+    ],
+    "metrics": [],
+    "metadata": {
+        "steps": [
+            {
+                "agent": "transform",
+                "result": {
+                    "has_error": false,
+                    "content": "Error code: 400 - {'error': {'message': 'litellm.BadRequestError: AzureException BadRequestError - Input tokens exceed the configured limit of 272000 tokens. Your messages resulted in 290208 tokens. Please reduce the length of the messages.. Received Model Group=gpt-5.2\\nAvailable Model Group Fallbacks=None', 'type': 'invalid_request_error', 'param': 'messages', 'code': '400'}}"
+                },
+                "transition": "success -> validate",
+                "complete": false,
+                "state": "success"
+            },
+            {
+                "agent": "validate",
+                "result": {
+                    "has_error": false,
+                    "content": "Error code: 400 - {'error': {'message': 'litellm.BadRequestError: AzureException BadRequestError - Input tokens exceed the configured limit of 272000 tokens. Your messages resulted in 290470 tokens. Please reduce the length of the messages.. Received Model Group=gpt-5.2\\nAvailable Model Group Fallbacks=None', 'type': 'invalid_request_error', 'param': 'messages', 'code': '400'}}"
+                },
+                "transition": "success -> manual_validate",
+                "complete": false,
+                "state": "success"
+            },
+            {
+                "agent": "manual_validate",
+                "result": {
+                    "has_error": false,
+                    "data": {
+                        "jobspec": "",
+                        "errors": [],
+                        "valid": true
+                    }
+                },
+                "transition": "complete",
+                "complete": true,
+                "state": "complete"
+            }
+        ],
+        "model_name": "gpt-5.2",
+        "plan_source": "memory",
+        "state_machine_loops": 1
+    },
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n#SBATCH --job-name=InLocCIIRC_demo\n#SBATCH --nodes=1\n#SBATCH --partition gpu\n#SBATCH --output=InLocCIIRC_demo.log\n#SBATCH --cpus-per-task=8\n#SBATCH --gres=gpu:1\n#SBATCH --mem=16G\n#SBATCH --mail-type=END,FAIL\n#SBATCH --time=1-00:00:00\nmodule load MATLAB/2018a\nmodule load SuiteSparse/5.1.2-foss-2018b-METIS-5.1.0\nnvidia-smi\nexport LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/lucivpav/gflags-2.2.2/build/lib:/home/lucivpav/InLoc_demo/functions/vlfeat/toolbox/mex/mexa64\ncat startup.m inloc_demo.m | matlab -nodesktop\n",
+                    "error": "{{ steps.validate.outputs.errors }}",
+                    "jobspec": "{{ steps.validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    },
+    "filename": "data/lucivpav/InLocCIIRC_demo/run_ciirc.sh"
+}

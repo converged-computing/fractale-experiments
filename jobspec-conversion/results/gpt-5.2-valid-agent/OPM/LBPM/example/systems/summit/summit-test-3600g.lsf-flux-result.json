@@ -1,0 +1,245 @@
+{
+    "events": [
+        {
+            "timestamp": 1773197988.5518258,
+            "event": "enter",
+            "step": "transform",
+            "type": "prompt",
+            "data": {
+                "input": null
+            }
+        },
+        {
+            "timestamp": 1773198002.230719,
+            "event": "exit",
+            "step": "transform",
+            "type": "prompt",
+            "data": {
+                "output": "{\n  \"jobspec\": \"#!/bin/bash\\n\\n# Flux batch script\\n#\\n# This is a self-submitting Flux script: run it directly (e.g., `./color.flux.sh`).\\n# It will submit itself to Flux with the translated resource requests.\\n\\n# LSF -> Flux translation (best-effort):\\n#   #BSUB -nnodes 600  -> -N 600\\n#   jsrun: -n3600      -> -n 3600 (total ranks)\\n#   jsrun: -g1         -> request 1 GPU per resource set; total GPUs likely 600\\n#   #BSUB -W 10        -> -t 10m\\n#\\n# NOTE: LSF -P CSC275MCCLURE not translated.\\n# Performance/ops implication: accounting/charging may not be applied as intended; site may require project/account out-of-band.\\n#\\n# NOTE: LSF -J COLOR not translated.\\n# Performance/ops implication: job identification may be less convenient; runtime performance unaffected.\\n#\\n# NOTE: LSF -o color-3600g.o%J uses %J expansion (jobid) which Flux does not provide portably.\\n# Performance implication: none; operational implication: logs may overwrite unless you generate unique filenames.\\n#\\n# NOTE: Commented LSF -env \\\"...,JOB_FEATURE=NVME\\\" not translated.\\n# Performance implication: if NVME-local storage was required for I/O performance, omission may reduce performance.\\n\\nNODES=600\\nRANKS=3600\\nGPUS_PER_RS=1\\n# With jsrun -r6 (6 resource sets per node) and -g1 per RS => 6 GPUs per node.\\n# Total GPUs = NODES * 6\\nTOTAL_GPUS=$((NODES * 6))\\n\\nJOBID=$(flux batch -N ${NODES} -n ${RANKS} -g ${TOTAL_GPUS} -t 10m --wrap \\\"bash $0 __flux_inner\\\")\\n\\necho \\\"Submitted Flux job: $JOBID\\\"\\n\\nif [ \\\"${1:-}\\\" = \\\"__flux_inner\\\" ]; then\\n  date\\n\\n  module load gcc cuda\\n\\n  export LBPM_WIA_DIR=$HOME/summit/build/LBPM-WIA/tests\\n\\n  cd /gpfs/alpinetds/csc275/scratch/mcclurej/SCALING/WEAK/3600p || exit 1\\n\\n  # Keep jsrun since this is intended for Summit-like systems.\\n  # Run within the allocation; request per-rank cores similar to jsrun -c1.\\n  flux run -n ${RANKS} -c 1 -g ${TOTAL_GPUS} \\\\\\n    jsrun -n3600 -r6 -g1 -c1 -brs --smpiargs=\\\"-gpu\\\" $LBPM_WIA_DIR/TestCommD3Q19\\n\\n  exit 0\\nfi\\n\"\n}"
+            }
+        },
+        {
+            "timestamp": 1773198002.2319205,
+            "event": "enter",
+            "step": "validate",
+            "type": "prompt",
+            "data": {
+                "input": null
+            }
+        },
+        {
+            "timestamp": 1773198007.116715,
+            "event": "exit",
+            "step": "validate",
+            "type": "prompt",
+            "data": {
+                "output": "{\n  \"valid\": true,\n  \"tool_call\": false,\n  \"reasons\": [],\n  \"issues\": [\n    \"This is a self-submitting pattern: it will only work if `flux batch` can connect to a Flux broker from where the script is executed (inside a Flux instance or via a site-provided submission endpoint).\",\n    \"Portability: requesting GPUs with `-g 3600` requires the Flux instance to be configured with GPU/generic resources at that scale; otherwise the job may be rejected or remain unschedulable.\",\n    \"The very large resource request (`-N 600 -n 3600 -g 3600 -t 10m`) may violate site policy/limits or be infeasible on most Flux deployments (resource feasibility concern).\"\n  ]\n}"
+            }
+        },
+        {
+            "timestamp": 1773198007.118503,
+            "event": "enter",
+            "step": "validate_flux_jobspec",
+            "type": "tool",
+            "data": {
+                "inputs": {
+                    "content": "#!/bin/bash\n\n# Flux batch script\n#\n# This is a self-submitting Flux script: run it directly (e.g., `./color.flux.sh`).\n# It will submit itself to Flux with the translated resource requests.\n\n# LSF -> Flux translation (best-effort):\n#   #BSUB -nnodes 600  -> -N 600\n#   jsrun: -n3600      -> -n 3600 (total ranks)\n#   jsrun: -g1         -> request 1 GPU per resource set; total GPUs likely 600\n#   #BSUB -W 10        -> -t 10m\n#\n# NOTE: LSF -P CSC275MCCLURE not translated.\n# Performance/ops implication: accounting/charging may not be applied as intended; site may require project/account out-of-band.\n#\n# NOTE: LSF -J COLOR not translated.\n# Performance/ops implication: job identification may be less convenient; runtime performance unaffected.\n#\n# NOTE: LSF -o color-3600g.o%J uses %J expansion (jobid) which Flux does not provide portably.\n# Performance implication: none; operational implication: logs may overwrite unless you generate unique filenames.\n#\n# NOTE: Commented LSF -env \"...,JOB_FEATURE=NVME\" not translated.\n# Performance implication: if NVME-local storage was required for I/O performance, omission may reduce performance.\n\nNODES=600\nRANKS=3600\nGPUS_PER_RS=1\n# With jsrun -r6 (6 resource sets per node) and -g1 per RS => 6 GPUs per node.\n# Total GPUs = NODES * 6\nTOTAL_GPUS=$((NODES * 6))\n\nJOBID=$(flux batch -N ${NODES} -n ${RANKS} -g ${TOTAL_GPUS} -t 10m --wrap \"bash $0 __flux_inner\")\n\necho \"Submitted Flux job: $JOBID\"\n\nif [ \"${1:-}\" = \"__flux_inner\" ]; then\n  date\n\n  module load gcc cuda\n\n  export LBPM_WIA_DIR=$HOME/summit/build/LBPM-WIA/tests\n\n  cd /gpfs/alpinetds/csc275/scratch/mcclurej/SCALING/WEAK/3600p || exit 1\n\n  # Keep jsrun since this is intended for Summit-like systems.\n  # Run within the allocation; request per-rank cores similar to jsrun -c1.\n  flux run -n ${RANKS} -c 1 -g ${TOTAL_GPUS} \\\n    jsrun -n3600 -r6 -g1 -c1 -brs --smpiargs=\"-gpu\" $LBPM_WIA_DIR/TestCommD3Q19\n\n  exit 0\nfi\n"
+                }
+            }
+        },
+        {
+            "timestamp": 1773198007.1203024,
+            "event": "enter",
+            "step": "validate_flux_jobspec",
+            "type": "tool",
+            "data": {
+                "inputs": {
+                    "content": "#!/bin/bash\n\n# Flux batch script\n#\n# This is a self-submitting Flux script: run it directly (e.g., `./color.flux.sh`).\n# It will submit itself to Flux with the translated resource requests.\n\n# LSF -> Flux translation (best-effort):\n#   #BSUB -nnodes 600  -> -N 600\n#   jsrun: -n3600      -> -n 3600 (total ranks)\n#   jsrun: -g1         -> request 1 GPU per resource set; total GPUs likely 600\n#   #BSUB -W 10        -> -t 10m\n#\n# NOTE: LSF -P CSC275MCCLURE not translated.\n# Performance/ops implication: accounting/charging may not be applied as intended; site may require project/account out-of-band.\n#\n# NOTE: LSF -J COLOR not translated.\n# Performance/ops implication: job identification may be less convenient; runtime performance unaffected.\n#\n# NOTE: LSF -o color-3600g.o%J uses %J expansion (jobid) which Flux does not provide portably.\n# Performance implication: none; operational implication: logs may overwrite unless you generate unique filenames.\n#\n# NOTE: Commented LSF -env \"...,JOB_FEATURE=NVME\" not translated.\n# Performance implication: if NVME-local storage was required for I/O performance, omission may reduce performance.\n\nNODES=600\nRANKS=3600\nGPUS_PER_RS=1\n# With jsrun -r6 (6 resource sets per node) and -g1 per RS => 6 GPUs per node.\n# Total GPUs = NODES * 6\nTOTAL_GPUS=$((NODES * 6))\n\nJOBID=$(flux batch -N ${NODES} -n ${RANKS} -g ${TOTAL_GPUS} -t 10m --wrap \"bash $0 __flux_inner\")\n\necho \"Submitted Flux job: $JOBID\"\n\nif [ \"${1:-}\" = \"__flux_inner\" ]; then\n  date\n\n  module load gcc cuda\n\n  export LBPM_WIA_DIR=$HOME/summit/build/LBPM-WIA/tests\n\n  cd /gpfs/alpinetds/csc275/scratch/mcclurej/SCALING/WEAK/3600p || exit 1\n\n  # Keep jsrun since this is intended for Summit-like systems.\n  # Run within the allocation; request per-rank cores similar to jsrun -c1.\n  flux run -n ${RANKS} -c 1 -g ${TOTAL_GPUS} \\\n    jsrun -n3600 -r6 -g1 -c1 -brs --smpiargs=\"-gpu\" $LBPM_WIA_DIR/TestCommD3Q19\n\n  exit 0\nfi\n"
+                }
+            }
+        },
+        {
+            "timestamp": 1773198007.1449716,
+            "event": "exit",
+            "step": "validate_flux_jobspec",
+            "type": "tool",
+            "data": {
+                "outputs": {
+                    "jobspec": "#!/bin/bash\n\n# Flux batch script\n#\n# This is a self-submitting Flux script: run it directly (e.g., `./color.flux.sh`).\n# It will submit itself to Flux with the translated resource requests.\n\n# LSF -> Flux translation (best-effort):\n#   #BSUB -nnodes 600  -> -N 600\n#   jsrun: -n3600      -> -n 3600 (total ranks)\n#   jsrun: -g1         -> request 1 GPU per resource set; total GPUs likely 600\n#   #BSUB -W 10        -> -t 10m\n#\n# NOTE: LSF -P CSC275MCCLURE not translated.\n# Performance/ops implication: accounting/charging may not be applied as intended; site may require project/account out-of-band.\n#\n# NOTE: LSF -J COLOR not translated.\n# Performance/ops implication: job identification may be less convenient; runtime performance unaffected.\n#\n# NOTE: LSF -o color-3600g.o%J uses %J expansion (jobid) which Flux does not provide portably.\n# Performance implication: none; operational implication: logs may overwrite unless you generate unique filenames.\n#\n# NOTE: Commented LSF -env \"...,JOB_FEATURE=NVME\" not translated.\n# Performance implication: if NVME-local storage was required for I/O performance, omission may reduce performance.\n\nNODES=600\nRANKS=3600\nGPUS_PER_RS=1\n# With jsrun -r6 (6 resource sets per node) and -g1 per RS => 6 GPUs per node.\n# Total GPUs = NODES * 6\nTOTAL_GPUS=$((NODES * 6))\n\nJOBID=$(flux batch -N ${NODES} -n ${RANKS} -g ${TOTAL_GPUS} -t 10m --wrap \"bash $0 __flux_inner\")\n\necho \"Submitted Flux job: $JOBID\"\n\nif [ \"${1:-}\" = \"__flux_inner\" ]; then\n  date\n\n  module load gcc cuda\n\n  export LBPM_WIA_DIR=$HOME/summit/build/LBPM-WIA/tests\n\n  cd /gpfs/alpinetds/csc275/scratch/mcclurej/SCALING/WEAK/3600p || exit 1\n\n  # Keep jsrun since this is intended for Summit-like systems.\n  # Run within the allocation; request per-rank cores similar to jsrun -c1.\n  flux run -n ${RANKS} -c 1 -g ${TOTAL_GPUS} \\\n    jsrun -n3600 -r6 -g1 -c1 -brs --smpiargs=\"-gpu\" $LBPM_WIA_DIR/TestCommD3Q19\n\n  exit 0\nfi\n",
+                    "errors": [],
+                    "valid": true
+                }
+            }
+        },
+        {
+            "timestamp": 1773198007.1480625,
+            "event": "exit",
+            "step": "manual_validate",
+            "type": "tool",
+            "data": {
+                "outputs": {
+                    "jobspec": "#!/bin/bash\n\n# Flux batch script\n#\n# This is a self-submitting Flux script: run it directly (e.g., `./color.flux.sh`).\n# It will submit itself to Flux with the translated resource requests.\n\n# LSF -> Flux translation (best-effort):\n#   #BSUB -nnodes 600  -> -N 600\n#   jsrun: -n3600      -> -n 3600 (total ranks)\n#   jsrun: -g1         -> request 1 GPU per resource set; total GPUs likely 600\n#   #BSUB -W 10        -> -t 10m\n#\n# NOTE: LSF -P CSC275MCCLURE not translated.\n# Performance/ops implication: accounting/charging may not be applied as intended; site may require project/account out-of-band.\n#\n# NOTE: LSF -J COLOR not translated.\n# Performance/ops implication: job identification may be less convenient; runtime performance unaffected.\n#\n# NOTE: LSF -o color-3600g.o%J uses %J expansion (jobid) which Flux does not provide portably.\n# Performance implication: none; operational implication: logs may overwrite unless you generate unique filenames.\n#\n# NOTE: Commented LSF -env \"...,JOB_FEATURE=NVME\" not translated.\n# Performance implication: if NVME-local storage was required for I/O performance, omission may reduce performance.\n\nNODES=600\nRANKS=3600\nGPUS_PER_RS=1\n# With jsrun -r6 (6 resource sets per node) and -g1 per RS => 6 GPUs per node.\n# Total GPUs = NODES * 6\nTOTAL_GPUS=$((NODES * 6))\n\nJOBID=$(flux batch -N ${NODES} -n ${RANKS} -g ${TOTAL_GPUS} -t 10m --wrap \"bash $0 __flux_inner\")\n\necho \"Submitted Flux job: $JOBID\"\n\nif [ \"${1:-}\" = \"__flux_inner\" ]; then\n  date\n\n  module load gcc cuda\n\n  export LBPM_WIA_DIR=$HOME/summit/build/LBPM-WIA/tests\n\n  cd /gpfs/alpinetds/csc275/scratch/mcclurej/SCALING/WEAK/3600p || exit 1\n\n  # Keep jsrun since this is intended for Summit-like systems.\n  # Run within the allocation; request per-rank cores similar to jsrun -c1.\n  flux run -n ${RANKS} -c 1 -g ${TOTAL_GPUS} \\\n    jsrun -n3600 -r6 -g1 -c1 -brs --smpiargs=\"-gpu\" $LBPM_WIA_DIR/TestCommD3Q19\n\n  exit 0\nfi\n",
+                    "errors": [],
+                    "valid": true
+                }
+            }
+        }
+    ],
+    "metrics": [
+        {
+            "timestamp": 1773198002.2255476,
+            "data": {
+                "use_tools": null,
+                "metrics": {
+                    "prompt_tokens": 101092,
+                    "completion_tokens": 662,
+                    "total_tokens": 101754
+                },
+                "memory": true,
+                "tools": null,
+                "prompt": "### PERSONA\nYou are a job specification generation expert.\n\n### CONTEXT\nWe need to convert between workload manager job specification formats.\n\n### GOAL\nI need to convert the provided job specification from 'lsf' to 'flux'. The desired output format is a 'batch' script.\n\n### REQUIREMENTS & CONSTRAINTS\nYou MUST not make up directives that do not exist.\nYou MUST preserve as many options as possible from the original.\nIf there is a directive that does not translate, you MUST leave it out and add a comment about the performance implications of the omission.\n\n### INSTRUCTIONS\n1. Analyze the provided script below.\n2. Write a new script and return in a json structure with a \"jobspec\"\n3. If the input script is not a workload manager batch file, you MUST return the json jobspec structure as \"noop\"\n\n#!/bin/bash\n\n#BSUB -P CSC275MCCLURE\n#BSUB -J COLOR\n#BSUB -o color-3600g.o%J\n#BSUB -W 10\n#BSUB -nnodes 600\n##BSUB -env \"all,JOB_FEATURE=NVME\"\n \ndate\n\nmodule load gcc cuda \n#source $OLCF_SPECTRUM_MPI_ROOT/jsm_pmix/bin/export_smpi_env -gpu\n\n#cd /ccs/home/mcclurej/summit/build/ScaLBL/example/Sph1896/\n\n#cp Domain.in.8g Domain.in\n\nexport LBPM_WIA_DIR=$HOME/summit/build/LBPM-WIA/tests\n\ncd /gpfs/alpinetds/csc275/scratch/mcclurej/SCALING/WEAK/3600p\n\njsrun  -n3600 -r6 -g1 -c1 -brs --smpiargs=\"-gpu\" $LBPM_WIA_DIR/TestCommD3Q19\n\n\nexit;\n\n"
+            }
+        },
+        {
+            "timestamp": 1773198007.1120715,
+            "data": {
+                "use_tools": null,
+                "metrics": {
+                    "prompt_tokens": 102615,
+                    "completion_tokens": 174,
+                    "total_tokens": 102789
+                },
+                "memory": true,
+                "tools": null,
+                "prompt": "### PERSONA\nYou are a job validation expert.\n\n### CONTEXT\nWe need to validate a job specification for correctness.\n\n### GOAL\nI need to validate if the following job specification is correct. Validity means that the job specification will be accepted by the workload manager and execute:\n\n```\n#!/bin/bash\n\n# Flux batch script\n#\n# This is a self-submitting Flux script: run it directly (e.g., `./color.flux.sh`).\n# It will submit itself to Flux with the translated resource requests.\n\n# LSF -> Flux translation (best-effort):\n#   #BSUB -nnodes 600  -> -N 600\n#   jsrun: -n3600      -> -n 3600 (total ranks)\n#   jsrun: -g1         -> request 1 GPU per resource set; total GPUs likely 600\n#   #BSUB -W 10        -> -t 10m\n#\n# NOTE: LSF -P CSC275MCCLURE not translated.\n# Performance/ops implication: accounting/charging may not be applied as intended; site may require project/account out-of-band.\n#\n# NOTE: LSF -J COLOR not translated.\n# Performance/ops implication: job identification may be less convenient; runtime performance unaffected.\n#\n# NOTE: LSF -o color-3600g.o%J uses %J expansion (jobid) which Flux does not provide portably.\n# Performance implication: none; operational implication: logs may overwrite unless you generate unique filenames.\n#\n# NOTE: Commented LSF -env \"...,JOB_FEATURE=NVME\" not translated.\n# Performance implication: if NVME-local storage was required for I/O performance, omission may reduce performance.\n\nNODES=600\nRANKS=3600\nGPUS_PER_RS=1\n# With jsrun -r6 (6 resource sets per node) and -g1 per RS => 6 GPUs per node.\n# Total GPUs = NODES * 6\nTOTAL_GPUS=$((NODES * 6))\n\nJOBID=$(flux batch -N ${NODES} -n ${RANKS} -g ${TOTAL_GPUS} -t 10m --wrap \"bash $0 __flux_inner\")\n\necho \"Submitted Flux job: $JOBID\"\n\nif [ \"${1:-}\" = \"__flux_inner\" ]; then\n  date\n\n  module load gcc cuda\n\n  export LBPM_WIA_DIR=$HOME/summit/build/LBPM-WIA/tests\n\n  cd /gpfs/alpinetds/csc275/scratch/mcclurej/SCALING/WEAK/3600p || exit 1\n\n  # Keep jsrun since this is intended for Summit-like systems.\n  # Run within the allocation; request per-rank cores similar to jsrun -c1.\n  flux run -n ${RANKS} -c 1 -g ${TOTAL_GPUS} \\\n    jsrun -n3600 -r6 -g1 -c1 -brs --smpiargs=\"-gpu\" $LBPM_WIA_DIR/TestCommD3Q19\n\n  exit 0\nfi\n\n```\n\n### REQUIREMENTS & CONSTRAINTS\nYou MUST return a JSON structure with fields for 'valid' (bool) and a list of string 'reasons'. You MAY optionally add a field `issues` with a list of debugging or critique of any code. You MUST assume that defaults for a workload manager are reasonable to translate.\n\n### INSTRUCTIONS\n1. Analyze the provided script above.\n2. Use MUST use a jobspec validation tool for the manager if one is available otherwise use your knowledge.\n3. Determine validity based on the resource section ONLY\n4. The 'reasons' should ONLY be specific to resources\n5. If the script includes problematic code, please include in 'issues'\n6. You MUST include a 'tool_call' boolean, true or false, to indicate if you used a validation tool for validation.\n7. Return a json structure with 'valid' and 'tool_call' and 'reasons' (if not valid) and 'issues'\n"
+            }
+        }
+    ],
+    "metadata": {
+        "steps": [
+            {
+                "agent": "transform",
+                "result": {
+                    "has_error": false,
+                    "data": {
+                        "jobspec": "#!/bin/bash\n\n# Flux batch script\n#\n# This is a self-submitting Flux script: run it directly (e.g., `./color.flux.sh`).\n# It will submit itself to Flux with the translated resource requests.\n\n# LSF -> Flux translation (best-effort):\n#   #BSUB -nnodes 600  -> -N 600\n#   jsrun: -n3600      -> -n 3600 (total ranks)\n#   jsrun: -g1         -> request 1 GPU per resource set; total GPUs likely 600\n#   #BSUB -W 10        -> -t 10m\n#\n# NOTE: LSF -P CSC275MCCLURE not translated.\n# Performance/ops implication: accounting/charging may not be applied as intended; site may require project/account out-of-band.\n#\n# NOTE: LSF -J COLOR not translated.\n# Performance/ops implication: job identification may be less convenient; runtime performance unaffected.\n#\n# NOTE: LSF -o color-3600g.o%J uses %J expansion (jobid) which Flux does not provide portably.\n# Performance implication: none; operational implication: logs may overwrite unless you generate unique filenames.\n#\n# NOTE: Commented LSF -env \"...,JOB_FEATURE=NVME\" not translated.\n# Performance implication: if NVME-local storage was required for I/O performance, omission may reduce performance.\n\nNODES=600\nRANKS=3600\nGPUS_PER_RS=1\n# With jsrun -r6 (6 resource sets per node) and -g1 per RS => 6 GPUs per node.\n# Total GPUs = NODES * 6\nTOTAL_GPUS=$((NODES * 6))\n\nJOBID=$(flux batch -N ${NODES} -n ${RANKS} -g ${TOTAL_GPUS} -t 10m --wrap \"bash $0 __flux_inner\")\n\necho \"Submitted Flux job: $JOBID\"\n\nif [ \"${1:-}\" = \"__flux_inner\" ]; then\n  date\n\n  module load gcc cuda\n\n  export LBPM_WIA_DIR=$HOME/summit/build/LBPM-WIA/tests\n\n  cd /gpfs/alpinetds/csc275/scratch/mcclurej/SCALING/WEAK/3600p || exit 1\n\n  # Keep jsrun since this is intended for Summit-like systems.\n  # Run within the allocation; request per-rank cores similar to jsrun -c1.\n  flux run -n ${RANKS} -c 1 -g ${TOTAL_GPUS} \\\n    jsrun -n3600 -r6 -g1 -c1 -brs --smpiargs=\"-gpu\" $LBPM_WIA_DIR/TestCommD3Q19\n\n  exit 0\nfi\n"
+                    },
+                    "attempts": 1
+                },
+                "transition": "success -> validate",
+                "complete": false,
+                "state": "success"
+            },
+            {
+                "agent": "validate",
+                "result": {
+                    "has_error": false,
+                    "data": {
+                        "valid": true,
+                        "tool_call": false,
+                        "reasons": [],
+                        "issues": [
+                            "This is a self-submitting pattern: it will only work if `flux batch` can connect to a Flux broker from where the script is executed (inside a Flux instance or via a site-provided submission endpoint).",
+                            "Portability: requesting GPUs with `-g 3600` requires the Flux instance to be configured with GPU/generic resources at that scale; otherwise the job may be rejected or remain unschedulable.",
+                            "The very large resource request (`-N 600 -n 3600 -g 3600 -t 10m`) may violate site policy/limits or be infeasible on most Flux deployments (resource feasibility concern)."
+                        ]
+                    },
+                    "attempts": 1
+                },
+                "transition": "success -> manual_validate",
+                "complete": false,
+                "state": "success"
+            },
+            {
+                "agent": "manual_validate",
+                "result": {
+                    "has_error": false,
+                    "data": {
+                        "jobspec": "#!/bin/bash\n\n# Flux batch script\n#\n# This is a self-submitting Flux script: run it directly (e.g., `./color.flux.sh`).\n# It will submit itself to Flux with the translated resource requests.\n\n# LSF -> Flux translation (best-effort):\n#   #BSUB -nnodes 600  -> -N 600\n#   jsrun: -n3600      -> -n 3600 (total ranks)\n#   jsrun: -g1         -> request 1 GPU per resource set; total GPUs likely 600\n#   #BSUB -W 10        -> -t 10m\n#\n# NOTE: LSF -P CSC275MCCLURE not translated.\n# Performance/ops implication: accounting/charging may not be applied as intended; site may require project/account out-of-band.\n#\n# NOTE: LSF -J COLOR not translated.\n# Performance/ops implication: job identification may be less convenient; runtime performance unaffected.\n#\n# NOTE: LSF -o color-3600g.o%J uses %J expansion (jobid) which Flux does not provide portably.\n# Performance implication: none; operational implication: logs may overwrite unless you generate unique filenames.\n#\n# NOTE: Commented LSF -env \"...,JOB_FEATURE=NVME\" not translated.\n# Performance implication: if NVME-local storage was required for I/O performance, omission may reduce performance.\n\nNODES=600\nRANKS=3600\nGPUS_PER_RS=1\n# With jsrun -r6 (6 resource sets per node) and -g1 per RS => 6 GPUs per node.\n# Total GPUs = NODES * 6\nTOTAL_GPUS=$((NODES * 6))\n\nJOBID=$(flux batch -N ${NODES} -n ${RANKS} -g ${TOTAL_GPUS} -t 10m --wrap \"bash $0 __flux_inner\")\n\necho \"Submitted Flux job: $JOBID\"\n\nif [ \"${1:-}\" = \"__flux_inner\" ]; then\n  date\n\n  module load gcc cuda\n\n  export LBPM_WIA_DIR=$HOME/summit/build/LBPM-WIA/tests\n\n  cd /gpfs/alpinetds/csc275/scratch/mcclurej/SCALING/WEAK/3600p || exit 1\n\n  # Keep jsrun since this is intended for Summit-like systems.\n  # Run within the allocation; request per-rank cores similar to jsrun -c1.\n  flux run -n ${RANKS} -c 1 -g ${TOTAL_GPUS} \\\n    jsrun -n3600 -r6 -g1 -c1 -brs --smpiargs=\"-gpu\" $LBPM_WIA_DIR/TestCommD3Q19\n\n  exit 0\nfi\n",
+                        "errors": [],
+                        "valid": true
+                    }
+                },
+                "transition": "complete",
+                "complete": true,
+                "state": "complete"
+            }
+        ],
+        "model_name": "gpt-5.2",
+        "plan_source": "memory",
+        "state_machine_loops": 1
+    },
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "lsf",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n\n#BSUB -P CSC275MCCLURE\n#BSUB -J COLOR\n#BSUB -o color-3600g.o%J\n#BSUB -W 10\n#BSUB -nnodes 600\n##BSUB -env \"all,JOB_FEATURE=NVME\"\n \ndate\n\nmodule load gcc cuda \n#source $OLCF_SPECTRUM_MPI_ROOT/jsm_pmix/bin/export_smpi_env -gpu\n\n#cd /ccs/home/mcclurej/summit/build/ScaLBL/example/Sph1896/\n\n#cp Domain.in.8g Domain.in\n\nexport LBPM_WIA_DIR=$HOME/summit/build/LBPM-WIA/tests\n\ncd /gpfs/alpinetds/csc275/scratch/mcclurej/SCALING/WEAK/3600p\n\njsrun  -n3600 -r6 -g1 -c1 -brs --smpiargs=\"-gpu\" $LBPM_WIA_DIR/TestCommD3Q19\n\n\nexit;\n",
+                    "error": "{{ steps.validate.outputs.errors }}",
+                    "jobspec": "{{ steps.validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    },
+    "filename": "data/OPM/LBPM/example/systems/summit/summit-test-3600g.lsf"
+}
