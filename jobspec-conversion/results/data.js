@@ -59665,7 +59665,7 @@ window.experiment_data = {
     {
       "id": "job-cifarmpif.sh",
       "filename": "data/1anw/DeepHyper-CORDS-Project/cordsresults/r_full/job-cifarmpif.sh",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 7.634021997451782,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#COBALT -q full-node\n#COBALT -n 1\n#COBALT -t 240\n#COBALT -A datascience\n#COBALT --attrs filesystems=home,grand,eagle,theta-fs0\n# Necessary for Bash shells\n. /etc/profile\n\n# Tensorflow optimized for A100 with CUDA 11\nmodule load conda/pytorch\n# module load conda/pytorch\n\n# Activate conda env\nconda activate pycords\n# conda activate base\nexport PYTHONPATH=/lus/grand/projects/datascience/ianwixom/expcifar:$PYTHONPATH\n\n# User Configuration\n# INIT_SCRIPT=$PWD/activate-dh.sh\nCOBALT_JOBSIZE=1\nRANKS_PER_NODE=8\n\n# Initialization of environment\n# source $INIT_SCRIPT\nmodule list\nmpirun -x LD_LIBRARY_PATH -x PYTHONPATH -x PATH -n $(( $COBALT_JOBSIZE * $RANKS_PER_NODE )) -N $RANKS_PER_NODE --hostfile $COBALT_NODEFILE python cifar10cordsmodel.py",
@@ -59761,7 +59761,7 @@ window.experiment_data = {
     {
       "id": "scatter.sh",
       "filename": "data/ARCCA/mpi_tut/2017/Scatter/scatter.sh",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 34.67613744735718,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#PBS -l select=1:ncpus=12:mpiprocs=12:mem=1MB\n#PBS -l walltime=00:00:30\n#PBS -N Scatter\n#PBS -P PR66\n#PBS -q training\n\n# Load required modules.\nmodule purge\nmodule load python/2.7.9-mpi\n\n# Create an output directory on the fast scratch filesystem, and\n# run from this directory.\nWDPATH=/scratch/$USER/raven_training/$PBS_JOBID\nmkdir -p $WDPATH\ncd $WDPATH\n\n# Copy the python code to the run directory\ncp $PBS_O_WORKDIR/scatter.py .\n\n# Run a number of copies of the code equal to the number of\n# MPI processes requested.\nmpirun -np 12 ./scatter.py\n",
@@ -60241,7 +60241,7 @@ window.experiment_data = {
     {
       "id": "benchmark_rms_distr.sh",
       "filename": "data/Becksteinlab/scipy2019-pmda-data/Lustre/distributed/benchmark_rms_distr.sh",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 21.954306840896606,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#SBATCH -J PMDA_BM                  # name\n#SBATCH --partition=compute\n#SBATCH --nodes=6                        # Total number of nodes requested (16 cores/node). You may delete this line if wanted\n#SBATCH --ntasks-per-node=12            # Total number of mpi tasks requested\n#SBATCH --export=ALL\n#SBATCH -t 08:00:00                      # wall time (D-HH:MM)\n#SBATCH --mail-type=ALL                # Send a notification when the job starts, stops, or fails\n#SBATCH --mail-user=sfan19@asu.edu  # send-to address\n                      \nbash /home/sfan19/.bashrc\n\necho $SLURM_JOB_ID\necho $USER\n\nSCHEDULER=`hostname`\necho SCHEDULER: $SCHEDULER\ndask-scheduler --port=8786 &\nsleep 5\n\nhostnodes=`scontrol show hostnames $SLURM_NODELIST`\necho $hostnodes\n\nfor host in $hostnodes; do\n    echo \"Working on $host ....\"\n    ssh $host dask-worker --nprocs 12 --nthreads 1 $SCHEDULER:8786 &\n    sleep 1\ndone\n\n\npython benchmark_rms_distr.py /scratch/$USER/$SLURM_JOB_ID $SCHEDULER:8786\n\n\n",
@@ -60625,7 +60625,7 @@ window.experiment_data = {
     {
       "id": "runEQ.sh",
       "filename": "data/BranniganLab/ELIC-phospholipid-identification/membrane_systems/POPC/PC_to_PG/POCG_60/runEQ.sh",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 31.463277578353882,
       "step_count": 3,
       "slurm": "#!/bin/bash \n#SBATCH -J EQ_POCG_60\n#SBATCH -o out%j.amarel.log\n#SBATCH --export=ALL\n#SBATCH --partition=cmain\n#SBATCH -N 3 -n 96\n##SBATCH -N 1 -n 32\n#SBATCH --mem=6000\n#SBATCH -t 00:30:00       # max time\n#SBATCH --output=starting.out     # STDOUT output file\n#SBATCH --requeue\nmodule purge\nmodule load gcc cuda mvapich2/2.2\nNAMD=\"/projects/jdb252_1/tj227/bin/namd2-2.13-gcc-mvapich2\"\nSRUN=\"srun --mpi=pmi2\"\n$SRUN $NAMD starting.POCG_60.namd > starting.POCG_60.log\n",
@@ -61105,7 +61105,7 @@ window.experiment_data = {
     {
       "id": "ejecutor.cmd",
       "filename": "data/D-Barradas/DataViz/3D_numpy_array_cardinalities/ejecutor.cmd",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 29.654513359069824,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#BSUB -n 1 \n#BSUB -o ejecutor_%J.out\n#BSUB -e ejecutor_%J.err\n#BSUB -J ejecutor\n#BSUB -R\"span[ptile=16]\"\n#BSUB -W 48:00\n\npython get_cardinalities_3D_arrays.py top5_combos.all pdb.list.BM5\n#/apps/GREASY/2.1.2.1/bin/greasy ROTSPIN.txt\n#apps/GREASY/2.1.2.1/bin/greasy ordenes_bm4_zdock.txt\n#python get_just_ligand_1KKL.py;\n#python get_just_ligand_1N2C.py;\n#python get_just_ligand_1Y64.py;\n#python get_just_ligand_1XU1.py;\n#python get_just_ligand_1F51.py;\n",
@@ -61777,7 +61777,7 @@ window.experiment_data = {
     {
       "id": "run_cluster.sh",
       "filename": "data/HealthML/neurocor/run_cluster.sh",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 6.6143388748168945,
       "step_count": 3,
       "slurm": "#!/bin/bash\n\n#SBATCH --job-name=controljob_%j\n#SBATCH --output=snakemake_%j.log\n#SBATCH --partition=vcpu,hpcpu\n#SBATCH --time=24:00:00\n#SBATCH -c 1\n#SBATCH --mem 2000\n\nSNAKEMAKE_ENV=snakemake\n\n# Initialize conda:\neval \"$(conda shell.bash hook)\"\nconda activate ${SNAKEMAKE_ENV}\n\nsnakemake --snakefile workflow/Snakefile \\\n          --configfile config/config.yaml \\\n\t  --profile ./slurm \\\n          --rerun-triggers mtime \\\n          --directory \"${PWD}\" \\\n\t  \"${@}\"\n\n\n",
@@ -61969,7 +61969,7 @@ window.experiment_data = {
     {
       "id": "runjob",
       "filename": "data/JasonGibsonUfl/Augmented_CGCNN/raw_dft/2120/MP_inputs/runjob",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 7.6291327476501465,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#SBATCH --job-name=2120#SBATCH -o out_%j.log\n#SBATCH -e err_%j.log\n#SBATCH --qos=hennig\n#SBATCH --ntasks=16\n#SBATCH --ntasks-per-socket=16\n#SBATCH --ntasks-per-node=16\n#SBATCH --nodes=1\n#SBATCH --cpus-per-task=1\n#SBATCH --mem-per-cpu=1000mb\n\n#SBATCH -t 6:00:00\n\ncd $SLURM_SUBMIT_DIR\n\nmodule purge\nmodule load intel/2019.1.144\nmodule load openmpi/4.0.1\n\nsrun --mpi=pmix_v3 /home/joshuapaul/vasp_10-23-19_5.4.4/bin/vasp_stand > job.log\necho Done",
@@ -62065,7 +62065,7 @@ window.experiment_data = {
     {
       "id": "runjob",
       "filename": "data/JasonGibsonUfl/Augmented_CGCNN/raw_dft/2434/MP_inputs/runjob",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 7.153030633926392,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#SBATCH --job-name=2434#SBATCH -o out_%j.log\n#SBATCH -e err_%j.log\n#SBATCH --qos=hennig\n#SBATCH --ntasks=16\n#SBATCH --ntasks-per-socket=16\n#SBATCH --ntasks-per-node=16\n#SBATCH --nodes=1\n#SBATCH --cpus-per-task=1\n#SBATCH --mem-per-cpu=1000mb\n\n#SBATCH -t 6:00:00\n\ncd $SLURM_SUBMIT_DIR\n\nmodule purge\nmodule load intel/2019.1.144\nmodule load openmpi/4.0.1\n\nsrun --mpi=pmix_v3 /home/joshuapaul/vasp_10-23-19_5.4.4/bin/vasp_stand > job.log\necho Done",
@@ -62449,7 +62449,7 @@ window.experiment_data = {
     {
       "id": "fed_unlearn_main_3.sh",
       "filename": "data/Karlywang/FedEraser-reproduce/scripts/fed_unlearn_main_3.sh",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 6.777373790740967,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#SBATCH --job-name=federaser\n#SBATCH --nodes=1\n#SBATCH --mem=50000\n#SBATCH -o tensor_out_3.txt\n#SBATCH -e tensor_error_3.txt\n#SBATCH --partition=gpu\n#SBATCH --gres=gpu:1\n\n#module load gnu7/7.2.0\nmodule load cuda/10.0.130\nmodule load anaconda/3.6\n#module load mvapich2\n#module load pmix/1.2.3\n\nsource activate federaser\n\nsrun python ../Fed_Unlearn_main_3.py\n\n",
@@ -63121,7 +63121,7 @@ window.experiment_data = {
     {
       "id": "submit.sh",
       "filename": "data/NCAR/GPU_workshop/archivedLessons_CUDA/Lesson_4_SharedMem/autocompare/solution/submit.sh",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 7.290713310241699,
       "step_count": 3,
       "slurm": "#!/bin/bash -l\n# Batch directives\n#SBATCH --gres=gpu:v100:1\n#SBATCH --nodes=1\n#SBATCH --ntasks-per-node=1\n#SBATCH --account NTDD0002\n#SBATCH --partition=dav\n#SBATCH --reservation=casper_8xV100\n#SBATCH --time=00:15:00\n#SBATCH --output=log.matmul_%j.out\n#SBATCH --job-name=GPU_matmul\n\n# Load the necessary modules (software)\nmodule purge\nmodule load ncarenv/1.2\nmodule load nvhpc/20.11\nmodule list\n\n# Update LD_LIBRARY_PATH so that cuda libraries can be found\nexport LD_LIBRARY_PATH=${NCAR_ROOT_CUDA}/lib64:${LD_LIBRARY_PATH}\necho ${LD_LIBRARY_PATH}\nnvidia-smi\n\nexport PCAST_COMPARE=abs=6,summary\n\n# Move to the correct directory and run the executable\necho -e \"\\nBeginning code output:\\n-------------\\n\"\nsrun ./matmul.exe \n",
@@ -63217,7 +63217,7 @@ window.experiment_data = {
     {
       "id": "build.gust.sh",
       "filename": "data/NCAR/MURaM_main/gust/build.gust.sh",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 6.962047338485718,
       "step_count": 3,
       "slurm": "#!/bin/bash -l\n\n#PBS -N MURbui \n#PBS -A UCSU0085 \n#PBS -q main@gusched01\n#PBS -l select=1:ncpus=1:mpiprocs=1:mem=50GB:ngpus=1\n##PBS -l gpu_type=a100\n#PBS -l walltime=00:10:00\n#PBS -e build.err \n#PBS -o build.out \n\nmodule purge\nmodule load ncarenv/22.12\nmodule load nvhpc/22.11\nmodule load cuda\nmodule load craype\nmodule load cray-mpich\nmodule load ncarcompilers\nmodule load cray-libsci\nmodule list\n\nmake clean\nmake\n\n \n",
@@ -63505,7 +63505,7 @@ window.experiment_data = {
     {
       "id": "pretrain_falcon_fr_all_v0.1.slurm",
       "filename": "data/OpenLLM-France/Lit-Claire/slurm/pretrain_falcon_fr_all_v0.1.slurm",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 6.04366660118103,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#SBATCH --job-name=Falcon\n#SBATCH --gres=gpu:2\n#SBATCH --ntasks-per-node=2\n#SBATCH --nodes=1\n#SBATCH --hint=nomultithread\n#SBATCH --time=20:00:00\n#SBATCH --qos=qos_gpu-t3\n#SBATCH --cpus-per-task=8\n#SBATCH -C a100\n\n## load environment\nmodule purge\nmodule load cpuarch/amd\nmodule load anaconda-py3/2023.03\nconda activate claire\n\n## launch script on every node\nset -x\n\nMODEL=tiiuae/falcon-7b\nOUTDIR=$WORK/../commun/Claire/pretrain/Claire-7B-0.1_1\nmkdir -p $OUTDIR\n\n# execute script\nsrun --output=$OUTDIR/training_log.out --error=$OUTDIR/training_log.out \\\npython pretrain.py \\\n--devices 2 \\\n--num_nodes 1 \\\n--data_dir $SCRATCH/../commun/preprocessed_data/Claire/lit-gpt/padded_8_grouped/$MODEL \\\n--checkpoint_dir $WORK/../commun/Claire/checkpoints/$MODEL \\\n--language fr \\\n--out_dir $OUTDIR \\\n--precision bf16-true \\\n--num_epochs 1000 \\\n--max_checkpoints 39 \\\n--enable_validation true \\\n--save_interval 1800 \\\n--eval_interval 1800 \\\n--early_stopping 4 \\\n--lora_r 16 \\\n--lora_alpha 32\n",
@@ -63601,7 +63601,7 @@ window.experiment_data = {
     {
       "id": "run.sample.qs",
       "filename": "data/PabloPiaggi/mishima-melting-lines-2023/StandardCoexistence/IceV/BASE/run.sample.qs",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 6.807528734207153,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#SBATCH -N 1   # node count\n#SBATCH --ntasks-per-node=4\n#SBATCH --ntasks-per-socket=2\n#SBATCH --cpus-per-task=7\n#SBATCH -t 24:00:00\n# SBATCH --mem=32G\n#SBATCH --gres=gpu:4\n#SBATCH --mail-type=begin\n#SBATCH --mail-type=end\n#SBATCH --mail-user=tgartner@princeton.edu\n\n# load environment\nmodule load cudatoolkit/10.0\nmodule load cudnn/cuda-10.0/7.6.3\nmodule load openmpi/gcc/3.1.3/64\n#module load fftw\nsource /home/tgartner/Software-deepmd-kit-1.0/tensorflow-venv/bin/activate\nmodule load /home/tgartner/modulefiles/plumed-tg\n# export OMP_NUM_THREADS=1\n\nif [ -f \"Sampledone.txt\" ]; then\n    echo \"Simulation finished\"\nelif ! grep -q 'ERROR' slurm*; then\n    echo \"Continuing NPT sampling\"\n    sbatch --dependency=afterany:$SLURM_JOB_ID run.sample.qs\n    # run NPT sampling\n    mpirun /home/tgartner/Software-deepmd-kit-1.0/lammps-3Mar20/src/lmp_mpi -i in.lammps.sample -e screen\nelse\n    echo \"There is an error\"\nfi\n\n",
@@ -64369,7 +64369,7 @@ window.experiment_data = {
     {
       "id": "run_prep",
       "filename": "data/QuentinRodier/Meso-NH/MY_RUN/INTEGRATION_CASES/HPC/HAIC/02_prep_real/run_prep",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 22.595310926437378,
       "step_count": 3,
       "slurm": "#!/bin/sh\n#SBATCH -J HAICprep\n#SBATCH -N 1            # nodes number =NBP dans tosupcrc\n#SBATCH -n 16           # CPUs number (on all nodes) =NBP*TPN dans tosupcrc\n#SBATCH -o POI16.eo%j   #\n#SBATCH -e POI16.eo%j   #\n#SBATCH -t 01:00:00     # time limit\n#SBATCH -p normal256\n\n# Echo des commandes\nulimit -c 0\nulimit -s unlimited\n# Nom de la machine\nhostname \n\n. ~rodierq/DEV_57/MNH-PHYEX070-b95d84d7/conf/profile_mesonh-LXifort-R8I4-MNH-V5-6-2-ECRAD140-MPIAUTO-O2-HAIC\n\nexport MPIRUN='Mpirun -np 16'\n\nln -sf ../01_prep_pgd/PGD.* .\nln -sf ~/SAVE/mesonh/PGD/pgd_guyane* .\nln -sf ~/SAVE/GRIB_KTEST/arome.FO.201505* .\nln -sf ~/SAVE/GRIB_KTEST/historic.20150529.00.lfi\n\ntouch pgd_guyane.02km50.04.des\ntouch historic.20150529.00.des\n\ntime ${MPIRUN} PREP_REAL_CASE${XYZ}\n\nfor i in 00 06 12 18 24; do\n    cp PRE_REAL1.nam_$i PRE_REAL1.nam\n    time ${MPIRUN} PREP_REAL_CASE${XYZ}\ndone\ncd ../\n./run_all_mesonh\n",
@@ -64717,7 +64717,7 @@ window.experiment_data = {
     {
       "id": "job_ar2_multiple_ABC_runs_mlp.sh",
       "filename": "data/SamuelWiqvist/PENs-and-ABC/lunarc/job_ar2_multiple_ABC_runs_mlp.sh",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 26.740639448165894,
       "step_count": 3,
       "slurm": "#!/bin/sh\n\n\n# Set up for run:\n\n# need this since I use a LU project\n#SBATCH -A lu2018-2-22\n\n# use gpu nodes\n#SBATCH -p gpu\n#SBATCH --gres=gpu:1\n#SBATCH --mem-per-cpu=3100\n\n# #SBATCH -N 1\n# #SBATCH -n 1\n\n\n# time consumption HH:MM:SS\n#SBATCH -t 100:00:00\n\n# name for script\n#SBATCH -J ar2_multi_ABC_mlp\n\n# controll job outputs\n#SBATCH -o lunarc_output/AR2/outputs_AR2_multiple_ABC_runs_mlp_%j.out\n#SBATCH -e lunarc_output/AR2/errors_AR2_multiple_ABC_runs_mlp_%j.err\n\n# notification\n#SBATCH --mail-user=samuel.wiqvist@matstat.lu.se\n#SBATCH --mail-type=ALL\n\n# load modules\n\nml load GCC/6.4.0-2.28\nml load CUDA/9.1.85\nml load OpenMPI/2.1.2\nml load cuDNN/7.0.5.15\nml load julia/1.0.0\n\nnvidia-smi\n\n# set correct path\npwd\ncd ..\npwd\n\n# run program\njulia /home/samwiq/'ABC and deep learning project'/abc-dl/src/AR2/multiple_ABC_runs_mlp.jl mlp standard 250 1 1 0\n\n# run using\n# sbatch test_gpu.sh\n",
@@ -64813,7 +64813,7 @@ window.experiment_data = {
     {
       "id": "job_ar2_multiple_ABC_runs_pen.sh",
       "filename": "data/SamuelWiqvist/PENs-and-ABC/lunarc/job_ar2_multiple_ABC_runs_pen.sh",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 7.136862277984619,
       "step_count": 3,
       "slurm": "#!/bin/sh\n\n\n# Set up for run:\n\n# need this since I use a LU project\n#SBATCH -A lu2018-2-22\n\n# use gpu nodes\n#SBATCH -p gpu\n#SBATCH --gres=gpu:1\n#SBATCH --mem-per-cpu=11000\n\n# #SBATCH -N 1\n# #SBATCH -n 1\n\n\n# time consumption HH:MM:SS\n#SBATCH -t 100:00:00\n\n# name for script\n#SBATCH -J ar2_multi_ABC_pen\n\n# controll job outputs\n#SBATCH -o lunarc_output/AR2/outputs_AR2_multiple_ABC_runs_pen_%j.out\n#SBATCH -e lunarc_output/AR2/errors_AR2_multiple_ABC_runs_pen_%j.err\n\n# notification\n#SBATCH --mail-user=samuel.wiqvist@matstat.lu.se\n#SBATCH --mail-type=ALL\n\n# load modules\n\nml load GCC/6.4.0-2.28\nml load CUDA/9.1.85\nml load OpenMPI/2.1.2\nml load cuDNN/7.0.5.15\nml load julia/1.0.0\n\nnvidia-smi\n\n# set correct path\npwd\ncd ..\npwd\n\n# run program\njulia /home/samwiq/'ABC and deep learning project'/abc-dl/src/AR2/multiple_ABC_runs_pen.jl standard 250 1 1\n\n# run using\n# sbatch test_gpu.sh\n",
@@ -65197,7 +65197,7 @@ window.experiment_data = {
     {
       "id": "job_snreb_19.sh",
       "filename": "data/SamuelWiqvist/snpla/two_moons/lunarc/job_snreb_19.sh",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 23.940600156784058,
       "step_count": 3,
       "slurm": "#!/bin/sh\n\n\n#SBATCH -A lu2020-2-7\n#SBATCH -p lu\n\n# time consumption HH:MM:SS\n#SBATCH -t 2:00:00\n\n# #SBATCH -N 1\n# #SBATCH --tasks-per-node=1\n# #SBATCH --exclusive\n\n# name for script\n#SBATCH -J snre_b\n\n \n# controll job outputs\n#SBATCH -o lunarc_output/lunarc_output_snre_b_%j.out\n#SBATCH -e lunarc_output/lunarc_output_snre_b_%j.err\n\n# notification\n#SBATCH --mail-user=samuel.wiqvist@matstat.lu.se\n#SBATCH --mail-type=ALL\n\n# load modules\n\nml load GCC/8.3.0\nml load CUDA/10.1.243\nml load OpenMPI/3.1.4\nml load PyTorch/1.6.0-Python-3.7.4\n\n# run program\npython /home/samwiq/snpla/'seq-posterior-approx-w-nf-dev'/'two_moons'/run_script_snre_b.py 1 2 19 10 0\n",
@@ -65485,7 +65485,7 @@ window.experiment_data = {
     {
       "id": "3_5.sh",
       "filename": "data/UKPLab/naacl2019-like-humans-visual-attacks/code/G2P/allvsall_odd/3_5.sh",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 7.115822076797485,
       "step_count": 3,
       "slurm": "#!/bin/bash\n \n#SBATCH -J Act_tanh_1\n#SBATCH --mail-user=eger@ukp.informatik.tu-darmstadt.de\n#SBATCH --mail-type=FAIL\n#SBATCH -e /work/scratch/se55gyhe/log/output.err.%j\n#SBATCH -o /work/scratch/se55gyhe/log/output.out.%j\n\n#SBATCH -n 1 # Number of cores\n#SBATCH --mem-per-cpu=6000\n#SBATCH -t 23:59:00 # Hours, minutes and seconds, or '#SBATCH -t 10' -only mins\n#module load intel python/3.5\n\npython3 /home/se55gyhe/Act_func/sequence_tagging/arg_min/G2P-my_LSTM-act1_save_new_odd.py tanh 50 Adamax 1 0.32873413360732373 0.002314007172161447 orth 1.0 efile.norm.3_5 odd_G2P_3_5/\n",
@@ -65869,7 +65869,7 @@ window.experiment_data = {
     {
       "id": "ACE.job",
       "filename": "data/Yasir-Ghunaim/RealtimeOCL/experiments/CIFAR100/fast_stream/ACE.job",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 8.098900556564331,
       "step_count": 3,
       "slurm": "#!/bin/bash --login\n#SBATCH -N 1\n#SBATCH --partition=batch\n#SBATCH -J ACE\n#SBATCH -o /path/to/output.%J.out\n#SBATCH -e /path/to/error.%J.err\n#SBATCH --time=1:00:00\n#SBATCH --mem=200G\n#SBATCH --ntasks=1\n#SBATCH --gres=gpu\n#SBATCH --cpus-per-task=6\n\n\n# activate the conda environment\nmodule purge\nmodule load gcc/11.1.0\nconda activate realtime_ocl\n\n# run the application:\ncd ../../..\npython main.py \\\n--dataset 'cifar100' \\\n--batch_size 10 \\\n--lr 0.001 \\\n--lr_type 'constant' \\\n--batch_delay 0 \\\n--gradient_steps 1 \\\n--output_dir '/path/to/tensorboard/output' \\\n--workers 4 \\\n--method 'ACE' \\\n--seed 123 \\\n--size_replay_buffer 100",
@@ -66541,7 +66541,7 @@ window.experiment_data = {
     {
       "id": "process_train_lda_data.lsf",
       "filename": "data/airoldilab/HPC_model/mmm_process_code/fold_setup/process_train_lda_data.lsf",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 19.564845323562622,
       "step_count": 3,
       "slurm": "#!/bin/bash\n\n# DO NOT CHANGE THE QUEUE! YOU **MUST** ONLY USE THE QUEUE: short_serial\n#BSUB -q airoldi\n\n# EDIT THE EMAIL-ADDRESS BELOW TO YOUR FAS EMAIL:\n#BSUB -u jbischof@fas.harvard.edu\n\n# THE JOB ARRAY:\n#BSUB -J \"process_reuters_lda_data_train[1-10]\"\n\n# THE COMMAND TO GIVE TO R, CHANGE TO THE APPROPRIATE FILENAME:\npartition=train\ncutoff=500\nmain_dir=/n/airoldifs2/lab/jbischof/reuters_output/mmm_folds/fold${LSB_JOBINDEX}/\nout_dir=${main_dir}mmm_raw_data/parsed_${partition}_data${cutoff}/\n\n# Create partition directory if doesn't already exist\nif [ ! -d $out_dir ]\nthen\n   mkdir $out_dir\nfi\n\n# Run python script\npython ../process_parse_lda_data.py $partition $cutoff $main_dir",
@@ -66733,7 +66733,7 @@ window.experiment_data = {
     {
       "id": "submit_gamsjob.sh",
       "filename": "data/alherm7/TSO-DSO_coordination/matlab_code/submit_gamsjob.sh",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 47.226152181625366,
       "step_count": 3,
       "slurm": "#!/bin/sh\n#BSUB -J PCC_optimzer\n#BSUB -q elektro\n#BSUB -n 1\n#BSUB -R \"rusage[mem=2GB]\"\n#BSUB -M 10GB\n#BSUB -W 20:00\n#BSUB -u alherm@dtu.dk\n#BSUB -B\n#BSUB -N\n#BSUB -o output_alex_run1.out\n#BSUB -e error_alex_run1.err\n#BSUB -R \"span[hosts=1]\"\n\nmodule load cvx\nmodule load mosek/9.2\n##module load gurobi/8.1.1\n\nmatlab -nodisplay -r RUN_PCC_optim -logfile PCC_optim_logfile_output\n\n\n##BSUB -m \"n-62-21-94\"\n",
@@ -66829,7 +66829,7 @@ window.experiment_data = {
     {
       "id": "Template.sh",
       "filename": "data/alintulu/FHead2011PhysicsProject/HI2018HLT/JetTriggers/17712_PFJetTurnOnNewTracking/Template.sh",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 7.393835783004761,
       "step_count": 3,
       "slurm": "#!/bin/sh --login\n\n#BSUB -q 1nd\n\nWorkDir=__WORKDIR__\nSampleType=__SAMPLETYPE__\nID=__ID__\n\nexport SCRAM_ARCH=slc6_amd64_gcc630\ncd /afs/cern.ch/work/c/chenyi/CMSSW/CMSSW_10_3_0/src/\neval `scramv1 runtime -sh`\ncd - > /dev/null\n\nexport X509_USER_PROXY=$PhysicsWorkspace/HI2018HLT/CommonCode/proxy/x509up_proxy\necho $X509_USER_PROXY\n\nTemplate=$WorkDir/ExportedMenuPFNewTrackingV4.py\n\nFileList=`echo \"__INPUT__\" | tr '@' ' ' | sed \"s/[ ,]*$//\"`\n\necho \"List of files = $FileList\"\necho \"ID = $ID\"\necho \"Sample = $SampleType\"\n\ncat $Template \\\n   | sed \"s#__FILE__#$FileList#g\" \\\n   > RunJob.py\ncat RunJob.py | bzip2 > $WorkDir/Result/RunJob_${SampleType}_${ID}.py.bz2\n\ncp $WorkDir/setup_dev_CMSSW_10_3_0_HLT_cff.py .\n\ncp -r $WorkDir/Sample* .\n\nmkdir -p $WorkDir/Result/\n\ncmsRun RunJob.py >& Log_${ID}\nbzip2 Log_${ID}\nmv Log_${ID}.bz2 $WorkDir/Result/Log_${SampleType}_${ID}.bz2\nmv openHLT.root $WorkDir/Result/openHLT_${SampleType}_${ID}.root\n\n",
@@ -67021,7 +67021,7 @@ window.experiment_data = {
     {
       "id": "Slurm_15.sh",
       "filename": "data/arabporr/HyperNetwork/scripts/Slurm_15.sh",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 53.015735387802124,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#SBATCH --job-name=HN_15\n#SBATCH --qos=normal\n#SBATCH -c 6\n#SBATCH --mem=20G\n#SBATCH --gres=gpu:a40:1\n#SBATCH --time=13:59:00\n#SBATCH --output=HN_15/slurm-%j.out\n#SBATCH --error=HN_15/slurm-%j.err\n\n# Environment Setup\nmodule purge\nmodule load python/3.12.0\npip3 install --upgrade pip\npip3 install -U -q pandas numpy tensorflow cuda-python torch torchvision seaborn plotly matplotlib ipywidgets tqdm\n\n# Run Experiments\npython3 main.py --data_index 15\n",
@@ -67825,7 +67825,7 @@ window.experiment_data = {
     {
       "id": "run.sh",
       "filename": "data/boulderrinnlab/CLASS_2022/class_exeRcises/analysis/18_running_RNAseq_NF_CORE/preclass_NF_core_RUN/run.sh",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 55.33609747886658,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#SBATCH -p long\n#SBATCH --job-name=HEPG2_rna_seq\n#SBATCH --mail-type=END,FAIL\n#SBATCH --mail-user=john.rinn@colorado.edu\n#SBATCH --nodes=1\n#SBATCH --ntasks=1\n#SBATCH --mem=6gb\n#SBATCH --time=20:00:00\n#SBATCH --output=nextflow.out\n#SBATCH --error=nextflow.err\n\npwd; hostname; date\necho \"Here we go You've requested $SLURM_CPUS_ON_NODE core.\"\n\nmodule load singularity/3.1.1\n\nnextflow run nf-core/rnaseq -r 1.4.2 \\\n-resume \\\n-profile singularity \\\n--reads '/scratch/Shares/rinnclass/CLASS_2022/JR/CLASS_2022/class_exeRcises/analysis/17_API_RNASEQ/fastq/*{_read1,_read2}.fastq.gz' \\\n--fasta /scratch/Shares/rinnclass/CLASS_2022/data/genomes/GRCh38.p13.genome.fa \\\n--gtf /scratch/Shares/rinnclass/CLASS_2022/data/gencode.v32.annotation.gtf \\\n--pseudo_aligner salmon \\\n--gencode \\\n--email john.rinn@colorado.edu \\\n-c nextflow.config\n\ndate\n",
@@ -68593,7 +68593,7 @@ window.experiment_data = {
     {
       "id": "submit.cuda",
       "filename": "data/chunyulin/hpc_snippet/vasp/v6/gcc_mkl/submit.cuda",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 47.28069543838501,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#SBATCH --nodes=1 --ntasks-per-node=2 --cpus-per-task=4\n#SBATCH --gres=gpu:2\n \nmodule purge\nmodule load gnu7/7.3.0\nmodule load nvidia/cuda/10.1\nsource /home/p00lcy01/local/gcc7/openmpi-4.0.4/env.sh\n\nsrun --cpu_bind=v /home/p00lcy01/VASP/b_gcc_mkl/bin/vasp_gpu\necho \"== Wall time: ${SECONDS} secs\"\n",
@@ -69265,7 +69265,7 @@ window.experiment_data = {
     {
       "id": "LSTM.sh",
       "filename": "data/ekinakyurek/lexical/exp/COGS/LSTM.sh",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 47.77247667312622,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#SBATCH --job-name=lstmcogs\n#SBATCH --time=48:00:00\n#SBATCH --cpus-per-task=5\n#SBATCH --ntasks-per-node=1\n#SBATCH --nodes=1\n#SBATCH --qos=high\n#SBATCH --constrain=xeon-g6\n#SBATCH --gres=gpu:volta:1\n#SBATCH --array=0-9\n\nlr=1.0\nwarmup_steps=4000\nmax_steps=8000\nexpname=LSTM\nmkdir -p $expname\ncd $expname\nhome=\"../../../\"\nfor i in `seq 0 9`\ndo\nif [[ $i -eq $SLURM_ARRAY_TASK_ID ]]; then\n    python -u  $home/main.py \\\n    --seed $i \\\n    --n_batch 128 \\\n    --n_layers 2 \\\n    --dim 512 \\\n    --lr ${lr} \\\n    --temp 1.0 \\\n    --dropout 0.4 \\\n    --beam_size 5 \\\n    --gclip 5.0 \\\n    --accum_count 4 \\\n    --valid_steps 500 \\\n    --warmup_steps ${warmup_steps} \\\n    --max_step ${max_steps} \\\n    --tolarance 10 \\\n    --tb_dir ${expname} \\\n    --COGS > eval.$i.out 2> eval.$i.err\nfi\ndone\n",
@@ -69553,7 +69553,7 @@ window.experiment_data = {
     {
       "id": "play_bmsb.pbs",
       "filename": "data/eshook/Forest/play_bmsb.pbs",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 36.56447911262512,
       "step_count": 3,
       "slurm": "#!/bin/bash -l\n#PBS -l walltime=00:10:00,nodes=1:ppn=24:gpus=2,mem=125gb\n#PBS -m abe\n#PBS -M bures024@umn.edu\n\ncd ~/Forest\nmodule load python2\nsource activate installs\nmodule load cuda/9.0\npython play_bmsb.py\n",
@@ -69649,7 +69649,7 @@ window.experiment_data = {
     {
       "id": "run-profile.sh",
       "filename": "data/exalearn/design-tutorial/mpnn/profile-horovod/run-profile.sh",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 8.68274450302124,
       "step_count": 3,
       "slurm": "#! /bin/bash\n#COBALT -A CSC249ADCD08 --attrs enable_ssh=1\n\n# Load up the Python environment\nmodule load miniconda-3/latest\nsource activate /lus/theta-fs0/projects/CSC249ADCD08/design/graph_sage/env\nexport PYTHONPATH=\"\"  ## Get rid of the  default path from the modules\n\n# Read the number of nodes and ranks per node\nnodes=$1\nranks_per_node=$2\nthreads_per_core=$3\ntotal_ranks=$((nodes * ranks_per_node))\nthreads_per_rank=$(((64 * threads_per_core) / ranks_per_node))\n\n# Set config and run\n#  - Turning off XLA to see if that gives more threads. No effect\n#  - Adding prefetching\nexport KMP_BLOCKTIME=0\nexport KMP_AFFINITY=\"granularity=fine,compact,1,0\"\nexport MPICH_GNI_FORK_MODE=FULLCOPY\nexport OMP_NUM_THREADS=$threads_per_rank\n\naprun -n $total_ranks -N $ranks_per_node -d $OMP_NUM_THREADS -j $threads_per_core --cc depth python profile_train.py ${@:4}\n",
@@ -70477,7 +70477,7 @@ window.experiment_data = {
     {
       "id": "run_monolayer.sh",
       "filename": "data/grovert4/CQIQC-Research/Final_Files/run_monolayer.sh",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 7.092024087905884,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#SBATCH --mail-user=tanmay.grover@mail.utoronto.ca  \n#SBATCH --mail-type=ALL\n#SBATCH --mail-type=BEGIN\n#SBATCH --mail-type=END\n#SBATCH --mail-type=FAIL\n#SBATCH --ntasks=200\n#SBATCH --cpus-per-task=1 \n#SBATCH --account=def-aparamek\n#SBATCH --time=8:00:00\n#SBATCH --mem-per-cpu=4000MB\n#SBATCH --output=/scratch/grovert4/SLURM/slurm-%x-%j.txt\nmodule load StdEnv/2020\nmodule load julia/1.8.5\n\nsrun julia SkX_MonoLayer_Run.jl inputParametersMonoLayer\n",
@@ -70765,7 +70765,7 @@ window.experiment_data = {
     {
       "id": "gromacs_gpurun.sbatch",
       "filename": "data/hariseldon99/buparamshavak/shavak_root/usr/local/share/examples/gromacs_examples/gromacs_gpurun.sbatch",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 30.135496139526367,
       "step_count": 3,
       "slurm": "#!/bin/bash\n\n#SBATCH --job-name=gromacstest\n#This sets the name of the job\n\n#SBATCH --partition=GPU\n#This sets the partition to the GPU partition. Important for GPU jobs\n\n#SBATCH --gres=gpu:1\n#This allocates 1 GPU as a Global Resource (gres). Important for GPU jobs\n\n#SBATCH --ntasks=10\n#This sets the number of processes to 10.\n\n#SBATCH --cpus-per-task=1\n#This allocates the number of cpus per tasks. \n\n#SBATCH --time=01:00:00 \n#This allocates the walltime to 60 minutes. The program will not run for longer.\n\nexport GMX_IMGDIR=${SIFDIR}/gromacs/\nexport GMX_IMG=gromacs-2022.3_20230206.sif\nexport TOPOL_FILE=topol.tpr\n\nsingularity run --nv -B ${PWD}:/host_pwd --pwd /host_pwd  $GMX_IMGDIR/$GMX_IMG gmx mdrun -ntmpi 1 -nb gpu -pin on -v -noconfout -nsteps 5000 -ntomp ${SLURM_NTASKS} -s $TOPOL_FILE\n#DO NOT USE 'srun' as it launches multiple independent jobs\n",
@@ -70957,7 +70957,7 @@ window.experiment_data = {
     {
       "id": "qsub.sh",
       "filename": "data/hhlim12/GPU-benchmarks/scripts/lammps-nequip/qsub.sh",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 36.55277132987976,
       "step_count": 3,
       "slurm": "#!/bin/sh\n#PBS -q i1accs\n#PBS -l select=1:ncpus=64:mpiprocs=1:ompthreads=1\n#PBS -l walltime=00:15:00\n#PBS -N GCNLMP\n##PBS -I\n\nmodule purge\nmodule load openmpi_nvhpc/4.1.2\nmodule load nvhpc-nompi/22.2_cuda11.6\n\nsource ~/miniconda3/etc/profile.d/conda.sh\nconda activate nequip_GPU2\n\nexport CUDA_VISIBLE_DEVICES=\"0\"\n\n./lmp -in input.data\n",
@@ -71053,7 +71053,7 @@ window.experiment_data = {
     {
       "id": "namd_abf.sh",
       "filename": "data/hpc2n/course-md/4.ABF/namd_abf.sh",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 24.805594205856323,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#SBATCH -A *FIXME*\n#Asking for 40 min.\n#SBATCH -t 00:40:00\n#Number of nodes\n#SBATCH -N 1\n#Ask for processes\n#SBATCH -n 28\n#SBATCH --gres=gpu:k80:2\n#SBATCH --exclusive\n\nml purge > /dev/null 2>&1\nml GCC/9.3.0  CUDA/11.0.2  OpenMPI/4.0.3\nml NAMD/2.14-nompi \nnamd2 +p28 abf.inp > output_abf.dat\n\n#MPI version\n#ml GCC/10.3.0  OpenMPI/4.1.1\n#ml NAMD/2.14-mpi \n#mpirun -np 28 namd2 abf.inp > output_abf.dat\n",
@@ -71533,7 +71533,7 @@ window.experiment_data = {
     {
       "id": "bluewaters_select.sh",
       "filename": "data/iraikov/neuroh5/jobscripts/bluewaters_select.sh",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 31.055833339691162,
       "step_count": 3,
       "slurm": "#!/bin/bash\n### set the number of nodes and the number of PEs per node\n#PBS -l nodes=64:ppn=16:xe\n### which queue/account to use\n#PBS -q high\n### set the wallclock time\n#PBS -l walltime=1:00:00\n### set the job name\n#PBS -N select_neurotrees\n### set the job stdout and stderr\n#PBS -e ./results/neurotrees_select.$PBS_JOBID.err\n#PBS -o ./results/neurotrees_select.$PBS_JOBID.out\n### set email notification\n##PBS -m bea\n### Set umask so users in my group can read job stdout and stderr files\n#PBS -W umask=0027\n\nmodule swap PrgEnv-cray PrgEnv-gnu\nmodule load cray-hdf5-parallel\n\nset -x\n\ncd $PBS_O_WORKDIR\n\naprun -n 1024 ./build/neurotrees_select -p GC -i 256 --reindex \\\n      --cachesize=$((4 * 1024 * 1024)) \\\n      /projects/sciteam/baef/Full_Scale_Control/DGC_forest_extended_20171019_compressed.h5 \\\n      /projects/sciteam/baef/Full_Scale_Control/DGC_forest_reindex_20170615.dat \\\n      /projects/sciteam/baef/Full_Scale_Control/DGC_forest_20171019.h5 \n\n\n\n\n",
@@ -71821,7 +71821,7 @@ window.experiment_data = {
     {
       "id": "submit16.slr",
       "filename": "data/jdppthk/DDP_UNet/submit16.slr",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 6.693496942520142,
       "step_count": 3,
       "slurm": "#!/bin/bash -l\n#SBATCH --nodes=2  --time=04:00:00  \n#SBATCH -C gpu \n#SBATCH --account m1759\n#SBATCH --gres=gpu:8\n#SBATCH --exclusive\n#SBATCH -c 80\n\nmodule load pytorch/v1.4.0-gpu\nmodule list\nexport HDF5_USE_FILE_LOCKING=FALSE\n\nnodes=$(scontrol show hostnames $SLURM_JOB_NODELIST) # Getting the node names\nnodes_array=( $nodes )\nworker_num=$(($SLURM_JOB_NUM_NODES - 1))\n\nmaster_node=${nodes_array[0]}\n\nfor ((  i=0; i<=$worker_num; i++ ))\ndo\n  node_i=${nodes_array[$i]}\n  srun --nodes=1 --ntasks=1 -w $node_i python -m torch.distributed.launch --nproc_per_node=8 --nnodes=8 --node_rank=$i --master_addr=$master_node train.py --run_num=13 &\n  pids[${i}]=$!\n  echo \"Training started on node $i\"\ndone\n\n# Wait for completion\nfor pid in ${pids[*]}; do\n    wait $pid\ndone\n\ndate\n\n",
@@ -71917,7 +71917,7 @@ window.experiment_data = {
     {
       "id": "job_singularity.sh",
       "filename": "data/jhgille2/rna_seq_pipeline_template/job_singularity.sh",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 6.8360676765441895,
       "step_count": 3,
       "slurm": "#!/bin/bash\n\n# Submit the pipeline as a job with srun job.sh\n\n# Modified from https://github.com/mschubert/clustermq/blob/master/inst/LSF.tmpl\n# under the Apache 2.0 license:\n#SBATCH --job-name=soy_test_alignment\n#SBATCH --output=/dev/null\n#SBATCH --error=/dev/null\n#SBATCH --mem-per-cpu=3000\n#SBATCH --cpus-per-task=1\n#SBATCH -N 1\n#SBATCH -n 72\n#SBATCH --exclusive\n#SBATCH -t 12:00:00\n#SBATCH --mail-user=jhgille2@ncsu.edu\n#SBATCH --mail-type=BEGIN,END,FAIL\n\nmodule load singularity\nsingularity exec conda.sif R CMD BATCH run.R\n\n# Removing .RData is recommended.\n# rm -f .RData\n",
@@ -72013,7 +72013,7 @@ window.experiment_data = {
     {
       "id": "cluster_queue.sh",
       "filename": "data/jmlingeman/Network-Inference-Workspace/config/templates/cluster_queue.sh",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 6.69001317024231,
       "step_count": 3,
       "slurm": "#!/bin/bash\n\n#PBS -l nodes={{cluster_nodes}}:ppn={{cluster_procs}},walltime=5:00:00\n#PBS -N {{cluster_expname}}\n#PBS -e localhost:$PBS_O_WORKDIR/${PBS_JOBNAME}.e${PBS_JOBID}\n#PBS -o localhost:$PBS_O_WORKDIR/${PBS_JOBNAME}.o${PBS_JOBID}\n\nQSUB_PRIORITY={{cluster_priority}}\n\nQSUB_CMD=\"-v {{cluster_prog_script}}\"\necho \"Sending the following command to QSUB: $QSUB_CMD\"\n\n#$QSUB_CMD\nqsub $QSUB_CMD\n\n",
@@ -72589,7 +72589,7 @@ window.experiment_data = {
     {
       "id": "jobscript.sh",
       "filename": "data/kristian-267/MLOps-for-Image-Classification/jobscript.sh",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 7.628735303878784,
       "step_count": 3,
       "slurm": " #!/bin/sh\n #BSUB -q gpua100\n #BSUB -gpu \"num=2\"\n #BSUB -J Train ResNeSt\n #BSUB -n 1\n #BSUB -W 24:00\n #BSUB -R \"rusage[mem=32GB]\"\n #BSUB -o logs/%J.out\n #BSUB -e logs/%J.err\n\n module load python3/3.7.10\n module load cuda/11.5\n module load cudnn\n module load ffmpeg\n\n pip3 install torch==1.9.1+cu111 torchvision==0.10.1+cu111 torchaudio==0.9.1 -f https://download.pytorch.org/whl/torch_stable.html\n\n echo \"Running script...\"\n make train\n",
@@ -73165,7 +73165,7 @@ window.experiment_data = {
     {
       "id": "maqsub1.pbs",
       "filename": "data/lnsmith54/hyperParam1/Imagenet/resnet/maqsub1.pbs",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 6.697540521621704,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#PBS -l walltime=72:00:00\n#PBS -l select=1:ncpus=24:mpiprocs=24:ngpus=4:powerai=on\n#PBS -l place=scatter:excl\n#PBS -N ResImOrig2\n#PBS -j oe\n#PBS -V\n#PBS -q standard\n#PBS -A MHPCC96650NRL\n\nexit\n\n. /usr/share/Modules/init/sh\nmodule load glog/0.3.3\nmodule load gflags/2.2.0\n\nexport LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/gpfs/pkgs/mhpcc/protobuf/lib:/gpfs/pkgs/mhpcc/boost/lib:/gpfs/pkgs/mhpcc/lmdb/lib:/gpfs/pkgs/mhpcc/leveldb/lib:/gpfs/pkgs/mhpcc/opencv-3.4.0/lib64\n\ncd /gpfs/scratch/lnsmith/deepLearning/caffe/9-11-17/\n\n./examples/bk_imagenet/queues/resnet/atrain1.sh\n\nqsub ./examples/bk_imagenet/queues/resnet/aqsub1.pbs\n\nexit\n#module use $PROJECTS_HOME/datools/modulefiles\n#module load anaconda/2\n#module load caffe/5.0\n#module list\n\n#cd /gpfs/scratch/lnsmith/deepLearning/fewTrainingData/imagenet\n\n#./examples/bk_imagenet/train.sh\n\n",
@@ -73261,7 +73261,7 @@ window.experiment_data = {
     {
       "id": "run_ciirc.sh",
       "filename": "data/lucivpav/InLocCIIRC_demo/run_ciirc.sh",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 7.07033896446228,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#SBATCH --job-name=InLocCIIRC_demo\n#SBATCH --nodes=1\n#SBATCH --partition gpu\n#SBATCH --output=InLocCIIRC_demo.log\n#SBATCH --cpus-per-task=8\n#SBATCH --gres=gpu:1\n#SBATCH --mem=16G\n#SBATCH --mail-type=END,FAIL\n#SBATCH --time=1-00:00:00\nmodule load MATLAB/2018a\nmodule load SuiteSparse/5.1.2-foss-2018b-METIS-5.1.0\nnvidia-smi\nexport LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/lucivpav/gflags-2.2.2/build/lib:/home/lucivpav/InLoc_demo/functions/vlfeat/toolbox/mex/mexa64\ncat startup.m inloc_demo.m | matlab -nodesktop\n",
@@ -73453,7 +73453,7 @@ window.experiment_data = {
     {
       "id": "train_on_slurm.sh",
       "filename": "data/mabounassif/ift6759-t6-p1/train_on_slurm.sh",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 22.714904308319092,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#SBATCH --time=12:00:00\n#SBATCH --gres=gpu:k20:0\n#SBATCH --cpus-per-task=1\n#SBATCH --mem=4G\n#SBATCH -o ./results/slurm-%A_%a.out # STDOUT\n\nmodule load imkl/2018.3.222\nmodule load openmpi/3.1.2\nmodule load cuda/10.0.130\nmodule load python/3.7\nsource /project/cq-training-1/project1/teams/team06/ift6759-env/bin/activate\nexport LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/cvmfs/soft.computecanada.ca/easybuild/software/2017/avx2/Compiler/intel2016.4/cuda/10.0.130/extras/CUPTI/lib64\npython evaluator.py predictions.txt data/admin_cfg.json -u data/user_cfg.json",
@@ -73645,7 +73645,7 @@ window.experiment_data = {
     {
       "id": "train_siamese",
       "filename": "data/marcps8/MCV-C5-G1/Week3/train_siamese",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 7.007075071334839,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#SBATCH -n 4 # Number of cores\n#SBATCH --mem 2000 # 2GB solicitados.\n#SBATCH -p mlow,mlow # or mlow Partition to submit to master low prioriy queue\n#SBATCH --gres gpu:1 # Para pedir Pascales MAX 8\n#SBATCH -o logs/%x_%u_%j.out # File to which STDOUT will be written\n#SBATCH -e logs/%x_%u_%j.err # File to which STDERR will be written\npython metric_learning.py --arch-type siamese --epochs 200 --process eval",
@@ -74125,7 +74125,7 @@ window.experiment_data = {
     {
       "id": "run_on_hpc_ocelote.sh",
       "filename": "data/mithunpaul08/bert_tensorflow/run_on_hpc_ocelote.sh",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 43.780540466308594,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#PBS -q windfall\n#PBS -l select=1:ncpus=28:mem=168gb:pcmem=6gb:ngpus=1:os7=True\n#PBS -W group_list=msurdeanu\n#PBS -l walltime=48:00:00\n#PBS -j oe\n\n\ncd /xdisk/msurdeanu/mithunpaul/\nmodule load cuda90/neuralnet/7/7.3.1.20\nmodule load python/3.6/3.6.5\n\n#uncomment this if you don't want to reinstall venv- usually you just have to do this only once ever\nrm -rf sandeep_bert_venv\nmkdir sandeep_bert_venv\npython3 -m venv sandeep_bert_venv\n\n#this is the only line you need if you already have a virtual_env set up\nsource sandeep_bert_venv/bin/activate\n\ncd /xdisk/msurdeanu/mithunpaul/bert_tensorflow\n\npip install --upgrade pip\n#pip install torch==1.5.0+cu92 torchvision==0.6.0+cu92 -f https://download.pytorch.org/whl/torch_stable.html\npip install -r requirements.txt\n\n\n\n\n#####my code part\nexport PYTHONPATH=\"/home/u11/mithunpaul/sandeep_bert/\"\n\n\n\n\n\nbash run_sandeep_code.sh",
@@ -74317,7 +74317,7 @@ window.experiment_data = {
     {
       "id": "run.sh",
       "filename": "data/mrcoliva/bark-ml/utils/cluster/run.sh",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 6.330793857574463,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#SBATCH --qos lowprio\n#SBATCH -c 4\n##SBATCH --gres=gpu:1\n#SBATCH --mem=10GB\n\nsrun singularity exec --nv ../images/bark_ml.img python3 -u ./configuration ",
@@ -74641,7 +74641,7 @@ window.experiment_data = {
     {
       "id": "driver.sbatch",
       "filename": "data/ndefilippis/JuliaRaytracingSW/simulation/driver.sbatch",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 8.02294373512268,
       "step_count": 3,
       "slurm": "#!/bin/bash\n\n#SBATCH --nodes=1\n#SBATCH --ntasks-per-node=1\n#SBATCH --cpus-per-task=1\n#SBATCH --gres=gpu:1\n#SBATCH --mem=40GB\n#SBATCH --time=12:00:00\n#SBATCH --job-name=2Lsim\n\nmodule purge\n\nexport NUM_JULIA_THREADS=`nproc`\n\nrundir=$SCRATCH/twolayer_simulation/$SLURM_JOB_ID\nmkdir -p $rundir\ncp TwoLayerSimulation.jl Driver.jl driver.sbatch $rundir\ncp Parameters.jl $rundir/Parameters.jl\ncd $rundir\n\njulia -t $SLURM_CPUS_PER_TASK Driver.jl > run.log\n\nexit\n",
@@ -75409,7 +75409,7 @@ window.experiment_data = {
     {
       "id": "run_benchmark_snellius.sh",
       "filename": "data/oriolcg/PerforatedCylinder.jl/analysis/run_benchmark_snellius.sh",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 8.065329313278198,
       "step_count": 3,
       "slurm": "#!/bin/sh\n#\n#SBATCH --job-name=\"perf_cylinder\"\n#SBATCH --partition=thin\n#SBATCH --time=2-00:00:00\n#SBATCH -n ${NP}\n#SBATCH -o stdout-benchmark/slurm-%j-%4t-%n.out\n#SBATCH -e stdout-benchmark/slurm-%j-%4t-%n.err\n\nsource ../compile/modules_snellius.sh\nexport CASE_ID=1\necho \"Starting case: $CASE_ID\"\nmpiexecjl --project=../ -n $1 julia -J ../PerforatedCylinder_parallel.so -O3 --check-bounds=no -e 'include(\"run_case_benchmark.jl\")'\n",
@@ -75601,7 +75601,7 @@ window.experiment_data = {
     {
       "id": "04_call_distribution_plots.sh",
       "filename": "data/pfiorica/PDX_RRBS_Processing/Code/04_call_distribution_plots.sh",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 42.946568965911865,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#SBATCH --partition=general-compute --qos=general-compute\n#SBATCH --time=12:00:00\n#SBATCH --job-name=Distribution_plots\n#SBATCH --nodes=1\n#SBATCH --ntasks-per-node=4\n#SBATCH --mem=32000\n##SBATCH --requeue\n#SBATCH --output=logs_bismark/%x.%j.out\n#SBATCH --error=logs_bismark/%x.%j.err\n\n#module load gcc\nmodule load R/3.5.1\n\ncd /projects/rpci/joyceohm/pnfioric/PDX_RRBS_Processing/Code\nRscript 04_distribution_plots_for_samples.R\n",
@@ -75889,7 +75889,7 @@ window.experiment_data = {
     {
       "id": "nott_STR_MLP.q",
       "filename": "data/qxcv/structuredinference/expt-polyphonic/hpc_uas1/nott_STR_MLP.q",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 6.678605556488037,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#PBS -l nodes=1:ppn=2:gpus=1:k80\n#PBS -l walltime=24:00:00\n#PBS -l mem=16GB\n#PBS -N nott-STR-MLP \n#PBS -M rahul@cs.nyu.edu\n#PBS -j oe\n\nmodule purge\nmodule load node\nmodule load cmake\nmodule load python/intel/2.7.6\nmodule load numpy/intel/1.9.2\nmodule load hdf5/intel/1.8.12\nmodule load cuda/7.5.18\nmodule load cudnn/7.0\n\nRUNDIR=$SCRATCH/structuredinference/expt-polyphonic\ncd $RUNDIR\nTHEANO_FLAGS=\"lib.cnmem=1.,scan.allow_gc=False,compiledir_format=gpu0\" python2.7 train_dkf.py -vm R -infm structured -ttype mlp -dset nottingham-sorted\n",
@@ -76153,7 +76153,7 @@ window.experiment_data = {
     {
       "id": "setup_env.sh",
       "filename": "data/rishabhxpandey/cs490dsc/setup_env.sh",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 6.871013879776001,
       "step_count": 3,
       "slurm": "#!/bin/bash\n# FILENAME: job.sh\n#SBATCH --output=myjob.out\n#SBATCH --nodes=1\n#SBATCH --gres=gpu:1\n#SBATCH --cpus-per-task=4\n#SBATCH --time=04:00:00\n#SBATCH --job-name cifar-resnet\n\nmodule load anaconda\nmodule load use.own\nconda env remove --name d22env\nconda create --name d22env python=3.11 jupyter pytorch torchvision matplotlib pandas -y\nsource activate d22env\nconda info --envs\necho -e \"module loaded\"\n\n\n\n",
@@ -76513,7 +76513,7 @@ window.experiment_data = {
     {
       "id": "1n1cpy.slurm.sh",
       "filename": "data/shajidmd/HPC-Instagram-Geoprocessing/1n1cpy.slurm.sh",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 7.177790880203247,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#SBATCH --partition=physical\n#SBATCH --time=0-0:10:00\n#SBATCH --nodes=1\n#SBATCH --ntasks=1\n\n# Load required modules\nmodule load Python/3.5.2-goolf-2015a\n\n# Execute Python Job on 1 node and 1 core\necho \"Cluster and Cloud Computing Assignment1 using 1 node and 1 core\"\ntime mpiexec python3 HPCInstagramGeoProcessingUsingMPI.py melbGrid.json bigInstagram.json\n\n",
@@ -76705,7 +76705,7 @@ window.experiment_data = {
     {
       "id": "s_classify_major_tracts_110411.pbs",
       "filename": "data/soichih/pestillilab_projects/precision_brain_science/s_classify_major_tracts_110411.pbs",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 6.924309730529785,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#PBS -l nodes=1:ppn=16\n#PBS -l walltime=48:00:00\n#PBS -m ae\n#PBS -M franpest@indiana.edu\n#PBS -N 110411_CLASS_all_runs\n#PBS -V\n#PBS -o  /N/dc2/projects/lifebid/code/pestillilab_projects/precision_brain_science/s_classify_110411.out\n#PBS -e  /N/dc2/projects/lifebid/code/pestillilab_projects/precision_brain_science/s_classify_110411.err\n\nmodule load spm\nmodule load matlab\ncd /N/dc2/projects/lifebid/code/pestillilab_projects/precision_brain_science/\n\nmatlab -nojvm -nosplash -r s_classify_major_tracts_from_fe_structure_110411\n\n",
@@ -76801,7 +76801,7 @@ window.experiment_data = {
     {
       "id": "run.slurm",
       "filename": "data/ss555/drqv2/other/run.slurm",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 26.137526988983154,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#SBATCH -A yqs@v100\n#SBATCH --job-name=TravailGPU # nom du job\n#SBATCH -C v100-32g # reserver des GPU 16 Go seulement\n#SBATCH --qos=qos_gpu-t3 # QoS\n#SBATCH --output=TravailGPU%j.out # fichier de sortie (%j = job ID)\n#SBATCH --error=TravailGPU%j.err # fichier d\u2019erreur (%j = job ID)\n#SBATCH --nodes=1 # reserver 1 n\u0153ud\n#SBATCH --ntasks=1 # reserver 4 taches (ou processus MPI)\n#SBATCH --gres=gpu:1 # reserver 4 GPU\n##SBATCH --partition=gpu_p4\n##SBATCH --cpus-per-task=6 #server 10 CPU par tache (et memoire associee)\n#SBATCH --cpus-per-task=10 #server 10 CPU par tache (et memoire associee)\n#SBATCH --hint=nomultithread # desactiver l\u2019hyperthreading\n#SBATCH --time=20:00:00\n\nmodule purge # nettoyer les modules herites par defaut\nmodule load pytorch-gpu/py3/1.10.1 # charger les modules\nsrun python -u train_gym.py #OVERRIDE IN CONFIG\n#srun python -u train_dm_custom.py #upright # executer son script\n",
@@ -76897,7 +76897,7 @@ window.experiment_data = {
     {
       "id": "sbatch_run.sh",
       "filename": "data/starga2er777/CS405_Project_SUSTech/pytorch_unet/sbatch_run.sh",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 6.939864158630371,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#SBATCH -o job.%j.out          \n#SBATCH --partition=gpulab02\n#SBATCH --qos=gpulab02\n#SBATCH -J myFirstGPUJob\n#SBATCH --nodes=1\n#SBATCH --ntasks-per-node=6\n#SBATCH --gres=gpu:1\n#SBATCH --job-name=Unet\n\nnvidia-smi\n\npython3 script_train.py --datadir ../datasets/cityscapes --batch_size 4 --num_gpu 1 --losstype segment\n# python deeplabv2_resnet101_cityscapes/test_cuda.py\n",
@@ -77185,7 +77185,7 @@ window.experiment_data = {
     {
       "id": "aqua.sh",
       "filename": "data/theleokul/tieof/script/ki_cluster/hooi/es/3n/thresh2/aqua.sh",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 6.620943069458008,
       "step_count": 3,
       "slurm": "#! /bin/bash\n#SBATCH -D /s/ls4/users/leokul01/dineof3/script\n#SBATCH --ntasks 1\n#SBATCH --cpus-per-task 48\n#SBATCH -o %j.out\n#SBATCH -e %j.err\n#SBATCH -t 02-23:59:59\n#SBATCH -p hpc4-3d\n\nmodule load openmpi intel-compilers\nexport OPENBLAS_NUM_THREADS=2\n\n\n### es - 3n - no thresh\n$MPIRUN python main3_mp.py -c config/main3_default_ki_cluster.yml \\\n    --satellite-descriptor '../test/satellite_descriptor_ki_cluster_w3nt2.csv' \\\n    -S aqua \\\n    --logs ../test/reconstruction_logs/hooi_es_3neighbours_thresh2_aqua \\\n    --interpolated-stem interpolated_3neighbours_thresh2 \\\n    --output-stem Output_3neighbours_thresh2 \\\n    --decomposition-method hooi \\\n    --early-stopping 1\n",
@@ -77281,7 +77281,7 @@ window.experiment_data = {
     {
       "id": "build_container_py3_amd.sh",
       "filename": "data/tikk3r/flocs/runners/build_container_py3_amd.sh",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 7.385984420776367,
       "step_count": 3,
       "slurm": "#!/usr/bin/bash\n#SBATCH -c 6 -t 03:00:00 --job-name=build_container --constraint=amd\n# If no root is available the system must offer --fakeroot. Otherwise use sudo.\nsingularity build --fakeroot --force lofar_sksp_v4.0.2_znver2_znver2_noavx512_aocl_cuda_ddf.sif Singularity.amd_aocl\n",
@@ -77665,7 +77665,7 @@ window.experiment_data = {
     {
       "id": "run_full.sh",
       "filename": "data/tylersweat/StableComics/run_full.sh",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 7.074953317642212,
       "step_count": 3,
       "slurm": "#!/bin/bash\n\n#SBATCH --time=00:30:00\n#SBATCH --mem=24G\n#SBATCH --gpus=1\n#SBATCH --nodes=1\n\n\nexport LD_LIBRARY_PATH=/home/tysweat0/.conda/envs/img2img/lib/python3.9/site-packages/nvidia/cublas/lib\n\ncd ~/StableComics/FullPipeline/\n\nnvidia-smi --list-gpus\nnvidia-smi --query-gpu=memory.total --format=csv\n\npython run.py",
@@ -77857,7 +77857,7 @@ window.experiment_data = {
     {
       "id": "run_pos_ab_tri.sh",
       "filename": "data/ucl-cssb/StabilityFinder/examples/Mass_action/DP-MA/run_pos_ab_tri.sh",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 28.76205825805664,
       "step_count": 3,
       "slurm": "module load cuda/4.2.9\nmodule load pycuda/2012.1\n\nmodule load R\n##module load cuda-sim\n\n#BSUB -o log.pos_ab_tri\n#BSUB -e err.pos_ab_tri\n#BSUB -W 100:00\n\nexport PYTHONPATH=$PYTHONPATH:/home/ucl/eisuc058/code/abc-sysbio\nexport PYTHONPATH=$PYTHONPATH:/home/ucl/eisuc058/code/cuda-sim\n\nexe=/home/ucl/eisuc058/work/StabilityChecker/stabilitychecker\nexport PYTHONPATH=$PYTHONPATH:/home/ucbtle1/cuda-sim-code\n\n\npython $exe/my_abc.py -i input_file_pos_ab_tri.xml -o results_pos_ab_tri -l pos_ab_tri.log;# Rscript plot_posterior.R;\n",
@@ -77953,7 +77953,7 @@ window.experiment_data = {
     {
       "id": "scr.sh",
       "filename": "data/urbach/chemHMC/code/builds/qbig_pascal/scr.sh",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 34.220707416534424,
       "step_count": 3,
       "slurm": "#!/bin/bash\n\n#SBATCH --nodes=1\n#SBATCH --ntasks-per-node=1\n#SBATCH --time=04:00:00\n#SBATCH --qos=devel\n# #SBATCH --partition=devel\n#SBATCH --partition=batch\n#SBATCH --reservation=debug\n#SBATCH --cpus-per-task=1\n#SBATCH --gres=gpu:pascal:1        # 2 gpus per node out of 8 ?\n#SBATCH --mem=15GB\n\nsource load_modules_qbig_pascal.sh\n#export KOKKOS_PROFILE_LIBRARY=/hiskp4/garofalo/chemHMC/code/external/kokkos-tools/kp_memory_events.so\n# export KOKKOS_PROFILE_LIBRARY=/hiskp4/garofalo/chemHMC/code/external/kokkos-tools/kp_kernel_logger.so\n\n \n#rm rng* out_xyz.txt\n#/qbigwork/garofalo/valgrind/install_dir/bin/valgrind --leak-check=full ../../chemHMC/code/build/main//main -i input_I.yaml\n#../../chemHMC/code/build/main//main -i input_I.yaml\n#main/main -i ../test.yaml\n#./test/test \n#./test/test_binning -i ../test.yaml                                         \n",
@@ -78145,7 +78145,7 @@ window.experiment_data = {
     {
       "id": "blip.slurm",
       "filename": "data/wencarol/dis_blip/blip.slurm",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 7.225987672805786,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#SBATCH -J test\n#SBATCH -N 4\n#SBATCH -n 1\n#SBATCH -c 1\n#SBATCH -p gpu-normal\n#SBATCH --gres=gpu:4\n#SBATCH -o test.out\n#SBATCH -e test.err\n\nexport CUDA_VISIBLE_DEVICES=0,1,2,3\n\nsrun python -m torch.distributed.run --nproc_per_node=4 train_retrieval.py --config ./configs/retrieval_flickr_small6.yaml --output_dir output/retrieval_flickr\n",
@@ -78337,7 +78337,7 @@ window.experiment_data = {
     {
       "id": "slurm.cmd",
       "filename": "data/yhgon/plasma-python/examples/slurm.cmd",
-      "status": "Valid",
+      "status": "Invalid",
       "total_time": 40.44125485420227,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#SBATCH -t 01:30:00\n#SBATCH -N 3\n#SBATCH --ntasks-per-node=4\n#SBATCH --ntasks-per-socket=2\n#SBATCH --gres=gpu:4\n#SBATCH -c 4\n#SBATCH --mem-per-cpu=0\n\nexport PYTHONHASHSEED=0\nmodule load anaconda\nsource activate pppl\nmodule load cudatoolkit/8.0\nmodule load cudnn/cuda-8.0/6.0\nmodule load openmpi/cuda-8.0/intel-17.0/2.1.0/64\nmodule load intel/17.0/64/17.0.4.196 intel-mkl/2017.3/4/64\n\n#remove checkpoints for a benchmark run\nrm /tigress/$USER/model_checkpoints/*\nrm /tigress/$USER/results/*\nrm /tigress/$USER/csv_logs/*\nrm /tigress/$USER/Graph/*\nrm /tigress/$USER/normalization/*\n\nexport OMPI_MCA_btl=\"tcp,self,sm\"\n\nsrun python mpi_learn.py\n",
