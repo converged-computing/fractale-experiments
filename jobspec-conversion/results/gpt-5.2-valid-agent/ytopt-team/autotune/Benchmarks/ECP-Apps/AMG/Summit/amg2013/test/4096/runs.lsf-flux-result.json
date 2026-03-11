@@ -1,0 +1,344 @@
+{
+    "events": [
+        {
+            "timestamp": 1773197656.9547,
+            "event": "enter",
+            "step": "transform",
+            "type": "prompt",
+            "data": {
+                "input": null
+            }
+        },
+        {
+            "timestamp": 1773197671.0162895,
+            "event": "exit",
+            "step": "transform",
+            "type": "prompt",
+            "data": {
+                "output": "{\n  \"jobspec\": \"#!/bin/bash\\n\\n# NOTE: Input is an LSF submit-wrapper that *generates* a batch script and calls `bsub`.\\n# Below is the Flux equivalent as a single self-submitting script.\\n\\nnnds=4096\\n\\n# Flux batch script\\n#\\n# This is a self-submitting Flux script: run it directly (e.g., `./ytopt.flux.sh`).\\n# It will submit itself to Flux with the translated resource requests.\\n\\n# Translated resources from LSF:\\n#   #BSUB -nnodes 4096  -> -N 4096\\n#   #BSUB -W 30         -> -t 30m\\n#\\n# NOTE: LSF -P MED106 (project/account) not translated.\\n# Performance/ops implication: accounting/charging may not be applied as intended; site may require project/account out-of-band.\\n#\\n# NOTE: LSF -J ytopt (job name) not translated.\\n# Performance/ops implication: job identification may be less convenient; runtime performance unaffected.\\n#\\n# NOTE: LSF -o/-e output.log/output.err not translated.\\n# Performance implication: none; operational implication: stdout/stderr handling follows Flux defaults unless configured at submission.\\n#\\n# NOTE: LSF -alloc_flags gpumps not translated.\\n# Performance implication: without the allocation flags, placement/affinity or special allocation behavior may differ, impacting performance.\\n\\nJOBID=$(flux batch -N ${nnds} -n ${nnds} -t 30m --wrap \\\"bash $0 __flux_inner\\\")\\n\\necho \\\"Submitted Flux job: $JOBID\\\"\\n\\nif [ \\\"${1:-}\\\" = \\\"__flux_inner\\\" ]; then\\n  export OMP_NUM_THREADS=168\\n\\n  # LSF used jsrun for launch on IBM systems. Under Flux, we launch the same command.\\n  # NOTE: This assumes `jsrun` is available in the environment and interoperates with the allocated resources.\\n  flux run -N ${nnds} -n ${nnds} \\\\\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out.txt\\n\\n  flux run -N ${nnds} -n ${nnds} \\\\\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out2.txt\\n\\n  flux run -N ${nnds} -n ${nnds} \\\\\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out3.txt\\n\\n  flux run -N ${nnds} -n ${nnds} \\\\\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out4.txt\\n\\n  flux run -N ${nnds} -n ${nnds} \\\\\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out5.txt\\nfi\\n\"\n}"
+            }
+        },
+        {
+            "timestamp": 1773197671.0174758,
+            "event": "enter",
+            "step": "validate",
+            "type": "prompt",
+            "data": {
+                "input": null
+            }
+        },
+        {
+            "timestamp": 1773197678.189336,
+            "event": "exit",
+            "step": "validate",
+            "type": "prompt",
+            "data": {
+                "output": "{\n  \"valid\": false,\n  \"tool_call\": false,\n  \"reasons\": [\n    \"The submission requests `-N 4096 -n 4096` but does not request any CPU cores per task (`-c`). On many Flux installations this may default to 1 core per rank; however the workload\u2019s `jsrun ... -c 42` implies 42 cores per rank, so the allocation is very likely insufficient and the step can be rejected or oversubscribe heavily.\",\n    \"The script requests 4096 nodes for 30 minutes; even if syntactically accepted, many Flux instances enforce policy/limits that can make such a large request unschedulable or rejected (resource feasibility concern).\"\n  ],\n  \"issues\": [\n    \"Self-submitting pattern requires access to a Flux broker from the launch environment; otherwise `flux batch` will fail (not strictly a resource directive issue).\",\n    \"Each `flux run -N 4096 -n 4096` repeats the full-size allocation request for the step; if the enclosing allocation differs, steps may fail. If the intent is to run within the batch allocation, `flux run` should generally omit `-N` and match/fit within allocated resources.\"\n  ]\n}"
+            }
+        },
+        {
+            "timestamp": 1773197678.1906705,
+            "event": "enter",
+            "step": "transform",
+            "type": "prompt",
+            "data": {
+                "input": null
+            }
+        },
+        {
+            "timestamp": 1773197686.4770079,
+            "event": "exit",
+            "step": "transform",
+            "type": "prompt",
+            "data": {
+                "output": "{\n  \"jobspec\": \"#!/bin/bash\\n\\n# Flux batch script\\n#\\n# This is a self-submitting Flux script: run it directly (e.g., `./ytopt.flux.sh`).\\n# It will submit itself to Flux with the translated resource requests.\\n\\nnnds=4096\\n\\n# Translated resources from LSF:\\n#   #BSUB -nnodes 4096 -> -N 4096\\n#   jsrun uses: -n 4096 ranks, -c 42 cores per rank -> request -n 4096 -c 42\\n#   #BSUB -W 30        -> -t 30m\\nJOBID=$(flux batch -N ${nnds} -n ${nnds} -c 42 -t 30m --wrap \\\"bash $0 __flux_inner\\\")\\n\\necho \\\"Submitted Flux job: $JOBID\\\"\\n\\nif [ \\\"${1:-}\\\" = \\\"__flux_inner\\\" ]; then\\n  # NOTE: LSF -P MED106 (project/account) not translated.\\n  # Performance/ops implication: accounting/charging may not be applied as intended; site may require project/account out-of-band.\\n\\n  # NOTE: LSF -J ytopt (job name) not translated.\\n  # Performance/ops implication: job identification may be less convenient; runtime performance unaffected.\\n\\n  # NOTE: LSF -o/-e output.log/output.err not translated.\\n  # Performance implication: none; operational implication: stdout/stderr handling follows Flux defaults unless configured at submission.\\n\\n  # NOTE: LSF -alloc_flags gpumps not translated.\\n  # Performance implication: without the allocation flags, placement/affinity or special allocation behavior may differ, impacting performance.\\n\\n  export OMP_NUM_THREADS=168\\n\\n  # Run within the allocation granted by `flux batch`.\\n  # Keep `jsrun` since this is likely intended for IBM systems; Flux just launches it.\\n  flux run -n ${nnds} -c 42 \\\\\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out.txt\\n\\n  flux run -n ${nnds} -c 42 \\\\\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out2.txt\\n\\n  flux run -n ${nnds} -c 42 \\\\\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out3.txt\\n\\n  flux run -n ${nnds} -c 42 \\\\\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out4.txt\\n\\n  flux run -n ${nnds} -c 42 \\\\\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out5.txt\\nfi\\n\"\n}"
+            }
+        },
+        {
+            "timestamp": 1773197686.4782133,
+            "event": "enter",
+            "step": "validate",
+            "type": "prompt",
+            "data": {
+                "input": null
+            }
+        },
+        {
+            "timestamp": 1773197691.938367,
+            "event": "exit",
+            "step": "validate",
+            "type": "prompt",
+            "data": {
+                "output": "{\n  \"valid\": true,\n  \"tool_call\": false,\n  \"reasons\": [],\n  \"issues\": [\n    \"This is a self-submitting pattern: it will only work if `flux batch` can connect to a Flux broker from where the script is executed (inside a Flux instance or via a site-provided submission endpoint).\",\n    \"The resource request is extremely large (`-N 4096 -n 4096 -c 42`); while syntactically valid, it may be rejected by site policy/limits or be unschedulable on many Flux deployments (feasibility/policy rather than syntax).\",\n    \"Each `flux run -n 4096 -c 42` step consumes the full allocation; running five such steps sequentially is fine, but if any site enforces per-job step limits or time-to-launch constraints at this scale, steps could be impacted (resource-management behavior).\"\n  ]\n}"
+            }
+        },
+        {
+            "timestamp": 1773197691.940258,
+            "event": "enter",
+            "step": "validate_flux_jobspec",
+            "type": "tool",
+            "data": {
+                "inputs": {
+                    "content": "#!/bin/bash\n\n# Flux batch script\n#\n# This is a self-submitting Flux script: run it directly (e.g., `./ytopt.flux.sh`).\n# It will submit itself to Flux with the translated resource requests.\n\nnnds=4096\n\n# Translated resources from LSF:\n#   #BSUB -nnodes 4096 -> -N 4096\n#   jsrun uses: -n 4096 ranks, -c 42 cores per rank -> request -n 4096 -c 42\n#   #BSUB -W 30        -> -t 30m\nJOBID=$(flux batch -N ${nnds} -n ${nnds} -c 42 -t 30m --wrap \"bash $0 __flux_inner\")\n\necho \"Submitted Flux job: $JOBID\"\n\nif [ \"${1:-}\" = \"__flux_inner\" ]; then\n  # NOTE: LSF -P MED106 (project/account) not translated.\n  # Performance/ops implication: accounting/charging may not be applied as intended; site may require project/account out-of-band.\n\n  # NOTE: LSF -J ytopt (job name) not translated.\n  # Performance/ops implication: job identification may be less convenient; runtime performance unaffected.\n\n  # NOTE: LSF -o/-e output.log/output.err not translated.\n  # Performance implication: none; operational implication: stdout/stderr handling follows Flux defaults unless configured at submission.\n\n  # NOTE: LSF -alloc_flags gpumps not translated.\n  # Performance implication: without the allocation flags, placement/affinity or special allocation behavior may differ, impacting performance.\n\n  export OMP_NUM_THREADS=168\n\n  # Run within the allocation granted by `flux batch`.\n  # Keep `jsrun` since this is likely intended for IBM systems; Flux just launches it.\n  flux run -n ${nnds} -c 42 \\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out.txt\n\n  flux run -n ${nnds} -c 42 \\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out2.txt\n\n  flux run -n ${nnds} -c 42 \\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out3.txt\n\n  flux run -n ${nnds} -c 42 \\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out4.txt\n\n  flux run -n ${nnds} -c 42 \\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out5.txt\nfi\n"
+                }
+            }
+        },
+        {
+            "timestamp": 1773197691.9421308,
+            "event": "enter",
+            "step": "validate_flux_jobspec",
+            "type": "tool",
+            "data": {
+                "inputs": {
+                    "content": "#!/bin/bash\n\n# Flux batch script\n#\n# This is a self-submitting Flux script: run it directly (e.g., `./ytopt.flux.sh`).\n# It will submit itself to Flux with the translated resource requests.\n\nnnds=4096\n\n# Translated resources from LSF:\n#   #BSUB -nnodes 4096 -> -N 4096\n#   jsrun uses: -n 4096 ranks, -c 42 cores per rank -> request -n 4096 -c 42\n#   #BSUB -W 30        -> -t 30m\nJOBID=$(flux batch -N ${nnds} -n ${nnds} -c 42 -t 30m --wrap \"bash $0 __flux_inner\")\n\necho \"Submitted Flux job: $JOBID\"\n\nif [ \"${1:-}\" = \"__flux_inner\" ]; then\n  # NOTE: LSF -P MED106 (project/account) not translated.\n  # Performance/ops implication: accounting/charging may not be applied as intended; site may require project/account out-of-band.\n\n  # NOTE: LSF -J ytopt (job name) not translated.\n  # Performance/ops implication: job identification may be less convenient; runtime performance unaffected.\n\n  # NOTE: LSF -o/-e output.log/output.err not translated.\n  # Performance implication: none; operational implication: stdout/stderr handling follows Flux defaults unless configured at submission.\n\n  # NOTE: LSF -alloc_flags gpumps not translated.\n  # Performance implication: without the allocation flags, placement/affinity or special allocation behavior may differ, impacting performance.\n\n  export OMP_NUM_THREADS=168\n\n  # Run within the allocation granted by `flux batch`.\n  # Keep `jsrun` since this is likely intended for IBM systems; Flux just launches it.\n  flux run -n ${nnds} -c 42 \\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out.txt\n\n  flux run -n ${nnds} -c 42 \\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out2.txt\n\n  flux run -n ${nnds} -c 42 \\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out3.txt\n\n  flux run -n ${nnds} -c 42 \\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out4.txt\n\n  flux run -n ${nnds} -c 42 \\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out5.txt\nfi\n"
+                }
+            }
+        },
+        {
+            "timestamp": 1773197691.9681652,
+            "event": "exit",
+            "step": "validate_flux_jobspec",
+            "type": "tool",
+            "data": {
+                "outputs": {
+                    "jobspec": "#!/bin/bash\n\n# Flux batch script\n#\n# This is a self-submitting Flux script: run it directly (e.g., `./ytopt.flux.sh`).\n# It will submit itself to Flux with the translated resource requests.\n\nnnds=4096\n\n# Translated resources from LSF:\n#   #BSUB -nnodes 4096 -> -N 4096\n#   jsrun uses: -n 4096 ranks, -c 42 cores per rank -> request -n 4096 -c 42\n#   #BSUB -W 30        -> -t 30m\nJOBID=$(flux batch -N ${nnds} -n ${nnds} -c 42 -t 30m --wrap \"bash $0 __flux_inner\")\n\necho \"Submitted Flux job: $JOBID\"\n\nif [ \"${1:-}\" = \"__flux_inner\" ]; then\n  # NOTE: LSF -P MED106 (project/account) not translated.\n  # Performance/ops implication: accounting/charging may not be applied as intended; site may require project/account out-of-band.\n\n  # NOTE: LSF -J ytopt (job name) not translated.\n  # Performance/ops implication: job identification may be less convenient; runtime performance unaffected.\n\n  # NOTE: LSF -o/-e output.log/output.err not translated.\n  # Performance implication: none; operational implication: stdout/stderr handling follows Flux defaults unless configured at submission.\n\n  # NOTE: LSF -alloc_flags gpumps not translated.\n  # Performance implication: without the allocation flags, placement/affinity or special allocation behavior may differ, impacting performance.\n\n  export OMP_NUM_THREADS=168\n\n  # Run within the allocation granted by `flux batch`.\n  # Keep `jsrun` since this is likely intended for IBM systems; Flux just launches it.\n  flux run -n ${nnds} -c 42 \\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out.txt\n\n  flux run -n ${nnds} -c 42 \\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out2.txt\n\n  flux run -n ${nnds} -c 42 \\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out3.txt\n\n  flux run -n ${nnds} -c 42 \\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out4.txt\n\n  flux run -n ${nnds} -c 42 \\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out5.txt\nfi\n",
+                    "errors": [],
+                    "valid": true
+                }
+            }
+        },
+        {
+            "timestamp": 1773197691.9713402,
+            "event": "exit",
+            "step": "manual_validate",
+            "type": "tool",
+            "data": {
+                "outputs": {
+                    "jobspec": "#!/bin/bash\n\n# Flux batch script\n#\n# This is a self-submitting Flux script: run it directly (e.g., `./ytopt.flux.sh`).\n# It will submit itself to Flux with the translated resource requests.\n\nnnds=4096\n\n# Translated resources from LSF:\n#   #BSUB -nnodes 4096 -> -N 4096\n#   jsrun uses: -n 4096 ranks, -c 42 cores per rank -> request -n 4096 -c 42\n#   #BSUB -W 30        -> -t 30m\nJOBID=$(flux batch -N ${nnds} -n ${nnds} -c 42 -t 30m --wrap \"bash $0 __flux_inner\")\n\necho \"Submitted Flux job: $JOBID\"\n\nif [ \"${1:-}\" = \"__flux_inner\" ]; then\n  # NOTE: LSF -P MED106 (project/account) not translated.\n  # Performance/ops implication: accounting/charging may not be applied as intended; site may require project/account out-of-band.\n\n  # NOTE: LSF -J ytopt (job name) not translated.\n  # Performance/ops implication: job identification may be less convenient; runtime performance unaffected.\n\n  # NOTE: LSF -o/-e output.log/output.err not translated.\n  # Performance implication: none; operational implication: stdout/stderr handling follows Flux defaults unless configured at submission.\n\n  # NOTE: LSF -alloc_flags gpumps not translated.\n  # Performance implication: without the allocation flags, placement/affinity or special allocation behavior may differ, impacting performance.\n\n  export OMP_NUM_THREADS=168\n\n  # Run within the allocation granted by `flux batch`.\n  # Keep `jsrun` since this is likely intended for IBM systems; Flux just launches it.\n  flux run -n ${nnds} -c 42 \\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out.txt\n\n  flux run -n ${nnds} -c 42 \\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out2.txt\n\n  flux run -n ${nnds} -c 42 \\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out3.txt\n\n  flux run -n ${nnds} -c 42 \\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out4.txt\n\n  flux run -n ${nnds} -c 42 \\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out5.txt\nfi\n",
+                    "errors": [],
+                    "valid": true
+                }
+            }
+        }
+    ],
+    "metrics": [
+        {
+            "timestamp": 1773197671.009819,
+            "data": {
+                "use_tools": null,
+                "metrics": {
+                    "prompt_tokens": 50191,
+                    "completion_tokens": 845,
+                    "total_tokens": 51036
+                },
+                "memory": true,
+                "tools": null,
+                "prompt": "### PERSONA\nYou are a job specification generation expert.\n\n### CONTEXT\nWe need to convert between workload manager job specification formats.\n\n### GOAL\nI need to convert the provided job specification from 'lsf' to 'flux'. The desired output format is a 'batch' script.\n\n### REQUIREMENTS & CONSTRAINTS\nYou MUST not make up directives that do not exist.\nYou MUST preserve as many options as possible from the original.\nIf there is a directive that does not translate, you MUST leave it out and add a comment about the performance implications of the omission.\n\n### INSTRUCTIONS\n1. Analyze the provided script below.\n2. Write a new script and return in a json structure with a \"jobspec\"\n3. If the input script is not a workload manager batch file, you MUST return the json jobspec structure as \"noop\"\n\n#!/bin/bash\n\nlet nnds=4096\n#--- process the submit script\n\n#-----This part creates a submission script---------\ncat >batch.job <<EOF\n# Begin LSF directives\n#BSUB -P MED106\n#BSUB -J ytopt\n#BSUB -o output.log\n#BSUB -e output.err\n#BSUB -alloc_flags gpumps\n#BSUB -W 30\n#BSUB -nnodes ${nnds}\n\nexport OMP_NUM_THREADS=168\njsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out.txt\njsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out2.txt\njsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out3.txt\njsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out4.txt\njsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out5.txt\n\nEOF\n#-----This part submits the script you just created--------------\nchmod +x batch.job\nbsub  batch.job\n\n"
+            }
+        },
+        {
+            "timestamp": 1773197678.1842306,
+            "data": {
+                "use_tools": null,
+                "metrics": {
+                    "prompt_tokens": 52074,
+                    "completion_tokens": 268,
+                    "total_tokens": 52342
+                },
+                "memory": true,
+                "tools": null,
+                "prompt": "### PERSONA\nYou are a job validation expert.\n\n### CONTEXT\nWe need to validate a job specification for correctness.\n\n### GOAL\nI need to validate if the following job specification is correct. Validity means that the job specification will be accepted by the workload manager and execute:\n\n```\n#!/bin/bash\n\n# NOTE: Input is an LSF submit-wrapper that *generates* a batch script and calls `bsub`.\n# Below is the Flux equivalent as a single self-submitting script.\n\nnnds=4096\n\n# Flux batch script\n#\n# This is a self-submitting Flux script: run it directly (e.g., `./ytopt.flux.sh`).\n# It will submit itself to Flux with the translated resource requests.\n\n# Translated resources from LSF:\n#   #BSUB -nnodes 4096  -> -N 4096\n#   #BSUB -W 30         -> -t 30m\n#\n# NOTE: LSF -P MED106 (project/account) not translated.\n# Performance/ops implication: accounting/charging may not be applied as intended; site may require project/account out-of-band.\n#\n# NOTE: LSF -J ytopt (job name) not translated.\n# Performance/ops implication: job identification may be less convenient; runtime performance unaffected.\n#\n# NOTE: LSF -o/-e output.log/output.err not translated.\n# Performance implication: none; operational implication: stdout/stderr handling follows Flux defaults unless configured at submission.\n#\n# NOTE: LSF -alloc_flags gpumps not translated.\n# Performance implication: without the allocation flags, placement/affinity or special allocation behavior may differ, impacting performance.\n\nJOBID=$(flux batch -N ${nnds} -n ${nnds} -t 30m --wrap \"bash $0 __flux_inner\")\n\necho \"Submitted Flux job: $JOBID\"\n\nif [ \"${1:-}\" = \"__flux_inner\" ]; then\n  export OMP_NUM_THREADS=168\n\n  # LSF used jsrun for launch on IBM systems. Under Flux, we launch the same command.\n  # NOTE: This assumes `jsrun` is available in the environment and interoperates with the allocated resources.\n  flux run -N ${nnds} -n ${nnds} \\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out.txt\n\n  flux run -N ${nnds} -n ${nnds} \\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out2.txt\n\n  flux run -N ${nnds} -n ${nnds} \\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out3.txt\n\n  flux run -N ${nnds} -n ${nnds} \\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out4.txt\n\n  flux run -N ${nnds} -n ${nnds} \\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out5.txt\nfi\n\n```\n\n### REQUIREMENTS & CONSTRAINTS\nYou MUST return a JSON structure with fields for 'valid' (bool) and a list of string 'reasons'. You MAY optionally add a field `issues` with a list of debugging or critique of any code. You MUST assume that defaults for a workload manager are reasonable to translate.\n\n### INSTRUCTIONS\n1. Analyze the provided script above.\n2. Use MUST use a jobspec validation tool for the manager if one is available otherwise use your knowledge.\n3. Determine validity based on the resource section ONLY\n4. The 'reasons' should ONLY be specific to resources\n5. If the script includes problematic code, please include in 'issues'\n6. You MUST include a 'tool_call' boolean, true or false, to indicate if you used a validation tool for validation.\n7. Return a json structure with 'valid' and 'tool_call' and 'reasons' (if not valid) and 'issues'\n"
+            }
+        },
+        {
+            "timestamp": 1773197686.4669528,
+            "data": {
+                "use_tools": null,
+                "metrics": {
+                    "prompt_tokens": 52942,
+                    "completion_tokens": 816,
+                    "total_tokens": 53758
+                },
+                "memory": true,
+                "tools": null,
+                "prompt": "### PERSONA\nYou are a job specification generation expert.\n\n### CONTEXT\nWe need to convert between workload manager job specification formats.\n\n### GOAL\nI need to convert the provided job specification from 'lsf' to 'flux'. The desired output format is a 'batch' script.\n\n### REQUIREMENTS & CONSTRAINTS\nYou MUST not make up directives that do not exist.\nYou MUST preserve as many options as possible from the original.\nIf there is a directive that does not translate, you MUST leave it out and add a comment about the performance implications of the omission.\n\n### INSTRUCTIONS\n1. Analyze the provided script below.\n2. Write a new script and return in a json structure with a \"jobspec\"\n3. If the input script is not a workload manager batch file, you MUST return the json jobspec structure as \"noop\"\n\n#!/bin/bash\n\nlet nnds=4096\n#--- process the submit script\n\n#-----This part creates a submission script---------\ncat >batch.job <<EOF\n# Begin LSF directives\n#BSUB -P MED106\n#BSUB -J ytopt\n#BSUB -o output.log\n#BSUB -e output.err\n#BSUB -alloc_flags gpumps\n#BSUB -W 30\n#BSUB -nnodes ${nnds}\n\nexport OMP_NUM_THREADS=168\njsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out.txt\njsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out2.txt\njsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out3.txt\njsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out4.txt\njsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out5.txt\n\nEOF\n#-----This part submits the script you just created--------------\nchmod +x batch.job\nbsub  batch.job\n\n"
+            }
+        },
+        {
+            "timestamp": 1773197691.933541,
+            "data": {
+                "use_tools": null,
+                "metrics": {
+                    "prompt_tokens": 54775,
+                    "completion_tokens": 203,
+                    "total_tokens": 54978
+                },
+                "memory": true,
+                "tools": null,
+                "prompt": "### PERSONA\nYou are a job validation expert.\n\n### CONTEXT\nWe need to validate a job specification for correctness.\n\n### GOAL\nI need to validate if the following job specification is correct. Validity means that the job specification will be accepted by the workload manager and execute:\n\n```\n#!/bin/bash\n\n# Flux batch script\n#\n# This is a self-submitting Flux script: run it directly (e.g., `./ytopt.flux.sh`).\n# It will submit itself to Flux with the translated resource requests.\n\nnnds=4096\n\n# Translated resources from LSF:\n#   #BSUB -nnodes 4096 -> -N 4096\n#   jsrun uses: -n 4096 ranks, -c 42 cores per rank -> request -n 4096 -c 42\n#   #BSUB -W 30        -> -t 30m\nJOBID=$(flux batch -N ${nnds} -n ${nnds} -c 42 -t 30m --wrap \"bash $0 __flux_inner\")\n\necho \"Submitted Flux job: $JOBID\"\n\nif [ \"${1:-}\" = \"__flux_inner\" ]; then\n  # NOTE: LSF -P MED106 (project/account) not translated.\n  # Performance/ops implication: accounting/charging may not be applied as intended; site may require project/account out-of-band.\n\n  # NOTE: LSF -J ytopt (job name) not translated.\n  # Performance/ops implication: job identification may be less convenient; runtime performance unaffected.\n\n  # NOTE: LSF -o/-e output.log/output.err not translated.\n  # Performance implication: none; operational implication: stdout/stderr handling follows Flux defaults unless configured at submission.\n\n  # NOTE: LSF -alloc_flags gpumps not translated.\n  # Performance implication: without the allocation flags, placement/affinity or special allocation behavior may differ, impacting performance.\n\n  export OMP_NUM_THREADS=168\n\n  # Run within the allocation granted by `flux batch`.\n  # Keep `jsrun` since this is likely intended for IBM systems; Flux just launches it.\n  flux run -n ${nnds} -c 42 \\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out.txt\n\n  flux run -n ${nnds} -c 42 \\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out2.txt\n\n  flux run -n ${nnds} -c 42 \\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out3.txt\n\n  flux run -n ${nnds} -c 42 \\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out4.txt\n\n  flux run -n ${nnds} -c 42 \\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out5.txt\nfi\n\n```\n\n### REQUIREMENTS & CONSTRAINTS\nYou MUST return a JSON structure with fields for 'valid' (bool) and a list of string 'reasons'. You MAY optionally add a field `issues` with a list of debugging or critique of any code. You MUST assume that defaults for a workload manager are reasonable to translate.\n\n### INSTRUCTIONS\n1. Analyze the provided script above.\n2. Use MUST use a jobspec validation tool for the manager if one is available otherwise use your knowledge.\n3. Determine validity based on the resource section ONLY\n4. The 'reasons' should ONLY be specific to resources\n5. If the script includes problematic code, please include in 'issues'\n6. You MUST include a 'tool_call' boolean, true or false, to indicate if you used a validation tool for validation.\n7. Return a json structure with 'valid' and 'tool_call' and 'reasons' (if not valid) and 'issues'\n"
+            }
+        }
+    ],
+    "metadata": {
+        "steps": [
+            {
+                "agent": "transform",
+                "result": {
+                    "has_error": false,
+                    "data": {
+                        "jobspec": "#!/bin/bash\n\n# NOTE: Input is an LSF submit-wrapper that *generates* a batch script and calls `bsub`.\n# Below is the Flux equivalent as a single self-submitting script.\n\nnnds=4096\n\n# Flux batch script\n#\n# This is a self-submitting Flux script: run it directly (e.g., `./ytopt.flux.sh`).\n# It will submit itself to Flux with the translated resource requests.\n\n# Translated resources from LSF:\n#   #BSUB -nnodes 4096  -> -N 4096\n#   #BSUB -W 30         -> -t 30m\n#\n# NOTE: LSF -P MED106 (project/account) not translated.\n# Performance/ops implication: accounting/charging may not be applied as intended; site may require project/account out-of-band.\n#\n# NOTE: LSF -J ytopt (job name) not translated.\n# Performance/ops implication: job identification may be less convenient; runtime performance unaffected.\n#\n# NOTE: LSF -o/-e output.log/output.err not translated.\n# Performance implication: none; operational implication: stdout/stderr handling follows Flux defaults unless configured at submission.\n#\n# NOTE: LSF -alloc_flags gpumps not translated.\n# Performance implication: without the allocation flags, placement/affinity or special allocation behavior may differ, impacting performance.\n\nJOBID=$(flux batch -N ${nnds} -n ${nnds} -t 30m --wrap \"bash $0 __flux_inner\")\n\necho \"Submitted Flux job: $JOBID\"\n\nif [ \"${1:-}\" = \"__flux_inner\" ]; then\n  export OMP_NUM_THREADS=168\n\n  # LSF used jsrun for launch on IBM systems. Under Flux, we launch the same command.\n  # NOTE: This assumes `jsrun` is available in the environment and interoperates with the allocated resources.\n  flux run -N ${nnds} -n ${nnds} \\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out.txt\n\n  flux run -N ${nnds} -n ${nnds} \\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out2.txt\n\n  flux run -N ${nnds} -n ${nnds} \\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out3.txt\n\n  flux run -N ${nnds} -n ${nnds} \\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out4.txt\n\n  flux run -N ${nnds} -n ${nnds} \\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out5.txt\nfi\n"
+                    },
+                    "attempts": 1
+                },
+                "transition": "success -> validate",
+                "complete": false,
+                "state": "success"
+            },
+            {
+                "agent": "validate",
+                "result": {
+                    "has_error": false,
+                    "data": {
+                        "valid": false,
+                        "tool_call": false,
+                        "reasons": [
+                            "The submission requests `-N 4096 -n 4096` but does not request any CPU cores per task (`-c`). On many Flux installations this may default to 1 core per rank; however the workload\u2019s `jsrun ... -c 42` implies 42 cores per rank, so the allocation is very likely insufficient and the step can be rejected or oversubscribe heavily.",
+                            "The script requests 4096 nodes for 30 minutes; even if syntactically accepted, many Flux instances enforce policy/limits that can make such a large request unschedulable or rejected (resource feasibility concern)."
+                        ],
+                        "issues": [
+                            "Self-submitting pattern requires access to a Flux broker from the launch environment; otherwise `flux batch` will fail (not strictly a resource directive issue).",
+                            "Each `flux run -N 4096 -n 4096` repeats the full-size allocation request for the step; if the enclosing allocation differs, steps may fail. If the intent is to run within the batch allocation, `flux run` should generally omit `-N` and match/fit within allocated resources."
+                        ]
+                    },
+                    "attempts": 1
+                },
+                "transition": "failed -> transform",
+                "complete": false,
+                "state": "failed"
+            },
+            {
+                "agent": "transform",
+                "result": {
+                    "has_error": false,
+                    "data": {
+                        "jobspec": "#!/bin/bash\n\n# Flux batch script\n#\n# This is a self-submitting Flux script: run it directly (e.g., `./ytopt.flux.sh`).\n# It will submit itself to Flux with the translated resource requests.\n\nnnds=4096\n\n# Translated resources from LSF:\n#   #BSUB -nnodes 4096 -> -N 4096\n#   jsrun uses: -n 4096 ranks, -c 42 cores per rank -> request -n 4096 -c 42\n#   #BSUB -W 30        -> -t 30m\nJOBID=$(flux batch -N ${nnds} -n ${nnds} -c 42 -t 30m --wrap \"bash $0 __flux_inner\")\n\necho \"Submitted Flux job: $JOBID\"\n\nif [ \"${1:-}\" = \"__flux_inner\" ]; then\n  # NOTE: LSF -P MED106 (project/account) not translated.\n  # Performance/ops implication: accounting/charging may not be applied as intended; site may require project/account out-of-band.\n\n  # NOTE: LSF -J ytopt (job name) not translated.\n  # Performance/ops implication: job identification may be less convenient; runtime performance unaffected.\n\n  # NOTE: LSF -o/-e output.log/output.err not translated.\n  # Performance implication: none; operational implication: stdout/stderr handling follows Flux defaults unless configured at submission.\n\n  # NOTE: LSF -alloc_flags gpumps not translated.\n  # Performance implication: without the allocation flags, placement/affinity or special allocation behavior may differ, impacting performance.\n\n  export OMP_NUM_THREADS=168\n\n  # Run within the allocation granted by `flux batch`.\n  # Keep `jsrun` since this is likely intended for IBM systems; Flux just launches it.\n  flux run -n ${nnds} -c 42 \\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out.txt\n\n  flux run -n ${nnds} -c 42 \\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out2.txt\n\n  flux run -n ${nnds} -c 42 \\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out3.txt\n\n  flux run -n ${nnds} -c 42 \\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out4.txt\n\n  flux run -n ${nnds} -c 42 \\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out5.txt\nfi\n"
+                    },
+                    "attempts": 1
+                },
+                "transition": "success -> validate",
+                "complete": false,
+                "state": "success"
+            },
+            {
+                "agent": "validate",
+                "result": {
+                    "has_error": false,
+                    "data": {
+                        "valid": true,
+                        "tool_call": false,
+                        "reasons": [],
+                        "issues": [
+                            "This is a self-submitting pattern: it will only work if `flux batch` can connect to a Flux broker from where the script is executed (inside a Flux instance or via a site-provided submission endpoint).",
+                            "The resource request is extremely large (`-N 4096 -n 4096 -c 42`); while syntactically valid, it may be rejected by site policy/limits or be unschedulable on many Flux deployments (feasibility/policy rather than syntax).",
+                            "Each `flux run -n 4096 -c 42` step consumes the full allocation; running five such steps sequentially is fine, but if any site enforces per-job step limits or time-to-launch constraints at this scale, steps could be impacted (resource-management behavior)."
+                        ]
+                    },
+                    "attempts": 1
+                },
+                "transition": "success -> manual_validate",
+                "complete": false,
+                "state": "success"
+            },
+            {
+                "agent": "manual_validate",
+                "result": {
+                    "has_error": false,
+                    "data": {
+                        "jobspec": "#!/bin/bash\n\n# Flux batch script\n#\n# This is a self-submitting Flux script: run it directly (e.g., `./ytopt.flux.sh`).\n# It will submit itself to Flux with the translated resource requests.\n\nnnds=4096\n\n# Translated resources from LSF:\n#   #BSUB -nnodes 4096 -> -N 4096\n#   jsrun uses: -n 4096 ranks, -c 42 cores per rank -> request -n 4096 -c 42\n#   #BSUB -W 30        -> -t 30m\nJOBID=$(flux batch -N ${nnds} -n ${nnds} -c 42 -t 30m --wrap \"bash $0 __flux_inner\")\n\necho \"Submitted Flux job: $JOBID\"\n\nif [ \"${1:-}\" = \"__flux_inner\" ]; then\n  # NOTE: LSF -P MED106 (project/account) not translated.\n  # Performance/ops implication: accounting/charging may not be applied as intended; site may require project/account out-of-band.\n\n  # NOTE: LSF -J ytopt (job name) not translated.\n  # Performance/ops implication: job identification may be less convenient; runtime performance unaffected.\n\n  # NOTE: LSF -o/-e output.log/output.err not translated.\n  # Performance implication: none; operational implication: stdout/stderr handling follows Flux defaults unless configured at submission.\n\n  # NOTE: LSF -alloc_flags gpumps not translated.\n  # Performance implication: without the allocation flags, placement/affinity or special allocation behavior may differ, impacting performance.\n\n  export OMP_NUM_THREADS=168\n\n  # Run within the allocation granted by `flux batch`.\n  # Keep `jsrun` since this is likely intended for IBM systems; Flux just launches it.\n  flux run -n ${nnds} -c 42 \\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out.txt\n\n  flux run -n ${nnds} -c 42 \\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out2.txt\n\n  flux run -n ${nnds} -c 42 \\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out3.txt\n\n  flux run -n ${nnds} -c 42 \\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out4.txt\n\n  flux run -n ${nnds} -c 42 \\\n    jsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out5.txt\nfi\n",
+                        "errors": [],
+                        "valid": true
+                    }
+                },
+                "transition": "complete",
+                "complete": true,
+                "state": "complete"
+            }
+        ],
+        "model_name": "gpt-5.2",
+        "plan_source": "memory",
+        "state_machine_loops": 2
+    },
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "lsf",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n\nlet nnds=4096\n#--- process the submit script\n\n#-----This part creates a submission script---------\ncat >batch.job <<EOF\n# Begin LSF directives\n#BSUB -P MED106\n#BSUB -J ytopt\n#BSUB -o output.log\n#BSUB -e output.err\n#BSUB -alloc_flags gpumps\n#BSUB -W 30\n#BSUB -nnodes ${nnds}\n\nexport OMP_NUM_THREADS=168\njsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out.txt\njsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out2.txt\njsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out3.txt\njsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out4.txt\njsrun -n ${nnds} -a 1 -g 0 -c 42 -bpacked:42 -dpacked ../amg2013 -laplace -P 16 16 16 -n 100 100 100  > out5.txt\n\nEOF\n#-----This part submits the script you just created--------------\nchmod +x batch.job\nbsub  batch.job\n",
+                    "error": "{{ steps.validate.outputs.errors }}",
+                    "jobspec": "{{ steps.validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    },
+    "filename": "data/ytopt-team/autotune/Benchmarks/ECP-Apps/AMG/Summit/amg2013/test/4096/runs.lsf"
+}

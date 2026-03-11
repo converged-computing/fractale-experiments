@@ -3,7 +3,7 @@
 This should set up the development environment and get you up to being able to develop / work on the manager agent using LivAI. Get an allocation:
 
 ```bash
-flux alloc -N1 --time 4h
+flux alloc -N1 --time 24h
 ```
 
 ## 1. Prepare software
@@ -16,13 +16,13 @@ mkdir -p /usr/workspace/fractale/descriptive-thrust/agentic
 cd /usr/workspace/fractale/descriptive-thrust/agentic
 
 # This is the agentic orchestrator (generator and runner of plans, etc)
-git clone -b check-malformed-response-gemini https://github.com/converged-computing/fractale
+git clone https://github.com/converged-computing/fractale
 
 # This has functions for generic HPC agents (filesystem, containers, etc)
-git clone -b update-db https://github.com/converged-computing/hpc-mcp
+git clone -b update-prompt https://github.com/converged-computing/hpc-mcp
 
 # This of course is for Flux!
-git clone -b tweak-logs https://github.com/converged-computing/flux-mcp
+git clone https://github.com/converged-computing/flux-mcp
 ```
 
 Python I'm using (and if you need on your path):
@@ -59,7 +59,6 @@ cd fractale-experiments/jobspec-conversion
 
 ## 2. MCP Server
 
-
 Start the mcpserver from an ssh into the same node:
 
 ```bash
@@ -74,7 +73,6 @@ export PATH=/p/vast1/fractale/descriptive-expression/miniconda3/bin:$PATH
 mcpserver start --port 8089 --host 0.0.0.0 -t http --config ./servers/flux-gemini.yaml 
 ```
 ```console
-[sochat1@corona211:agentic]$ mcpserver start --port 8089 --host 0.0.0.0 -t http --config ./flux-mcp-server.yaml
 📖 Loading config from ./servers/flux-gemini.yaml
    ✅ Registered: validate_flux_jobspec
    ✅ Registered: validate_jobspec_expert

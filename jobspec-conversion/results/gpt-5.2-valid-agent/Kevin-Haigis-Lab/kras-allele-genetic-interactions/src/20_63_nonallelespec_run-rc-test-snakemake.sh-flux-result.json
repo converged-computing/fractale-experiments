@@ -1,0 +1,245 @@
+{
+    "events": [
+        {
+            "timestamp": 1773199251.656097,
+            "event": "enter",
+            "step": "transform",
+            "type": "prompt",
+            "data": {
+                "input": null
+            }
+        },
+        {
+            "timestamp": 1773199265.2308843,
+            "event": "exit",
+            "step": "transform",
+            "type": "prompt",
+            "data": {
+                "output": "{\n  \"jobspec\": \"#!/bin/bash\\n\\n# Flux batch script\\n#\\n# NOTE: This workflow relies on Snakemake + DRMAA with Slurm-style options to submit many sub-jobs.\\n# Flux does not provide a DRMAA interface by default, and the `slurm-drmaa` module targets Slurm.\\n# There is no direct translation for this submission mechanism in a portable Flux script.\\n#\\n# Performance implication of omission: without a Flux-compatible executor/back-end, Snakemake will not\\n# dispatch cluster jobs; it may run locally within a single allocation, greatly reducing scalability.\\n\\n# This is a self-submitting Flux script: run it directly (e.g., `./rc_test_snakemake.flux.sh`).\\n# It will submit itself to Flux with the translated *top-level* resource requests.\\n\\n# Translated resources from Slurm:\\n#   -c 1        -> -c 1\\n#   -t 2-00:00  -> -t 2d\\nJOBID=$(flux batch -N 1 -n 1 -c 1 -t 2d --wrap \\\"bash $0 __flux_inner\\\")\\n\\necho \\\"Submitted Flux job: $JOBID\\\"\\n\\nif [ \\\"${1:-}\\\" = \\\"__flux_inner\\\" ]; then\\n  # NOTE: Slurm -p priority not translated.\\n  # Performance implication: without a queue/constraint mapping, the job may run on any eligible resources; you are not forcing the priority partition.\\n\\n  # NOTE: Slurm --mem 4G not translated.\\n  # Performance implication: without a memory reservation/limit, the job may contend for memory or be OOM-killed, affecting reliability/performance.\\n\\n  # NOTE: Slurm -o/-e with %A expansion (jobid) not translated.\\n  # Performance implication: none; operational implication: log filenames may not be unique unless you add uniqueness.\\n\\n  module unload python || true\\n  module load gcc conda2 slurm-drmaa/1.1.1\\n  conda activate rctest\\n\\n  # NOTE: --drmaa argument is retained, but will only work if a DRMAA backend compatible with Flux is available (typically not).\\n  flux run -n 1 -c 1 snakemake \\\\\\n    --snakefile src/20_62_nonallelespec_rc-test-Snakefile.py \\\\\\n    --jobs 9980 \\\\\\n    --restart-times 0 \\\\\\n    --cluster-config config/rc-test-snakemake-cluster.json \\\\\\n    --latency-wait 120 \\\\\\n    --drmaa \\\" -c {cluster.cores} -p {cluster.partition} --mem={cluster.mem} -t {cluster.time} -o {cluster.out} -e {cluster.err} -J {cluster.J}\\\"\\n\\n  conda deactivate\\nfi\\n\"\n}"
+            }
+        },
+        {
+            "timestamp": 1773199265.2320735,
+            "event": "enter",
+            "step": "validate",
+            "type": "prompt",
+            "data": {
+                "input": null
+            }
+        },
+        {
+            "timestamp": 1773199272.5670674,
+            "event": "exit",
+            "step": "validate",
+            "type": "prompt",
+            "data": {
+                "output": "{\n  \"valid\": true,\n  \"tool_call\": false,\n  \"reasons\": [],\n  \"issues\": [\n    \"This is a self-submitting pattern: it will only work if `flux batch` can connect to a Flux broker from where the script is executed (inside a Flux instance or via a site-provided submission endpoint).\",\n    \"No memory limit/reservation is requested in Flux (Slurm `--mem 4G` was omitted), so the job will run with default memory policy, which may differ from the original resource intent.\",\n    \"The top-level allocation is very small (`-n 1 -c 1`) relative to the intended workload (`--jobs 9980`); if Snakemake cannot submit sub-jobs via a Flux-compatible mechanism, the workflow will be resource-constrained (resource sizing concern).\"\n  ]\n}"
+            }
+        },
+        {
+            "timestamp": 1773199272.5689952,
+            "event": "enter",
+            "step": "validate_flux_jobspec",
+            "type": "tool",
+            "data": {
+                "inputs": {
+                    "content": "#!/bin/bash\n\n# Flux batch script\n#\n# NOTE: This workflow relies on Snakemake + DRMAA with Slurm-style options to submit many sub-jobs.\n# Flux does not provide a DRMAA interface by default, and the `slurm-drmaa` module targets Slurm.\n# There is no direct translation for this submission mechanism in a portable Flux script.\n#\n# Performance implication of omission: without a Flux-compatible executor/back-end, Snakemake will not\n# dispatch cluster jobs; it may run locally within a single allocation, greatly reducing scalability.\n\n# This is a self-submitting Flux script: run it directly (e.g., `./rc_test_snakemake.flux.sh`).\n# It will submit itself to Flux with the translated *top-level* resource requests.\n\n# Translated resources from Slurm:\n#   -c 1        -> -c 1\n#   -t 2-00:00  -> -t 2d\nJOBID=$(flux batch -N 1 -n 1 -c 1 -t 2d --wrap \"bash $0 __flux_inner\")\n\necho \"Submitted Flux job: $JOBID\"\n\nif [ \"${1:-}\" = \"__flux_inner\" ]; then\n  # NOTE: Slurm -p priority not translated.\n  # Performance implication: without a queue/constraint mapping, the job may run on any eligible resources; you are not forcing the priority partition.\n\n  # NOTE: Slurm --mem 4G not translated.\n  # Performance implication: without a memory reservation/limit, the job may contend for memory or be OOM-killed, affecting reliability/performance.\n\n  # NOTE: Slurm -o/-e with %A expansion (jobid) not translated.\n  # Performance implication: none; operational implication: log filenames may not be unique unless you add uniqueness.\n\n  module unload python || true\n  module load gcc conda2 slurm-drmaa/1.1.1\n  conda activate rctest\n\n  # NOTE: --drmaa argument is retained, but will only work if a DRMAA backend compatible with Flux is available (typically not).\n  flux run -n 1 -c 1 snakemake \\\n    --snakefile src/20_62_nonallelespec_rc-test-Snakefile.py \\\n    --jobs 9980 \\\n    --restart-times 0 \\\n    --cluster-config config/rc-test-snakemake-cluster.json \\\n    --latency-wait 120 \\\n    --drmaa \" -c {cluster.cores} -p {cluster.partition} --mem={cluster.mem} -t {cluster.time} -o {cluster.out} -e {cluster.err} -J {cluster.J}\"\n\n  conda deactivate\nfi\n"
+                }
+            }
+        },
+        {
+            "timestamp": 1773199272.570837,
+            "event": "enter",
+            "step": "validate_flux_jobspec",
+            "type": "tool",
+            "data": {
+                "inputs": {
+                    "content": "#!/bin/bash\n\n# Flux batch script\n#\n# NOTE: This workflow relies on Snakemake + DRMAA with Slurm-style options to submit many sub-jobs.\n# Flux does not provide a DRMAA interface by default, and the `slurm-drmaa` module targets Slurm.\n# There is no direct translation for this submission mechanism in a portable Flux script.\n#\n# Performance implication of omission: without a Flux-compatible executor/back-end, Snakemake will not\n# dispatch cluster jobs; it may run locally within a single allocation, greatly reducing scalability.\n\n# This is a self-submitting Flux script: run it directly (e.g., `./rc_test_snakemake.flux.sh`).\n# It will submit itself to Flux with the translated *top-level* resource requests.\n\n# Translated resources from Slurm:\n#   -c 1        -> -c 1\n#   -t 2-00:00  -> -t 2d\nJOBID=$(flux batch -N 1 -n 1 -c 1 -t 2d --wrap \"bash $0 __flux_inner\")\n\necho \"Submitted Flux job: $JOBID\"\n\nif [ \"${1:-}\" = \"__flux_inner\" ]; then\n  # NOTE: Slurm -p priority not translated.\n  # Performance implication: without a queue/constraint mapping, the job may run on any eligible resources; you are not forcing the priority partition.\n\n  # NOTE: Slurm --mem 4G not translated.\n  # Performance implication: without a memory reservation/limit, the job may contend for memory or be OOM-killed, affecting reliability/performance.\n\n  # NOTE: Slurm -o/-e with %A expansion (jobid) not translated.\n  # Performance implication: none; operational implication: log filenames may not be unique unless you add uniqueness.\n\n  module unload python || true\n  module load gcc conda2 slurm-drmaa/1.1.1\n  conda activate rctest\n\n  # NOTE: --drmaa argument is retained, but will only work if a DRMAA backend compatible with Flux is available (typically not).\n  flux run -n 1 -c 1 snakemake \\\n    --snakefile src/20_62_nonallelespec_rc-test-Snakefile.py \\\n    --jobs 9980 \\\n    --restart-times 0 \\\n    --cluster-config config/rc-test-snakemake-cluster.json \\\n    --latency-wait 120 \\\n    --drmaa \" -c {cluster.cores} -p {cluster.partition} --mem={cluster.mem} -t {cluster.time} -o {cluster.out} -e {cluster.err} -J {cluster.J}\"\n\n  conda deactivate\nfi\n"
+                }
+            }
+        },
+        {
+            "timestamp": 1773199272.5975437,
+            "event": "exit",
+            "step": "validate_flux_jobspec",
+            "type": "tool",
+            "data": {
+                "outputs": {
+                    "jobspec": "#!/bin/bash\n\n# Flux batch script\n#\n# NOTE: This workflow relies on Snakemake + DRMAA with Slurm-style options to submit many sub-jobs.\n# Flux does not provide a DRMAA interface by default, and the `slurm-drmaa` module targets Slurm.\n# There is no direct translation for this submission mechanism in a portable Flux script.\n#\n# Performance implication of omission: without a Flux-compatible executor/back-end, Snakemake will not\n# dispatch cluster jobs; it may run locally within a single allocation, greatly reducing scalability.\n\n# This is a self-submitting Flux script: run it directly (e.g., `./rc_test_snakemake.flux.sh`).\n# It will submit itself to Flux with the translated *top-level* resource requests.\n\n# Translated resources from Slurm:\n#   -c 1        -> -c 1\n#   -t 2-00:00  -> -t 2d\nJOBID=$(flux batch -N 1 -n 1 -c 1 -t 2d --wrap \"bash $0 __flux_inner\")\n\necho \"Submitted Flux job: $JOBID\"\n\nif [ \"${1:-}\" = \"__flux_inner\" ]; then\n  # NOTE: Slurm -p priority not translated.\n  # Performance implication: without a queue/constraint mapping, the job may run on any eligible resources; you are not forcing the priority partition.\n\n  # NOTE: Slurm --mem 4G not translated.\n  # Performance implication: without a memory reservation/limit, the job may contend for memory or be OOM-killed, affecting reliability/performance.\n\n  # NOTE: Slurm -o/-e with %A expansion (jobid) not translated.\n  # Performance implication: none; operational implication: log filenames may not be unique unless you add uniqueness.\n\n  module unload python || true\n  module load gcc conda2 slurm-drmaa/1.1.1\n  conda activate rctest\n\n  # NOTE: --drmaa argument is retained, but will only work if a DRMAA backend compatible with Flux is available (typically not).\n  flux run -n 1 -c 1 snakemake \\\n    --snakefile src/20_62_nonallelespec_rc-test-Snakefile.py \\\n    --jobs 9980 \\\n    --restart-times 0 \\\n    --cluster-config config/rc-test-snakemake-cluster.json \\\n    --latency-wait 120 \\\n    --drmaa \" -c {cluster.cores} -p {cluster.partition} --mem={cluster.mem} -t {cluster.time} -o {cluster.out} -e {cluster.err} -J {cluster.J}\"\n\n  conda deactivate\nfi\n",
+                    "errors": [],
+                    "valid": true
+                }
+            }
+        },
+        {
+            "timestamp": 1773199272.5998504,
+            "event": "exit",
+            "step": "manual_validate",
+            "type": "tool",
+            "data": {
+                "outputs": {
+                    "jobspec": "#!/bin/bash\n\n# Flux batch script\n#\n# NOTE: This workflow relies on Snakemake + DRMAA with Slurm-style options to submit many sub-jobs.\n# Flux does not provide a DRMAA interface by default, and the `slurm-drmaa` module targets Slurm.\n# There is no direct translation for this submission mechanism in a portable Flux script.\n#\n# Performance implication of omission: without a Flux-compatible executor/back-end, Snakemake will not\n# dispatch cluster jobs; it may run locally within a single allocation, greatly reducing scalability.\n\n# This is a self-submitting Flux script: run it directly (e.g., `./rc_test_snakemake.flux.sh`).\n# It will submit itself to Flux with the translated *top-level* resource requests.\n\n# Translated resources from Slurm:\n#   -c 1        -> -c 1\n#   -t 2-00:00  -> -t 2d\nJOBID=$(flux batch -N 1 -n 1 -c 1 -t 2d --wrap \"bash $0 __flux_inner\")\n\necho \"Submitted Flux job: $JOBID\"\n\nif [ \"${1:-}\" = \"__flux_inner\" ]; then\n  # NOTE: Slurm -p priority not translated.\n  # Performance implication: without a queue/constraint mapping, the job may run on any eligible resources; you are not forcing the priority partition.\n\n  # NOTE: Slurm --mem 4G not translated.\n  # Performance implication: without a memory reservation/limit, the job may contend for memory or be OOM-killed, affecting reliability/performance.\n\n  # NOTE: Slurm -o/-e with %A expansion (jobid) not translated.\n  # Performance implication: none; operational implication: log filenames may not be unique unless you add uniqueness.\n\n  module unload python || true\n  module load gcc conda2 slurm-drmaa/1.1.1\n  conda activate rctest\n\n  # NOTE: --drmaa argument is retained, but will only work if a DRMAA backend compatible with Flux is available (typically not).\n  flux run -n 1 -c 1 snakemake \\\n    --snakefile src/20_62_nonallelespec_rc-test-Snakefile.py \\\n    --jobs 9980 \\\n    --restart-times 0 \\\n    --cluster-config config/rc-test-snakemake-cluster.json \\\n    --latency-wait 120 \\\n    --drmaa \" -c {cluster.cores} -p {cluster.partition} --mem={cluster.mem} -t {cluster.time} -o {cluster.out} -e {cluster.err} -J {cluster.J}\"\n\n  conda deactivate\nfi\n",
+                    "errors": [],
+                    "valid": true
+                }
+            }
+        }
+    ],
+    "metrics": [
+        {
+            "timestamp": 1773199265.2258897,
+            "data": {
+                "use_tools": null,
+                "metrics": {
+                    "prompt_tokens": 254159,
+                    "completion_tokens": 641,
+                    "total_tokens": 254800
+                },
+                "memory": true,
+                "tools": null,
+                "prompt": "### PERSONA\nYou are a job specification generation expert.\n\n### CONTEXT\nWe need to convert between workload manager job specification formats.\n\n### GOAL\nI need to convert the provided job specification from 'slurm' to 'flux'. The desired output format is a 'batch' script.\n\n### REQUIREMENTS & CONSTRAINTS\nYou MUST not make up directives that do not exist.\nYou MUST preserve as many options as possible from the original.\nIf there is a directive that does not translate, you MUST leave it out and add a comment about the performance implications of the omission.\n\n### INSTRUCTIONS\n1. Analyze the provided script below.\n2. Write a new script and return in a json structure with a \"jobspec\"\n3. If the input script is not a workload manager batch file, you MUST return the json jobspec structure as \"noop\"\n\n#!/bin/bash\n\n#SBATCH -c 1\n#SBATCH -p priority\n#SBATCH -t 2-00:00\n#SBATCH --mem 4G\n#SBATCH -o logs/rc-nonallelespec/snakemake_%A.log\n#SBATCH -e logs/rc-nonallelespec/snakemake_%A.log\n\nmodule unload python\nmodule load gcc conda2 slurm-drmaa/1.1.1\nconda activate rctest\n\n\nsnakemake \\\n  --snakefile src/20_62_nonallelespec_rc-test-Snakefile.py \\\n  --jobs 9980 \\\n  --restart-times 0 \\\n  --cluster-config config/rc-test-snakemake-cluster.json \\\n  --latency-wait 120 \\\n  --drmaa \" -c {cluster.cores} -p {cluster.partition} --mem={cluster.mem} -t {cluster.time} -o {cluster.out} -e {cluster.err} -J {cluster.J}\"\n\nconda deactivate\n\n"
+            }
+        },
+        {
+            "timestamp": 1773199272.562105,
+            "data": {
+                "use_tools": null,
+                "metrics": {
+                    "prompt_tokens": 255640,
+                    "completion_tokens": 185,
+                    "total_tokens": 255825
+                },
+                "memory": true,
+                "tools": null,
+                "prompt": "### PERSONA\nYou are a job validation expert.\n\n### CONTEXT\nWe need to validate a job specification for correctness.\n\n### GOAL\nI need to validate if the following job specification is correct. Validity means that the job specification will be accepted by the workload manager and execute:\n\n```\n#!/bin/bash\n\n# Flux batch script\n#\n# NOTE: This workflow relies on Snakemake + DRMAA with Slurm-style options to submit many sub-jobs.\n# Flux does not provide a DRMAA interface by default, and the `slurm-drmaa` module targets Slurm.\n# There is no direct translation for this submission mechanism in a portable Flux script.\n#\n# Performance implication of omission: without a Flux-compatible executor/back-end, Snakemake will not\n# dispatch cluster jobs; it may run locally within a single allocation, greatly reducing scalability.\n\n# This is a self-submitting Flux script: run it directly (e.g., `./rc_test_snakemake.flux.sh`).\n# It will submit itself to Flux with the translated *top-level* resource requests.\n\n# Translated resources from Slurm:\n#   -c 1        -> -c 1\n#   -t 2-00:00  -> -t 2d\nJOBID=$(flux batch -N 1 -n 1 -c 1 -t 2d --wrap \"bash $0 __flux_inner\")\n\necho \"Submitted Flux job: $JOBID\"\n\nif [ \"${1:-}\" = \"__flux_inner\" ]; then\n  # NOTE: Slurm -p priority not translated.\n  # Performance implication: without a queue/constraint mapping, the job may run on any eligible resources; you are not forcing the priority partition.\n\n  # NOTE: Slurm --mem 4G not translated.\n  # Performance implication: without a memory reservation/limit, the job may contend for memory or be OOM-killed, affecting reliability/performance.\n\n  # NOTE: Slurm -o/-e with %A expansion (jobid) not translated.\n  # Performance implication: none; operational implication: log filenames may not be unique unless you add uniqueness.\n\n  module unload python || true\n  module load gcc conda2 slurm-drmaa/1.1.1\n  conda activate rctest\n\n  # NOTE: --drmaa argument is retained, but will only work if a DRMAA backend compatible with Flux is available (typically not).\n  flux run -n 1 -c 1 snakemake \\\n    --snakefile src/20_62_nonallelespec_rc-test-Snakefile.py \\\n    --jobs 9980 \\\n    --restart-times 0 \\\n    --cluster-config config/rc-test-snakemake-cluster.json \\\n    --latency-wait 120 \\\n    --drmaa \" -c {cluster.cores} -p {cluster.partition} --mem={cluster.mem} -t {cluster.time} -o {cluster.out} -e {cluster.err} -J {cluster.J}\"\n\n  conda deactivate\nfi\n\n```\n\n### REQUIREMENTS & CONSTRAINTS\nYou MUST return a JSON structure with fields for 'valid' (bool) and a list of string 'reasons'. You MAY optionally add a field `issues` with a list of debugging or critique of any code. You MUST assume that defaults for a workload manager are reasonable to translate.\n\n### INSTRUCTIONS\n1. Analyze the provided script above.\n2. Use MUST use a jobspec validation tool for the manager if one is available otherwise use your knowledge.\n3. Determine validity based on the resource section ONLY\n4. The 'reasons' should ONLY be specific to resources\n5. If the script includes problematic code, please include in 'issues'\n6. You MUST include a 'tool_call' boolean, true or false, to indicate if you used a validation tool for validation.\n7. Return a json structure with 'valid' and 'tool_call' and 'reasons' (if not valid) and 'issues'\n"
+            }
+        }
+    ],
+    "metadata": {
+        "steps": [
+            {
+                "agent": "transform",
+                "result": {
+                    "has_error": false,
+                    "data": {
+                        "jobspec": "#!/bin/bash\n\n# Flux batch script\n#\n# NOTE: This workflow relies on Snakemake + DRMAA with Slurm-style options to submit many sub-jobs.\n# Flux does not provide a DRMAA interface by default, and the `slurm-drmaa` module targets Slurm.\n# There is no direct translation for this submission mechanism in a portable Flux script.\n#\n# Performance implication of omission: without a Flux-compatible executor/back-end, Snakemake will not\n# dispatch cluster jobs; it may run locally within a single allocation, greatly reducing scalability.\n\n# This is a self-submitting Flux script: run it directly (e.g., `./rc_test_snakemake.flux.sh`).\n# It will submit itself to Flux with the translated *top-level* resource requests.\n\n# Translated resources from Slurm:\n#   -c 1        -> -c 1\n#   -t 2-00:00  -> -t 2d\nJOBID=$(flux batch -N 1 -n 1 -c 1 -t 2d --wrap \"bash $0 __flux_inner\")\n\necho \"Submitted Flux job: $JOBID\"\n\nif [ \"${1:-}\" = \"__flux_inner\" ]; then\n  # NOTE: Slurm -p priority not translated.\n  # Performance implication: without a queue/constraint mapping, the job may run on any eligible resources; you are not forcing the priority partition.\n\n  # NOTE: Slurm --mem 4G not translated.\n  # Performance implication: without a memory reservation/limit, the job may contend for memory or be OOM-killed, affecting reliability/performance.\n\n  # NOTE: Slurm -o/-e with %A expansion (jobid) not translated.\n  # Performance implication: none; operational implication: log filenames may not be unique unless you add uniqueness.\n\n  module unload python || true\n  module load gcc conda2 slurm-drmaa/1.1.1\n  conda activate rctest\n\n  # NOTE: --drmaa argument is retained, but will only work if a DRMAA backend compatible with Flux is available (typically not).\n  flux run -n 1 -c 1 snakemake \\\n    --snakefile src/20_62_nonallelespec_rc-test-Snakefile.py \\\n    --jobs 9980 \\\n    --restart-times 0 \\\n    --cluster-config config/rc-test-snakemake-cluster.json \\\n    --latency-wait 120 \\\n    --drmaa \" -c {cluster.cores} -p {cluster.partition} --mem={cluster.mem} -t {cluster.time} -o {cluster.out} -e {cluster.err} -J {cluster.J}\"\n\n  conda deactivate\nfi\n"
+                    },
+                    "attempts": 1
+                },
+                "transition": "success -> validate",
+                "complete": false,
+                "state": "success"
+            },
+            {
+                "agent": "validate",
+                "result": {
+                    "has_error": false,
+                    "data": {
+                        "valid": true,
+                        "tool_call": false,
+                        "reasons": [],
+                        "issues": [
+                            "This is a self-submitting pattern: it will only work if `flux batch` can connect to a Flux broker from where the script is executed (inside a Flux instance or via a site-provided submission endpoint).",
+                            "No memory limit/reservation is requested in Flux (Slurm `--mem 4G` was omitted), so the job will run with default memory policy, which may differ from the original resource intent.",
+                            "The top-level allocation is very small (`-n 1 -c 1`) relative to the intended workload (`--jobs 9980`); if Snakemake cannot submit sub-jobs via a Flux-compatible mechanism, the workflow will be resource-constrained (resource sizing concern)."
+                        ]
+                    },
+                    "attempts": 1
+                },
+                "transition": "success -> manual_validate",
+                "complete": false,
+                "state": "success"
+            },
+            {
+                "agent": "manual_validate",
+                "result": {
+                    "has_error": false,
+                    "data": {
+                        "jobspec": "#!/bin/bash\n\n# Flux batch script\n#\n# NOTE: This workflow relies on Snakemake + DRMAA with Slurm-style options to submit many sub-jobs.\n# Flux does not provide a DRMAA interface by default, and the `slurm-drmaa` module targets Slurm.\n# There is no direct translation for this submission mechanism in a portable Flux script.\n#\n# Performance implication of omission: without a Flux-compatible executor/back-end, Snakemake will not\n# dispatch cluster jobs; it may run locally within a single allocation, greatly reducing scalability.\n\n# This is a self-submitting Flux script: run it directly (e.g., `./rc_test_snakemake.flux.sh`).\n# It will submit itself to Flux with the translated *top-level* resource requests.\n\n# Translated resources from Slurm:\n#   -c 1        -> -c 1\n#   -t 2-00:00  -> -t 2d\nJOBID=$(flux batch -N 1 -n 1 -c 1 -t 2d --wrap \"bash $0 __flux_inner\")\n\necho \"Submitted Flux job: $JOBID\"\n\nif [ \"${1:-}\" = \"__flux_inner\" ]; then\n  # NOTE: Slurm -p priority not translated.\n  # Performance implication: without a queue/constraint mapping, the job may run on any eligible resources; you are not forcing the priority partition.\n\n  # NOTE: Slurm --mem 4G not translated.\n  # Performance implication: without a memory reservation/limit, the job may contend for memory or be OOM-killed, affecting reliability/performance.\n\n  # NOTE: Slurm -o/-e with %A expansion (jobid) not translated.\n  # Performance implication: none; operational implication: log filenames may not be unique unless you add uniqueness.\n\n  module unload python || true\n  module load gcc conda2 slurm-drmaa/1.1.1\n  conda activate rctest\n\n  # NOTE: --drmaa argument is retained, but will only work if a DRMAA backend compatible with Flux is available (typically not).\n  flux run -n 1 -c 1 snakemake \\\n    --snakefile src/20_62_nonallelespec_rc-test-Snakefile.py \\\n    --jobs 9980 \\\n    --restart-times 0 \\\n    --cluster-config config/rc-test-snakemake-cluster.json \\\n    --latency-wait 120 \\\n    --drmaa \" -c {cluster.cores} -p {cluster.partition} --mem={cluster.mem} -t {cluster.time} -o {cluster.out} -e {cluster.err} -J {cluster.J}\"\n\n  conda deactivate\nfi\n",
+                        "errors": [],
+                        "valid": true
+                    }
+                },
+                "transition": "complete",
+                "complete": true,
+                "state": "complete"
+            }
+        ],
+        "model_name": "gpt-5.2",
+        "plan_source": "memory",
+        "state_machine_loops": 1
+    },
+    "plan": {
+        "name": "Transform Jobspec Between Managers",
+        "steps": [
+            {
+                "name": "transform",
+                "type": "prompt",
+                "prompt": "transform_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "from_manager": "slurm",
+                    "to_manager": "flux",
+                    "script": "#!/bin/bash\n\n#SBATCH -c 1\n#SBATCH -p priority\n#SBATCH -t 2-00:00\n#SBATCH --mem 4G\n#SBATCH -o logs/rc-nonallelespec/snakemake_%A.log\n#SBATCH -e logs/rc-nonallelespec/snakemake_%A.log\n\nmodule unload python\nmodule load gcc conda2 slurm-drmaa/1.1.1\nconda activate rctest\n\n\nsnakemake \\\n  --snakefile src/20_62_nonallelespec_rc-test-Snakefile.py \\\n  --jobs 9980 \\\n  --restart-times 0 \\\n  --cluster-config config/rc-test-snakemake-cluster.json \\\n  --latency-wait 120 \\\n  --drmaa \" -c {cluster.cores} -p {cluster.partition} --mem={cluster.mem} -t {cluster.time} -o {cluster.out} -e {cluster.err} -J {cluster.J}\"\n\nconda deactivate\n",
+                    "error": "{{ steps.validate.outputs.errors }}",
+                    "jobspec": "{{ steps.validate.outputs.jobspec }}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "validate"
+                },
+                "rules": {
+                    "failed": [
+                        "not jobspec"
+                    ],
+                    "success": [
+                        "jobspec"
+                    ]
+                },
+                "initial": true
+            },
+            {
+                "name": "validate",
+                "type": "prompt",
+                "prompt": "validate_jobspec_expert",
+                "allow_tools": false,
+                "inputs": {
+                    "script": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform",
+                    "success": "manual_validate"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            },
+            {
+                "name": "manual_validate",
+                "type": "tool",
+                "tool": "validate_flux_jobspec",
+                "inputs": {
+                    "content": "{{steps.transform.outputs.jobspec}}"
+                },
+                "transitions": {
+                    "failed": "transform"
+                },
+                "rules": {
+                    "success": [
+                        "valid"
+                    ],
+                    "failed": [
+                        "not valid"
+                    ]
+                }
+            }
+        ],
+        "inputs": {}
+    },
+    "filename": "data/Kevin-Haigis-Lab/kras-allele-genetic-interactions/src/20_63_nonallelespec_run-rc-test-snakemake.sh"
+}
