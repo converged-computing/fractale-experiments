@@ -47,12 +47,6 @@ def prepare_data(root_dir, output_file="data.js"):
             # Find the latest transform and validation steps
             for ev in reversed(events):
                 if (
-                    ev.get("data", {}).get("outputs", {}).get("jobspec") == ""
-                    and final_status is None
-                ):
-                    is_valid = False
-                    final_status = "Invalid"
-                elif (
                     ev.get("data", {}).get("outputs", {}).get("valid") in [True, False]
                     and final_status is None
                 ):
