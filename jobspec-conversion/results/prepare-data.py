@@ -47,6 +47,12 @@ def prepare_data(root_dir, output_file="data.js"):
             # Find the latest transform and validation steps
             for ev in reversed(events):
                 if (
+                    ev.get("data", {}).get("outputs", {}).get("jobspec") == ""
+                    and final_status is None
+                ):
+                    is_valid = False
+                    final_status = "Invalid"
+                elif (
                     ev.get("data", {}).get("outputs", {}).get("valid") in [True, False]
                     and final_status is None
                 ):
@@ -61,7 +67,7 @@ def prepare_data(root_dir, output_file="data.js"):
             if flux_output is None or final_status == "Unknown":
                 print("ISSUE getting flux output")
                 flux_output = "noop"
-
+            
             # 3. METRICS
             total_time = (
                 (events[-1]["timestamp"] - events[0]["timestamp"])
@@ -82,7 +88,7 @@ def prepare_data(root_dir, output_file="data.js"):
             ]
             step_count = len(valid_events)
             print(valid_events)
-
+            
             # Populate entry matching the keys index.html expects
             experiments[exp_id].append(
                 {
