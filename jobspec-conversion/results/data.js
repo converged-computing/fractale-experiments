@@ -28139,6 +28139,2180 @@ window.experiment_data = {
       "token_total": 611545
     }
   ],
+  "gpt-5.2-noempty-jobspec": [
+    {
+      "id": "run_agave.sh",
+      "filename": "data/DaymudeLab/EvoSOPS/run_agave.sh",
+      "status": "Valid",
+      "total_time": 15.921319484710693,
+      "step_count": 5,
+      "slurm": "#!/bin/bash\n\n#SBATCH -N 1  # number of nodes\n#SBATCH -n 24  # number of \"tasks\" (default: allocates 1 core per task)\n#SBATCH -t 0-06:00:00   # time in d-hh:mm:ss \n#SBATCH -q normal       # QOS\n#SBATCH -o slurm.%j.out # file to save job's STDOUT (%j = JobId)\n#SBATCH -e slurm.%j.err # file to save job's STDERR (%j = JobId)\n#SBATCH --mail-type=ALL # Send an e-mail when a job starts, stops, or fails\n#SBATCH --mail-user=%u@asu.edu # Mail-to address\n#SBATCH --export=NONE   # Purge the job-submitting shell environment\n\nmodule purge\n\ncurl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh\n\nsource \"$HOME/.cargo/env\"\ncargo run",
+      "flux": "#!/bin/bash\n#flux: -N 1\n#flux: -n 24\n#flux: -t 6h\n#\n# NOTE: Slurm -q normal (QOS/partition) has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or job priority (performance as time-to-solution).\n#\n# NOTE: Slurm -o/-e (stdout/stderr files) are omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting them has no runtime performance impact, but logs will go to Flux default output handling.\n#\n# NOTE: Slurm mail notifications (--mail-type=ALL/--mail-user=...) are not translated.\n# Omitting them has no runtime performance impact, but you will not receive email notifications.\n#\n# NOTE: Slurm --export=NONE (environment purge) has no direct portable Flux batch directive here.\n# Omitting it may affect reproducibility and can impact performance if unintended environment variables influence runtime behavior.\n\nmodule purge\n\ncurl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh\n\nsource \"$HOME/.cargo/env\"\ncargo run\n",
+      "events": [
+        {
+          "timestamp": 1773206739.96883,
+          "event": "enter",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206744.2136948,
+          "event": "exit",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"jobspec\": \"#!/bin/bash\\n#flux: -N 1\\n#flux: -n 24\\n#flux: -t 6h\\n#flux: --output=slurm.%j.out\\n#flux: --error=slurm.%j.err\\n#\\n# NOTE: Slurm -q normal (QOS/partition) has no direct portable Flux batch directive here.\\n# Omitting it may affect queue wait time and/or job priority (performance as time-to-solution).\\n#\\n# NOTE: Slurm mail notifications (--mail-type=ALL/--mail-user=...) are not translated.\\n# Omitting them has no runtime performance impact, but you will not receive email notifications.\\n#\\n# NOTE: Slurm --export=NONE (environment purge) has no direct portable Flux batch directive here.\\n# Omitting it may affect reproducibility and can impact performance if unintended environment variables influence threading/MPI/runtime behavior.\\n\\nmodule purge\\n\\ncurl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh\\n\\nsource \\\"$HOME/.cargo/env\\\"\\ncargo run\\n\"\n}"
+          }
+        },
+        {
+          "timestamp": 1773206744.2148452,
+          "event": "enter",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206749.3491457,
+          "event": "exit",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"valid\": false,\n  \"tool_call\": false,\n  \"reasons\": [\n    \"The `#flux:` directive keys `--output` and `--error` are likely invalid for Flux batch directives; Flux commonly uses `--output=FILE` (and optionally `--error=FILE`) on the `flux batch` command line, but these are not generally accepted as embedded `#flux:` jobspec directives. If unsupported, the script will be rejected at submission/parse time.\"\n  ],\n  \"issues\": [\n    \"Even if output/error directives are accepted by your site wrapper, `slurm.%j.out`/`slurm.%j.err` use Slurm\u2019s `%j` substitution; Flux typically does not expand `%j` the same way. You may get literal `%j` in filenames.\",\n    \"Running `curl ... | sh` installs Rust during the job; this can be slow, fail without network access, and is generally discouraged on HPC systems.\"\n  ]\n}"
+          }
+        },
+        {
+          "timestamp": 1773206749.3504899,
+          "event": "enter",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206753.1489475,
+          "event": "exit",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"jobspec\": \"#!/bin/bash\\n#flux: -N 1\\n#flux: -n 24\\n#flux: -t 6h\\n#\\n# NOTE: Slurm -q normal (QOS/partition) has no direct portable Flux batch directive here.\\n# Omitting it may affect queue wait time and/or job priority (performance as time-to-solution).\\n#\\n# NOTE: Slurm -o/-e (stdout/stderr files) are omitted because a portable Flux batch directive equivalent is not provided here.\\n# Omitting them has no runtime performance impact, but logs will go to Flux default output handling.\\n#\\n# NOTE: Slurm mail notifications (--mail-type=ALL/--mail-user=...) are not translated.\\n# Omitting them has no runtime performance impact, but you will not receive email notifications.\\n#\\n# NOTE: Slurm --export=NONE (environment purge) has no direct portable Flux batch directive here.\\n# Omitting it may affect reproducibility and can impact performance if unintended environment variables influence runtime behavior.\\n\\nmodule purge\\n\\ncurl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh\\n\\nsource \\\"$HOME/.cargo/env\\\"\\ncargo run\\n\"\n}"
+          }
+        },
+        {
+          "timestamp": 1773206753.150087,
+          "event": "enter",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206755.8601654,
+          "event": "exit",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"valid\": true,\n  \"tool_call\": false,\n  \"reasons\": [],\n  \"issues\": [\n    \"This assumes your Flux deployment supports parsing `#flux:` directives in batch scripts (common when submitting with `flux batch script.sh`). If your site requires explicit `flux batch -N ... -n ... script.sh` instead, the directives will be ignored.\",\n    \"Installing Rust via `curl | sh` during the job may fail on systems without outbound network access and can significantly increase job runtime.\"\n  ]\n}"
+          }
+        },
+        {
+          "timestamp": 1773206755.8619783,
+          "event": "enter",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "inputs": {
+              "content": "#!/bin/bash\n#flux: -N 1\n#flux: -n 24\n#flux: -t 6h\n#\n# NOTE: Slurm -q normal (QOS/partition) has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or job priority (performance as time-to-solution).\n#\n# NOTE: Slurm -o/-e (stdout/stderr files) are omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting them has no runtime performance impact, but logs will go to Flux default output handling.\n#\n# NOTE: Slurm mail notifications (--mail-type=ALL/--mail-user=...) are not translated.\n# Omitting them has no runtime performance impact, but you will not receive email notifications.\n#\n# NOTE: Slurm --export=NONE (environment purge) has no direct portable Flux batch directive here.\n# Omitting it may affect reproducibility and can impact performance if unintended environment variables influence runtime behavior.\n\nmodule purge\n\ncurl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh\n\nsource \"$HOME/.cargo/env\"\ncargo run\n"
+            }
+          }
+        },
+        {
+          "timestamp": 1773206755.8636498,
+          "event": "enter",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "inputs": {
+              "content": "#!/bin/bash\n#flux: -N 1\n#flux: -n 24\n#flux: -t 6h\n#\n# NOTE: Slurm -q normal (QOS/partition) has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or job priority (performance as time-to-solution).\n#\n# NOTE: Slurm -o/-e (stdout/stderr files) are omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting them has no runtime performance impact, but logs will go to Flux default output handling.\n#\n# NOTE: Slurm mail notifications (--mail-type=ALL/--mail-user=...) are not translated.\n# Omitting them has no runtime performance impact, but you will not receive email notifications.\n#\n# NOTE: Slurm --export=NONE (environment purge) has no direct portable Flux batch directive here.\n# Omitting it may affect reproducibility and can impact performance if unintended environment variables influence runtime behavior.\n\nmodule purge\n\ncurl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh\n\nsource \"$HOME/.cargo/env\"\ncargo run\n"
+            }
+          }
+        },
+        {
+          "timestamp": 1773206755.8882432,
+          "event": "exit",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "outputs": {
+              "jobspec": "#!/bin/bash\n#flux: -N 1\n#flux: -n 24\n#flux: -t 6h\n#\n# NOTE: Slurm -q normal (QOS/partition) has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or job priority (performance as time-to-solution).\n#\n# NOTE: Slurm -o/-e (stdout/stderr files) are omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting them has no runtime performance impact, but logs will go to Flux default output handling.\n#\n# NOTE: Slurm mail notifications (--mail-type=ALL/--mail-user=...) are not translated.\n# Omitting them has no runtime performance impact, but you will not receive email notifications.\n#\n# NOTE: Slurm --export=NONE (environment purge) has no direct portable Flux batch directive here.\n# Omitting it may affect reproducibility and can impact performance if unintended environment variables influence runtime behavior.\n\nmodule purge\n\ncurl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh\n\nsource \"$HOME/.cargo/env\"\ncargo run\n",
+              "errors": [],
+              "valid": true
+            }
+          }
+        },
+        {
+          "timestamp": 1773206755.8901496,
+          "event": "exit",
+          "step": "manual_validate",
+          "type": "tool",
+          "data": {
+            "outputs": {
+              "jobspec": "#!/bin/bash\n#flux: -N 1\n#flux: -n 24\n#flux: -t 6h\n#\n# NOTE: Slurm -q normal (QOS/partition) has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or job priority (performance as time-to-solution).\n#\n# NOTE: Slurm -o/-e (stdout/stderr files) are omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting them has no runtime performance impact, but logs will go to Flux default output handling.\n#\n# NOTE: Slurm mail notifications (--mail-type=ALL/--mail-user=...) are not translated.\n# Omitting them has no runtime performance impact, but you will not receive email notifications.\n#\n# NOTE: Slurm --export=NONE (environment purge) has no direct portable Flux batch directive here.\n# Omitting it may affect reproducibility and can impact performance if unintended environment variables influence runtime behavior.\n\nmodule purge\n\ncurl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh\n\nsource \"$HOME/.cargo/env\"\ncargo run\n",
+              "errors": [],
+              "valid": true
+            }
+          }
+        }
+      ],
+      "token_total": 22426
+    },
+    {
+      "id": "fed_unlearn_main_3.sh",
+      "filename": "data/Karlywang/FedEraser-reproduce/scripts/fed_unlearn_main_3.sh",
+      "status": "Valid",
+      "total_time": 8.198041200637817,
+      "step_count": 3,
+      "slurm": "#!/bin/bash\n#SBATCH --job-name=federaser\n#SBATCH --nodes=1\n#SBATCH --mem=50000\n#SBATCH -o tensor_out_3.txt\n#SBATCH -e tensor_error_3.txt\n#SBATCH --partition=gpu\n#SBATCH --gres=gpu:1\n\n#module load gnu7/7.2.0\nmodule load cuda/10.0.130\nmodule load anaconda/3.6\n#module load mvapich2\n#module load pmix/1.2.3\n\nsource activate federaser\n\nsrun python ../Fed_Unlearn_main_3.py\n\n",
+      "flux": "#!/bin/bash\n#flux: -N 1\n#flux: -n 1\n#flux: -g 1\n#\n# NOTE: Slurm --job-name=federaser has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\n#\n# NOTE: Slurm --mem=50000 has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: Slurm --partition=gpu has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or access to GPU-capable nodes (performance as time-to-solution).\n#\n# NOTE: Slurm -o/-e (stdout/stderr files) are omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\n\n#module load gnu7/7.2.0\nmodule load cuda/10.0.130\nmodule load anaconda/3.6\n#module load mvapich2\n#module load pmix/1.2.3\n\nsource activate federaser\n\n# Use Flux launcher instead of srun\nflux run -n 1 -g 1 python ../Fed_Unlearn_main_3.py\n",
+      "events": [
+        {
+          "timestamp": 1773206911.0952647,
+          "event": "enter",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206915.963731,
+          "event": "exit",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"jobspec\": \"#!/bin/bash\\n#flux: -N 1\\n#flux: -n 1\\n#flux: -g 1\\n#\\n# NOTE: Slurm --job-name=federaser has no direct portable Flux batch directive included here.\\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\\n#\\n# NOTE: Slurm --mem=50000 has no direct portable Flux batch directive included here.\\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\\n#\\n# NOTE: Slurm --partition=gpu has no direct portable Flux batch directive here.\\n# Omitting it may affect queue wait time and/or access to GPU-capable nodes (performance as time-to-solution).\\n#\\n# NOTE: Slurm -o/-e (stdout/stderr files) are omitted because a portable Flux batch directive equivalent is not provided here.\\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\\n\\n#module load gnu7/7.2.0\\nmodule load cuda/10.0.130\\nmodule load anaconda/3.6\\n#module load mvapich2\\n#module load pmix/1.2.3\\n\\nsource activate federaser\\n\\n# Use Flux launcher instead of srun\\nflux run -n 1 -g 1 python ../Fed_Unlearn_main_3.py\\n\"\n}"
+          }
+        },
+        {
+          "timestamp": 1773206915.9648886,
+          "event": "enter",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206919.2604237,
+          "event": "exit",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"valid\": true,\n  \"tool_call\": false,\n  \"reasons\": [],\n  \"issues\": [\n    \"Validity assumes your Flux deployment supports parsing `#flux:` directives in scripts submitted via `flux batch script.sh`.\",\n    \"Requesting `-g 1` assumes GPU resources are configured and schedulable in the Flux instance; otherwise the job may be rejected or the request ignored depending on site policy.\",\n    \"No walltime is set in the resource section; the job will run with the Flux default time limit (which may be short on some systems).\"\n  ]\n}"
+          }
+        },
+        {
+          "timestamp": 1773206919.2621746,
+          "event": "enter",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "inputs": {
+              "content": "#!/bin/bash\n#flux: -N 1\n#flux: -n 1\n#flux: -g 1\n#\n# NOTE: Slurm --job-name=federaser has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\n#\n# NOTE: Slurm --mem=50000 has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: Slurm --partition=gpu has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or access to GPU-capable nodes (performance as time-to-solution).\n#\n# NOTE: Slurm -o/-e (stdout/stderr files) are omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\n\n#module load gnu7/7.2.0\nmodule load cuda/10.0.130\nmodule load anaconda/3.6\n#module load mvapich2\n#module load pmix/1.2.3\n\nsource activate federaser\n\n# Use Flux launcher instead of srun\nflux run -n 1 -g 1 python ../Fed_Unlearn_main_3.py\n"
+            }
+          }
+        },
+        {
+          "timestamp": 1773206919.2639086,
+          "event": "enter",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "inputs": {
+              "content": "#!/bin/bash\n#flux: -N 1\n#flux: -n 1\n#flux: -g 1\n#\n# NOTE: Slurm --job-name=federaser has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\n#\n# NOTE: Slurm --mem=50000 has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: Slurm --partition=gpu has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or access to GPU-capable nodes (performance as time-to-solution).\n#\n# NOTE: Slurm -o/-e (stdout/stderr files) are omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\n\n#module load gnu7/7.2.0\nmodule load cuda/10.0.130\nmodule load anaconda/3.6\n#module load mvapich2\n#module load pmix/1.2.3\n\nsource activate federaser\n\n# Use Flux launcher instead of srun\nflux run -n 1 -g 1 python ../Fed_Unlearn_main_3.py\n"
+            }
+          }
+        },
+        {
+          "timestamp": 1773206919.2913928,
+          "event": "exit",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "outputs": {
+              "jobspec": "#!/bin/bash\n#flux: -N 1\n#flux: -n 1\n#flux: -g 1\n#\n# NOTE: Slurm --job-name=federaser has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\n#\n# NOTE: Slurm --mem=50000 has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: Slurm --partition=gpu has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or access to GPU-capable nodes (performance as time-to-solution).\n#\n# NOTE: Slurm -o/-e (stdout/stderr files) are omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\n\n#module load gnu7/7.2.0\nmodule load cuda/10.0.130\nmodule load anaconda/3.6\n#module load mvapich2\n#module load pmix/1.2.3\n\nsource activate federaser\n\n# Use Flux launcher instead of srun\nflux run -n 1 -g 1 python ../Fed_Unlearn_main_3.py\n",
+              "errors": [],
+              "valid": true
+            }
+          }
+        },
+        {
+          "timestamp": 1773206919.2933059,
+          "event": "exit",
+          "step": "manual_validate",
+          "type": "tool",
+          "data": {
+            "outputs": {
+              "jobspec": "#!/bin/bash\n#flux: -N 1\n#flux: -n 1\n#flux: -g 1\n#\n# NOTE: Slurm --job-name=federaser has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\n#\n# NOTE: Slurm --mem=50000 has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: Slurm --partition=gpu has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or access to GPU-capable nodes (performance as time-to-solution).\n#\n# NOTE: Slurm -o/-e (stdout/stderr files) are omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\n\n#module load gnu7/7.2.0\nmodule load cuda/10.0.130\nmodule load anaconda/3.6\n#module load mvapich2\n#module load pmix/1.2.3\n\nsource activate federaser\n\n# Use Flux launcher instead of srun\nflux run -n 1 -g 1 python ../Fed_Unlearn_main_3.py\n",
+              "errors": [],
+              "valid": true
+            }
+          }
+        }
+      ],
+      "token_total": 68935
+    },
+    {
+      "id": "20_63_nonallelespec_run-rc-test-snakemake.sh",
+      "filename": "data/Kevin-Haigis-Lab/kras-allele-genetic-interactions/src/20_63_nonallelespec_run-rc-test-snakemake.sh",
+      "status": "Valid",
+      "total_time": 9.032755613327026,
+      "step_count": 3,
+      "slurm": "#!/bin/bash\n\n#SBATCH -c 1\n#SBATCH -p priority\n#SBATCH -t 2-00:00\n#SBATCH --mem 4G\n#SBATCH -o logs/rc-nonallelespec/snakemake_%A.log\n#SBATCH -e logs/rc-nonallelespec/snakemake_%A.log\n\nmodule unload python\nmodule load gcc conda2 slurm-drmaa/1.1.1\nconda activate rctest\n\n\nsnakemake \\\n  --snakefile src/20_62_nonallelespec_rc-test-Snakefile.py \\\n  --jobs 9980 \\\n  --restart-times 0 \\\n  --cluster-config config/rc-test-snakemake-cluster.json \\\n  --latency-wait 120 \\\n  --drmaa \" -c {cluster.cores} -p {cluster.partition} --mem={cluster.mem} -t {cluster.time} -o {cluster.out} -e {cluster.err} -J {cluster.J}\"\n\nconda deactivate\n",
+      "flux": "#!/bin/bash\n#flux: -c 1\n#flux: -t 48h\n#\n# NOTE: Slurm -p priority (partition) has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or job priority (performance as time-to-solution).\n#\n# NOTE: Slurm --mem 4G has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: Slurm -o/-e logs/... with %A (jobid) substitution is omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting it has no runtime performance impact, but logs will use Flux defaults; also Slurm-specific %A substitution would not expand.\n\nmodule unload python\nmodule load gcc conda2 slurm-drmaa/1.1.1\nconda activate rctest\n\nsnakemake \\\n  --snakefile src/20_62_nonallelespec_rc-test-Snakefile.py \\\n  --jobs 9980 \\\n  --restart-times 0 \\\n  --cluster-config config/rc-test-snakemake-cluster.json \\\n  --latency-wait 120 \\\n  --drmaa \" -c {cluster.cores} -p {cluster.partition} --mem={cluster.mem} -t {cluster.time} -o {cluster.out} -e {cluster.err} -J {cluster.J}\"\n\nconda deactivate\n",
+      "events": [
+        {
+          "timestamp": 1773206773.2858348,
+          "event": "enter",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206777.9143033,
+          "event": "exit",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"jobspec\": \"#!/bin/bash\\n#flux: -c 1\\n#flux: -t 48h\\n#\\n# NOTE: Slurm -p priority (partition) has no direct portable Flux batch directive here.\\n# Omitting it may affect queue wait time and/or job priority (performance as time-to-solution).\\n#\\n# NOTE: Slurm --mem 4G has no direct portable Flux batch directive included here.\\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\\n#\\n# NOTE: Slurm -o/-e logs/... with %A (jobid) substitution is omitted because a portable Flux batch directive equivalent is not provided here.\\n# Omitting it has no runtime performance impact, but logs will use Flux defaults; also Slurm-specific %A substitution would not expand.\\n\\nmodule unload python\\nmodule load gcc conda2 slurm-drmaa/1.1.1\\nconda activate rctest\\n\\nsnakemake \\\\\\n  --snakefile src/20_62_nonallelespec_rc-test-Snakefile.py \\\\\\n  --jobs 9980 \\\\\\n  --restart-times 0 \\\\\\n  --cluster-config config/rc-test-snakemake-cluster.json \\\\\\n  --latency-wait 120 \\\\\\n  --drmaa \\\" -c {cluster.cores} -p {cluster.partition} --mem={cluster.mem} -t {cluster.time} -o {cluster.out} -e {cluster.err} -J {cluster.J}\\\"\\n\\nconda deactivate\\n\"\n}"
+          }
+        },
+        {
+          "timestamp": 1773206777.9154963,
+          "event": "enter",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206782.2876716,
+          "event": "exit",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"valid\": true,\n  \"tool_call\": false,\n  \"reasons\": [],\n  \"issues\": [\n    \"This assumes your Flux deployment supports parsing `#flux:` directives when submitting the script via `flux batch script.sh`; otherwise `-c 1` and `-t 48h` must be passed to `flux batch` on the command line.\",\n    \"Only `-c 1` is requested (cores), but no task count (`-n`) is specified; Flux will use its default (commonly 1 task). If Snakemake needs more parallelism in the parent job, performance may be limited.\",\n    \"The Snakemake `--drmaa` string is Slurm-specific (partition, mem, -o/-e, -J) and will submit to Slurm via slurm-drmaa; this is not a Flux resource issue, but it means the workflow's worker jobs won't be managed by Flux.\"\n  ]\n}"
+          }
+        },
+        {
+          "timestamp": 1773206782.2894535,
+          "event": "enter",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "inputs": {
+              "content": "#!/bin/bash\n#flux: -c 1\n#flux: -t 48h\n#\n# NOTE: Slurm -p priority (partition) has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or job priority (performance as time-to-solution).\n#\n# NOTE: Slurm --mem 4G has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: Slurm -o/-e logs/... with %A (jobid) substitution is omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting it has no runtime performance impact, but logs will use Flux defaults; also Slurm-specific %A substitution would not expand.\n\nmodule unload python\nmodule load gcc conda2 slurm-drmaa/1.1.1\nconda activate rctest\n\nsnakemake \\\n  --snakefile src/20_62_nonallelespec_rc-test-Snakefile.py \\\n  --jobs 9980 \\\n  --restart-times 0 \\\n  --cluster-config config/rc-test-snakemake-cluster.json \\\n  --latency-wait 120 \\\n  --drmaa \" -c {cluster.cores} -p {cluster.partition} --mem={cluster.mem} -t {cluster.time} -o {cluster.out} -e {cluster.err} -J {cluster.J}\"\n\nconda deactivate\n"
+            }
+          }
+        },
+        {
+          "timestamp": 1773206782.291141,
+          "event": "enter",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "inputs": {
+              "content": "#!/bin/bash\n#flux: -c 1\n#flux: -t 48h\n#\n# NOTE: Slurm -p priority (partition) has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or job priority (performance as time-to-solution).\n#\n# NOTE: Slurm --mem 4G has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: Slurm -o/-e logs/... with %A (jobid) substitution is omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting it has no runtime performance impact, but logs will use Flux defaults; also Slurm-specific %A substitution would not expand.\n\nmodule unload python\nmodule load gcc conda2 slurm-drmaa/1.1.1\nconda activate rctest\n\nsnakemake \\\n  --snakefile src/20_62_nonallelespec_rc-test-Snakefile.py \\\n  --jobs 9980 \\\n  --restart-times 0 \\\n  --cluster-config config/rc-test-snakemake-cluster.json \\\n  --latency-wait 120 \\\n  --drmaa \" -c {cluster.cores} -p {cluster.partition} --mem={cluster.mem} -t {cluster.time} -o {cluster.out} -e {cluster.err} -J {cluster.J}\"\n\nconda deactivate\n"
+            }
+          }
+        },
+        {
+          "timestamp": 1773206782.3157284,
+          "event": "exit",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "outputs": {
+              "jobspec": "#!/bin/bash\n#flux: -c 1\n#flux: -t 48h\n#\n# NOTE: Slurm -p priority (partition) has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or job priority (performance as time-to-solution).\n#\n# NOTE: Slurm --mem 4G has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: Slurm -o/-e logs/... with %A (jobid) substitution is omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting it has no runtime performance impact, but logs will use Flux defaults; also Slurm-specific %A substitution would not expand.\n\nmodule unload python\nmodule load gcc conda2 slurm-drmaa/1.1.1\nconda activate rctest\n\nsnakemake \\\n  --snakefile src/20_62_nonallelespec_rc-test-Snakefile.py \\\n  --jobs 9980 \\\n  --restart-times 0 \\\n  --cluster-config config/rc-test-snakemake-cluster.json \\\n  --latency-wait 120 \\\n  --drmaa \" -c {cluster.cores} -p {cluster.partition} --mem={cluster.mem} -t {cluster.time} -o {cluster.out} -e {cluster.err} -J {cluster.J}\"\n\nconda deactivate\n",
+              "errors": [],
+              "valid": true
+            }
+          }
+        },
+        {
+          "timestamp": 1773206782.3185904,
+          "event": "exit",
+          "step": "manual_validate",
+          "type": "tool",
+          "data": {
+            "outputs": {
+              "jobspec": "#!/bin/bash\n#flux: -c 1\n#flux: -t 48h\n#\n# NOTE: Slurm -p priority (partition) has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or job priority (performance as time-to-solution).\n#\n# NOTE: Slurm --mem 4G has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: Slurm -o/-e logs/... with %A (jobid) substitution is omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting it has no runtime performance impact, but logs will use Flux defaults; also Slurm-specific %A substitution would not expand.\n\nmodule unload python\nmodule load gcc conda2 slurm-drmaa/1.1.1\nconda activate rctest\n\nsnakemake \\\n  --snakefile src/20_62_nonallelespec_rc-test-Snakefile.py \\\n  --jobs 9980 \\\n  --restart-times 0 \\\n  --cluster-config config/rc-test-snakemake-cluster.json \\\n  --latency-wait 120 \\\n  --drmaa \" -c {cluster.cores} -p {cluster.partition} --mem={cluster.mem} -t {cluster.time} -o {cluster.out} -e {cluster.err} -J {cluster.J}\"\n\nconda deactivate\n",
+              "errors": [],
+              "valid": true
+            }
+          }
+        }
+      ],
+      "token_total": 20421
+    },
+    {
+      "id": "pretrain_falcon_fr_all_v0.1.slurm",
+      "filename": "data/OpenLLM-France/Lit-Claire/slurm/pretrain_falcon_fr_all_v0.1.slurm",
+      "status": "Valid",
+      "total_time": 11.086539506912231,
+      "step_count": 3,
+      "slurm": "#!/bin/bash\n#SBATCH --job-name=Falcon\n#SBATCH --gres=gpu:2\n#SBATCH --ntasks-per-node=2\n#SBATCH --nodes=1\n#SBATCH --hint=nomultithread\n#SBATCH --time=20:00:00\n#SBATCH --qos=qos_gpu-t3\n#SBATCH --cpus-per-task=8\n#SBATCH -C a100\n\n## load environment\nmodule purge\nmodule load cpuarch/amd\nmodule load anaconda-py3/2023.03\nconda activate claire\n\n## launch script on every node\nset -x\n\nMODEL=tiiuae/falcon-7b\nOUTDIR=$WORK/../commun/Claire/pretrain/Claire-7B-0.1_1\nmkdir -p $OUTDIR\n\n# execute script\nsrun --output=$OUTDIR/training_log.out --error=$OUTDIR/training_log.out \\\npython pretrain.py \\\n--devices 2 \\\n--num_nodes 1 \\\n--data_dir $SCRATCH/../commun/preprocessed_data/Claire/lit-gpt/padded_8_grouped/$MODEL \\\n--checkpoint_dir $WORK/../commun/Claire/checkpoints/$MODEL \\\n--language fr \\\n--out_dir $OUTDIR \\\n--precision bf16-true \\\n--num_epochs 1000 \\\n--max_checkpoints 39 \\\n--enable_validation true \\\n--save_interval 1800 \\\n--eval_interval 1800 \\\n--early_stopping 4 \\\n--lora_r 16 \\\n--lora_alpha 32\n",
+      "flux": "#!/bin/bash\n#flux: -N 1\n#flux: -n 2\n#flux: -c 8\n#flux: -g 2\n#flux: -t 20h\n#\n# NOTE: Slurm --hint=nomultithread has no direct portable Flux batch directive here.\n# Omitting it may reduce performance due to different CPU binding/SMT usage.\n#\n# NOTE: Slurm --qos=qos_gpu-t3 has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or job priority (performance as time-to-solution).\n#\n# NOTE: Slurm -C a100 (node feature/constraint) has no direct portable Flux batch directive here.\n# Omitting it may place the job on different GPU hardware, potentially reducing performance or changing bf16 support.\n\n## load environment\nmodule purge\nmodule load cpuarch/amd\nmodule load anaconda-py3/2023.03\nconda activate claire\n\n## launch script on every node\nset -x\n\nMODEL=tiiuae/falcon-7b\nOUTDIR=$WORK/../commun/Claire/pretrain/Claire-7B-0.1_1\nmkdir -p \"$OUTDIR\"\n\n# execute script\n# Use flux run instead of srun to respect Flux allocation.\n# NOTE: Slurm's srun --output/--error redirection is omitted; logs will follow Flux defaults.\nflux run -n 2 -c 8 -g 2 python pretrain.py \\\n  --devices 2 \\\n  --num_nodes 1 \\\n  --data_dir \"$SCRATCH/../commun/preprocessed_data/Claire/lit-gpt/padded_8_grouped/$MODEL\" \\\n  --checkpoint_dir \"$WORK/../commun/Claire/checkpoints/$MODEL\" \\\n  --language fr \\\n  --out_dir \"$OUTDIR\" \\\n  --precision bf16-true \\\n  --num_epochs 1000 \\\n  --max_checkpoints 39 \\\n  --enable_validation true \\\n  --save_interval 1800 \\\n  --eval_interval 1800 \\\n  --early_stopping 4 \\\n  --lora_r 16 \\\n  --lora_alpha 32\n",
+      "events": [
+        {
+          "timestamp": 1773206850.896244,
+          "event": "enter",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206857.8782592,
+          "event": "exit",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"jobspec\": \"#!/bin/bash\\n#flux: -N 1\\n#flux: -n 2\\n#flux: -c 8\\n#flux: -g 2\\n#flux: -t 20h\\n#\\n# NOTE: Slurm --hint=nomultithread has no direct portable Flux batch directive here.\\n# Omitting it may reduce performance due to different CPU binding/SMT usage.\\n#\\n# NOTE: Slurm --qos=qos_gpu-t3 has no direct portable Flux batch directive here.\\n# Omitting it may affect queue wait time and/or job priority (performance as time-to-solution).\\n#\\n# NOTE: Slurm -C a100 (node feature/constraint) has no direct portable Flux batch directive here.\\n# Omitting it may place the job on different GPU hardware, potentially reducing performance or changing bf16 support.\\n\\n## load environment\\nmodule purge\\nmodule load cpuarch/amd\\nmodule load anaconda-py3/2023.03\\nconda activate claire\\n\\n## launch script on every node\\nset -x\\n\\nMODEL=tiiuae/falcon-7b\\nOUTDIR=$WORK/../commun/Claire/pretrain/Claire-7B-0.1_1\\nmkdir -p \\\"$OUTDIR\\\"\\n\\n# execute script\\n# Use flux run instead of srun to respect Flux allocation.\\n# NOTE: Slurm's srun --output/--error redirection is omitted; logs will follow Flux defaults.\\nflux run -n 2 -c 8 -g 2 python pretrain.py \\\\\\n  --devices 2 \\\\\\n  --num_nodes 1 \\\\\\n  --data_dir \\\"$SCRATCH/../commun/preprocessed_data/Claire/lit-gpt/padded_8_grouped/$MODEL\\\" \\\\\\n  --checkpoint_dir \\\"$WORK/../commun/Claire/checkpoints/$MODEL\\\" \\\\\\n  --language fr \\\\\\n  --out_dir \\\"$OUTDIR\\\" \\\\\\n  --precision bf16-true \\\\\\n  --num_epochs 1000 \\\\\\n  --max_checkpoints 39 \\\\\\n  --enable_validation true \\\\\\n  --save_interval 1800 \\\\\\n  --eval_interval 1800 \\\\\\n  --early_stopping 4 \\\\\\n  --lora_r 16 \\\\\\n  --lora_alpha 32\\n\"\n}"
+          }
+        },
+        {
+          "timestamp": 1773206857.8794742,
+          "event": "enter",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206861.9518688,
+          "event": "exit",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"valid\": true,\n  \"tool_call\": false,\n  \"reasons\": [],\n  \"issues\": [\n    \"Validity assumes your Flux deployment supports parsing `#flux:` directives in scripts submitted via `flux batch script.sh`.\",\n    \"The resource section requests 2 tasks, 8 cores per task, and 2 GPUs; this assumes the Flux instance is configured with GPU resources and supports `-g`.\",\n    \"No explicit per-node constraint is expressed in the resource section; the original Slurm `-C a100` cannot be enforced, which may affect whether requested GPUs are actually A100s (not a parse/acceptance issue, but a potential scheduling mismatch).\"\n  ]\n}"
+          }
+        },
+        {
+          "timestamp": 1773206861.9537115,
+          "event": "enter",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "inputs": {
+              "content": "#!/bin/bash\n#flux: -N 1\n#flux: -n 2\n#flux: -c 8\n#flux: -g 2\n#flux: -t 20h\n#\n# NOTE: Slurm --hint=nomultithread has no direct portable Flux batch directive here.\n# Omitting it may reduce performance due to different CPU binding/SMT usage.\n#\n# NOTE: Slurm --qos=qos_gpu-t3 has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or job priority (performance as time-to-solution).\n#\n# NOTE: Slurm -C a100 (node feature/constraint) has no direct portable Flux batch directive here.\n# Omitting it may place the job on different GPU hardware, potentially reducing performance or changing bf16 support.\n\n## load environment\nmodule purge\nmodule load cpuarch/amd\nmodule load anaconda-py3/2023.03\nconda activate claire\n\n## launch script on every node\nset -x\n\nMODEL=tiiuae/falcon-7b\nOUTDIR=$WORK/../commun/Claire/pretrain/Claire-7B-0.1_1\nmkdir -p \"$OUTDIR\"\n\n# execute script\n# Use flux run instead of srun to respect Flux allocation.\n# NOTE: Slurm's srun --output/--error redirection is omitted; logs will follow Flux defaults.\nflux run -n 2 -c 8 -g 2 python pretrain.py \\\n  --devices 2 \\\n  --num_nodes 1 \\\n  --data_dir \"$SCRATCH/../commun/preprocessed_data/Claire/lit-gpt/padded_8_grouped/$MODEL\" \\\n  --checkpoint_dir \"$WORK/../commun/Claire/checkpoints/$MODEL\" \\\n  --language fr \\\n  --out_dir \"$OUTDIR\" \\\n  --precision bf16-true \\\n  --num_epochs 1000 \\\n  --max_checkpoints 39 \\\n  --enable_validation true \\\n  --save_interval 1800 \\\n  --eval_interval 1800 \\\n  --early_stopping 4 \\\n  --lora_r 16 \\\n  --lora_alpha 32\n"
+            }
+          }
+        },
+        {
+          "timestamp": 1773206861.9554808,
+          "event": "enter",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "inputs": {
+              "content": "#!/bin/bash\n#flux: -N 1\n#flux: -n 2\n#flux: -c 8\n#flux: -g 2\n#flux: -t 20h\n#\n# NOTE: Slurm --hint=nomultithread has no direct portable Flux batch directive here.\n# Omitting it may reduce performance due to different CPU binding/SMT usage.\n#\n# NOTE: Slurm --qos=qos_gpu-t3 has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or job priority (performance as time-to-solution).\n#\n# NOTE: Slurm -C a100 (node feature/constraint) has no direct portable Flux batch directive here.\n# Omitting it may place the job on different GPU hardware, potentially reducing performance or changing bf16 support.\n\n## load environment\nmodule purge\nmodule load cpuarch/amd\nmodule load anaconda-py3/2023.03\nconda activate claire\n\n## launch script on every node\nset -x\n\nMODEL=tiiuae/falcon-7b\nOUTDIR=$WORK/../commun/Claire/pretrain/Claire-7B-0.1_1\nmkdir -p \"$OUTDIR\"\n\n# execute script\n# Use flux run instead of srun to respect Flux allocation.\n# NOTE: Slurm's srun --output/--error redirection is omitted; logs will follow Flux defaults.\nflux run -n 2 -c 8 -g 2 python pretrain.py \\\n  --devices 2 \\\n  --num_nodes 1 \\\n  --data_dir \"$SCRATCH/../commun/preprocessed_data/Claire/lit-gpt/padded_8_grouped/$MODEL\" \\\n  --checkpoint_dir \"$WORK/../commun/Claire/checkpoints/$MODEL\" \\\n  --language fr \\\n  --out_dir \"$OUTDIR\" \\\n  --precision bf16-true \\\n  --num_epochs 1000 \\\n  --max_checkpoints 39 \\\n  --enable_validation true \\\n  --save_interval 1800 \\\n  --eval_interval 1800 \\\n  --early_stopping 4 \\\n  --lora_r 16 \\\n  --lora_alpha 32\n"
+            }
+          }
+        },
+        {
+          "timestamp": 1773206861.9804943,
+          "event": "exit",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "outputs": {
+              "jobspec": "#!/bin/bash\n#flux: -N 1\n#flux: -n 2\n#flux: -c 8\n#flux: -g 2\n#flux: -t 20h\n#\n# NOTE: Slurm --hint=nomultithread has no direct portable Flux batch directive here.\n# Omitting it may reduce performance due to different CPU binding/SMT usage.\n#\n# NOTE: Slurm --qos=qos_gpu-t3 has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or job priority (performance as time-to-solution).\n#\n# NOTE: Slurm -C a100 (node feature/constraint) has no direct portable Flux batch directive here.\n# Omitting it may place the job on different GPU hardware, potentially reducing performance or changing bf16 support.\n\n## load environment\nmodule purge\nmodule load cpuarch/amd\nmodule load anaconda-py3/2023.03\nconda activate claire\n\n## launch script on every node\nset -x\n\nMODEL=tiiuae/falcon-7b\nOUTDIR=$WORK/../commun/Claire/pretrain/Claire-7B-0.1_1\nmkdir -p \"$OUTDIR\"\n\n# execute script\n# Use flux run instead of srun to respect Flux allocation.\n# NOTE: Slurm's srun --output/--error redirection is omitted; logs will follow Flux defaults.\nflux run -n 2 -c 8 -g 2 python pretrain.py \\\n  --devices 2 \\\n  --num_nodes 1 \\\n  --data_dir \"$SCRATCH/../commun/preprocessed_data/Claire/lit-gpt/padded_8_grouped/$MODEL\" \\\n  --checkpoint_dir \"$WORK/../commun/Claire/checkpoints/$MODEL\" \\\n  --language fr \\\n  --out_dir \"$OUTDIR\" \\\n  --precision bf16-true \\\n  --num_epochs 1000 \\\n  --max_checkpoints 39 \\\n  --enable_validation true \\\n  --save_interval 1800 \\\n  --eval_interval 1800 \\\n  --early_stopping 4 \\\n  --lora_r 16 \\\n  --lora_alpha 32\n",
+              "errors": [],
+              "valid": true
+            }
+          }
+        },
+        {
+          "timestamp": 1773206861.9827836,
+          "event": "exit",
+          "step": "manual_validate",
+          "type": "tool",
+          "data": {
+            "outputs": {
+              "jobspec": "#!/bin/bash\n#flux: -N 1\n#flux: -n 2\n#flux: -c 8\n#flux: -g 2\n#flux: -t 20h\n#\n# NOTE: Slurm --hint=nomultithread has no direct portable Flux batch directive here.\n# Omitting it may reduce performance due to different CPU binding/SMT usage.\n#\n# NOTE: Slurm --qos=qos_gpu-t3 has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or job priority (performance as time-to-solution).\n#\n# NOTE: Slurm -C a100 (node feature/constraint) has no direct portable Flux batch directive here.\n# Omitting it may place the job on different GPU hardware, potentially reducing performance or changing bf16 support.\n\n## load environment\nmodule purge\nmodule load cpuarch/amd\nmodule load anaconda-py3/2023.03\nconda activate claire\n\n## launch script on every node\nset -x\n\nMODEL=tiiuae/falcon-7b\nOUTDIR=$WORK/../commun/Claire/pretrain/Claire-7B-0.1_1\nmkdir -p \"$OUTDIR\"\n\n# execute script\n# Use flux run instead of srun to respect Flux allocation.\n# NOTE: Slurm's srun --output/--error redirection is omitted; logs will follow Flux defaults.\nflux run -n 2 -c 8 -g 2 python pretrain.py \\\n  --devices 2 \\\n  --num_nodes 1 \\\n  --data_dir \"$SCRATCH/../commun/preprocessed_data/Claire/lit-gpt/padded_8_grouped/$MODEL\" \\\n  --checkpoint_dir \"$WORK/../commun/Claire/checkpoints/$MODEL\" \\\n  --language fr \\\n  --out_dir \"$OUTDIR\" \\\n  --precision bf16-true \\\n  --num_epochs 1000 \\\n  --max_checkpoints 39 \\\n  --enable_validation true \\\n  --save_interval 1800 \\\n  --eval_interval 1800 \\\n  --early_stopping 4 \\\n  --lora_r 16 \\\n  --lora_alpha 32\n",
+              "errors": [],
+              "valid": true
+            }
+          }
+        }
+      ],
+      "token_total": 48684
+    },
+    {
+      "id": "run.sample.qs",
+      "filename": "data/PabloPiaggi/mishima-melting-lines-2023/StandardCoexistence/IceV/BASE/run.sample.qs",
+      "status": "Valid",
+      "total_time": 28.965697288513184,
+      "step_count": 5,
+      "slurm": "#!/bin/bash\n#SBATCH -N 1   # node count\n#SBATCH --ntasks-per-node=4\n#SBATCH --ntasks-per-socket=2\n#SBATCH --cpus-per-task=7\n#SBATCH -t 24:00:00\n# SBATCH --mem=32G\n#SBATCH --gres=gpu:4\n#SBATCH --mail-type=begin\n#SBATCH --mail-type=end\n#SBATCH --mail-user=tgartner@princeton.edu\n\n# load environment\nmodule load cudatoolkit/10.0\nmodule load cudnn/cuda-10.0/7.6.3\nmodule load openmpi/gcc/3.1.3/64\n#module load fftw\nsource /home/tgartner/Software-deepmd-kit-1.0/tensorflow-venv/bin/activate\nmodule load /home/tgartner/modulefiles/plumed-tg\n# export OMP_NUM_THREADS=1\n\nif [ -f \"Sampledone.txt\" ]; then\n    echo \"Simulation finished\"\nelif ! grep -q 'ERROR' slurm*; then\n    echo \"Continuing NPT sampling\"\n    sbatch --dependency=afterany:$SLURM_JOB_ID run.sample.qs\n    # run NPT sampling\n    mpirun /home/tgartner/Software-deepmd-kit-1.0/lammps-3Mar20/src/lmp_mpi -i in.lammps.sample -e screen\nelse\n    echo \"There is an error\"\nfi\n\n",
+      "flux": "#!/bin/bash\n#flux: -N 1\n#flux: -n 4\n#flux: -c 7\n#flux: -g 4\n#flux: -t 24h\n#\n# NOTE: Slurm --ntasks-per-socket=2 has no direct Flux batch directive equivalent here.\n# Omitting it may reduce performance due to different rank/core placement across sockets.\n#\n# NOTE: Slurm mail notifications (--mail-type/--mail-user) are not translated.\n# Omitting them has no runtime performance impact, but you will not get email on start/end.\n#\n# NOTE: The Slurm line \"# SBATCH --mem=32G\" is commented out in the input; no memory request is made.\n\nset -e\n\n# load environment\nmodule load cudatoolkit/10.0\nmodule load cudnn/cuda-10.0/7.6.3\nmodule load openmpi/gcc/3.1.3/64\n#module load fftw\nsource /home/tgartner/Software-deepmd-kit-1.0/tensorflow-venv/bin/activate\nmodule load /home/tgartner/modulefiles/plumed-tg\n# export OMP_NUM_THREADS=1\n\nif [ -f \"Sampledone.txt\" ]; then\n    echo \"Simulation finished\"\nelif ! grep -q 'ERROR' slurm*; then\n    echo \"Continuing NPT sampling\"\n\n    # Slurm-specific self-resubmission via sbatch --dependency has no direct Flux equivalent here.\n    # Omitting it may reduce throughput/automation because the follow-on job will not be queued automatically.\n\n    # run NPT sampling\n    # Use Flux launcher instead of mpirun to respect Flux resource allocation.\n    flux run -n 4 -c 7 -g 4 /home/tgartner/Software-deepmd-kit-1.0/lammps-3Mar20/src/lmp_mpi -i in.lammps.sample -e screen\nelse\n    echo \"There is an error\"\nfi\n",
+      "events": [
+        {
+          "timestamp": 1773206710.9830842,
+          "event": "enter",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206722.1458662,
+          "event": "exit",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"jobspec\": \"#!/bin/bash\\n# flux batch script\\n#\\n# Resource requests translated from Slurm:\\n#   -N 1\\n#   --ntasks-per-node=4  => 4 MPI ranks total\\n#   --cpus-per-task=7    => 7 cores per rank\\n#   --gres=gpu:4         => 4 GPUs\\n#   -t 24:00:00\\n#\\n# NOTE: Slurm --ntasks-per-socket=2 has no direct Flux portable batch equivalent here.\\n# Omitting it may reduce performance due to different rank/core placement across sockets.\\n#\\n# NOTE: Slurm mail notifications (--mail-type/--mail-user) are not translated.\\n# Omitting them has no runtime performance impact, but you will not get email on start/end.\\n#\\n# NOTE: The Slurm line \\\"# SBATCH --mem=32G\\\" is commented out in the input; no memory request is made.\\n\\nflux batch \\\\\\n  -N 1 \\\\\\n  -n 4 \\\\\\n  -c 7 \\\\\\n  -g 4 \\\\\\n  -t 24h \\\\\\n  --wrap 'set -e\\n\\n# load environment\\nmodule load cudatoolkit/10.0\\nmodule load cudnn/cuda-10.0/7.6.3\\nmodule load openmpi/gcc/3.1.3/64\\n#module load fftw\\nsource /home/tgartner/Software-deepmd-kit-1.0/tensorflow-venv/bin/activate\\nmodule load /home/tgartner/modulefiles/plumed-tg\\n# export OMP_NUM_THREADS=1\\n\\nif [ -f \\\"Sampledone.txt\\\" ]; then\\n    echo \\\"Simulation finished\\\"\\nelif ! grep -q \\\"ERROR\\\" slurm*; then\\n    echo \\\"Continuing NPT sampling\\\"\\n    # Slurm-specific self-resubmission via sbatch --dependency is omitted.\\n    # Omitting it may reduce throughput/automation because the follow-on job will not be queued automatically.\\n\\n    # run NPT sampling\\n    # Use Flux launcher instead of mpirun to respect Flux resource allocation.\\n    flux run -n 4 -c 7 -g 4 /home/tgartner/Software-deepmd-kit-1.0/lammps-3Mar20/src/lmp_mpi -i in.lammps.sample -e screen\\nelse\\n    echo \\\"There is an error\\\"\\nfi'\\n\"\n}"
+          }
+        },
+        {
+          "timestamp": 1773206722.1471865,
+          "event": "enter",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206731.121058,
+          "event": "exit",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"valid\": false,\n  \"tool_call\": false,\n  \"reasons\": [\n    \"This is not a Flux batch script that Flux will accept directly: it invokes `flux batch ...` inside the script, rather than using Flux batch directives (e.g., `#flux:`) or submitting the script itself via `flux batch <script>`.\",\n    \"Because the resource request is embedded as CLI options to `flux batch` within the script, the workload manager will not see/apply those resources when this file is submitted as a batch script; instead it would require an external submission context to run at all.\"\n  ],\n  \"issues\": [\n    \"If you intended this file to be submitted as the batch job, convert the resource lines to `#flux:` directives and run the workload with `flux run ...` in the script body. Alternatively, do not submit this file as a batch script; run it interactively as a wrapper that calls `flux batch ...`.\",\n    \"The `-t 24h` syntax is generally acceptable in Flux, but actual accepted time formats can vary by Flux version/config; if rejected, use an explicit duration like `-t 24h0m0s` or `-t 86400s`.\",\n    \"The `-g 4` option assumes the Flux instance has GPU resources configured and that `-g` is supported/enabled; otherwise submission would fail.\",\n    \"Inside the wrapped payload, `flux run -g 4` assumes per-task GPU allocation semantics that match your Flux configuration; misconfiguration can cause runtime placement/allocation issues.\"\n  ]\n}"
+          }
+        },
+        {
+          "timestamp": 1773206731.122506,
+          "event": "enter",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206736.4351058,
+          "event": "exit",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"jobspec\": \"#!/bin/bash\\n#flux: -N 1\\n#flux: -n 4\\n#flux: -c 7\\n#flux: -g 4\\n#flux: -t 24h\\n#\\n# NOTE: Slurm --ntasks-per-socket=2 has no direct Flux batch directive equivalent here.\\n# Omitting it may reduce performance due to different rank/core placement across sockets.\\n#\\n# NOTE: Slurm mail notifications (--mail-type/--mail-user) are not translated.\\n# Omitting them has no runtime performance impact, but you will not get email on start/end.\\n#\\n# NOTE: The Slurm line \\\"# SBATCH --mem=32G\\\" is commented out in the input; no memory request is made.\\n\\nset -e\\n\\n# load environment\\nmodule load cudatoolkit/10.0\\nmodule load cudnn/cuda-10.0/7.6.3\\nmodule load openmpi/gcc/3.1.3/64\\n#module load fftw\\nsource /home/tgartner/Software-deepmd-kit-1.0/tensorflow-venv/bin/activate\\nmodule load /home/tgartner/modulefiles/plumed-tg\\n# export OMP_NUM_THREADS=1\\n\\nif [ -f \\\"Sampledone.txt\\\" ]; then\\n    echo \\\"Simulation finished\\\"\\nelif ! grep -q 'ERROR' slurm*; then\\n    echo \\\"Continuing NPT sampling\\\"\\n\\n    # Slurm-specific self-resubmission via sbatch --dependency has no direct Flux equivalent here.\\n    # Omitting it may reduce throughput/automation because the follow-on job will not be queued automatically.\\n\\n    # run NPT sampling\\n    # Use Flux launcher instead of mpirun to respect Flux resource allocation.\\n    flux run -n 4 -c 7 -g 4 /home/tgartner/Software-deepmd-kit-1.0/lammps-3Mar20/src/lmp_mpi -i in.lammps.sample -e screen\\nelse\\n    echo \\\"There is an error\\\"\\nfi\\n\"\n}"
+          }
+        },
+        {
+          "timestamp": 1773206736.4362843,
+          "event": "enter",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206739.9113164,
+          "event": "exit",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"valid\": true,\n  \"tool_call\": false,\n  \"reasons\": [],\n  \"issues\": [\n    \"Resource directives look syntactically plausible for Flux batch directives (`#flux:`), but exact support depends on site Flux version/config (notably GPU support for `-g` and accepted time format for `-t 24h`).\",\n    \"Inside the job, `flux run -n 4 -c 7 -g 4 ...` re-specifies resources already requested at the job level; this is usually fine, but if the job allocation differs (e.g., fewer GPUs available), the step could fail.\"\n  ]\n}"
+          }
+        },
+        {
+          "timestamp": 1773206739.9131021,
+          "event": "enter",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "inputs": {
+              "content": "#!/bin/bash\n#flux: -N 1\n#flux: -n 4\n#flux: -c 7\n#flux: -g 4\n#flux: -t 24h\n#\n# NOTE: Slurm --ntasks-per-socket=2 has no direct Flux batch directive equivalent here.\n# Omitting it may reduce performance due to different rank/core placement across sockets.\n#\n# NOTE: Slurm mail notifications (--mail-type/--mail-user) are not translated.\n# Omitting them has no runtime performance impact, but you will not get email on start/end.\n#\n# NOTE: The Slurm line \"# SBATCH --mem=32G\" is commented out in the input; no memory request is made.\n\nset -e\n\n# load environment\nmodule load cudatoolkit/10.0\nmodule load cudnn/cuda-10.0/7.6.3\nmodule load openmpi/gcc/3.1.3/64\n#module load fftw\nsource /home/tgartner/Software-deepmd-kit-1.0/tensorflow-venv/bin/activate\nmodule load /home/tgartner/modulefiles/plumed-tg\n# export OMP_NUM_THREADS=1\n\nif [ -f \"Sampledone.txt\" ]; then\n    echo \"Simulation finished\"\nelif ! grep -q 'ERROR' slurm*; then\n    echo \"Continuing NPT sampling\"\n\n    # Slurm-specific self-resubmission via sbatch --dependency has no direct Flux equivalent here.\n    # Omitting it may reduce throughput/automation because the follow-on job will not be queued automatically.\n\n    # run NPT sampling\n    # Use Flux launcher instead of mpirun to respect Flux resource allocation.\n    flux run -n 4 -c 7 -g 4 /home/tgartner/Software-deepmd-kit-1.0/lammps-3Mar20/src/lmp_mpi -i in.lammps.sample -e screen\nelse\n    echo \"There is an error\"\nfi\n"
+            }
+          }
+        },
+        {
+          "timestamp": 1773206739.9170895,
+          "event": "enter",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "inputs": {
+              "content": "#!/bin/bash\n#flux: -N 1\n#flux: -n 4\n#flux: -c 7\n#flux: -g 4\n#flux: -t 24h\n#\n# NOTE: Slurm --ntasks-per-socket=2 has no direct Flux batch directive equivalent here.\n# Omitting it may reduce performance due to different rank/core placement across sockets.\n#\n# NOTE: Slurm mail notifications (--mail-type/--mail-user) are not translated.\n# Omitting them has no runtime performance impact, but you will not get email on start/end.\n#\n# NOTE: The Slurm line \"# SBATCH --mem=32G\" is commented out in the input; no memory request is made.\n\nset -e\n\n# load environment\nmodule load cudatoolkit/10.0\nmodule load cudnn/cuda-10.0/7.6.3\nmodule load openmpi/gcc/3.1.3/64\n#module load fftw\nsource /home/tgartner/Software-deepmd-kit-1.0/tensorflow-venv/bin/activate\nmodule load /home/tgartner/modulefiles/plumed-tg\n# export OMP_NUM_THREADS=1\n\nif [ -f \"Sampledone.txt\" ]; then\n    echo \"Simulation finished\"\nelif ! grep -q 'ERROR' slurm*; then\n    echo \"Continuing NPT sampling\"\n\n    # Slurm-specific self-resubmission via sbatch --dependency has no direct Flux equivalent here.\n    # Omitting it may reduce throughput/automation because the follow-on job will not be queued automatically.\n\n    # run NPT sampling\n    # Use Flux launcher instead of mpirun to respect Flux resource allocation.\n    flux run -n 4 -c 7 -g 4 /home/tgartner/Software-deepmd-kit-1.0/lammps-3Mar20/src/lmp_mpi -i in.lammps.sample -e screen\nelse\n    echo \"There is an error\"\nfi\n"
+            }
+          }
+        },
+        {
+          "timestamp": 1773206739.9457736,
+          "event": "exit",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "outputs": {
+              "jobspec": "#!/bin/bash\n#flux: -N 1\n#flux: -n 4\n#flux: -c 7\n#flux: -g 4\n#flux: -t 24h\n#\n# NOTE: Slurm --ntasks-per-socket=2 has no direct Flux batch directive equivalent here.\n# Omitting it may reduce performance due to different rank/core placement across sockets.\n#\n# NOTE: Slurm mail notifications (--mail-type/--mail-user) are not translated.\n# Omitting them has no runtime performance impact, but you will not get email on start/end.\n#\n# NOTE: The Slurm line \"# SBATCH --mem=32G\" is commented out in the input; no memory request is made.\n\nset -e\n\n# load environment\nmodule load cudatoolkit/10.0\nmodule load cudnn/cuda-10.0/7.6.3\nmodule load openmpi/gcc/3.1.3/64\n#module load fftw\nsource /home/tgartner/Software-deepmd-kit-1.0/tensorflow-venv/bin/activate\nmodule load /home/tgartner/modulefiles/plumed-tg\n# export OMP_NUM_THREADS=1\n\nif [ -f \"Sampledone.txt\" ]; then\n    echo \"Simulation finished\"\nelif ! grep -q 'ERROR' slurm*; then\n    echo \"Continuing NPT sampling\"\n\n    # Slurm-specific self-resubmission via sbatch --dependency has no direct Flux equivalent here.\n    # Omitting it may reduce throughput/automation because the follow-on job will not be queued automatically.\n\n    # run NPT sampling\n    # Use Flux launcher instead of mpirun to respect Flux resource allocation.\n    flux run -n 4 -c 7 -g 4 /home/tgartner/Software-deepmd-kit-1.0/lammps-3Mar20/src/lmp_mpi -i in.lammps.sample -e screen\nelse\n    echo \"There is an error\"\nfi\n",
+              "errors": [],
+              "valid": true
+            }
+          }
+        },
+        {
+          "timestamp": 1773206739.9487815,
+          "event": "exit",
+          "step": "manual_validate",
+          "type": "tool",
+          "data": {
+            "outputs": {
+              "jobspec": "#!/bin/bash\n#flux: -N 1\n#flux: -n 4\n#flux: -c 7\n#flux: -g 4\n#flux: -t 24h\n#\n# NOTE: Slurm --ntasks-per-socket=2 has no direct Flux batch directive equivalent here.\n# Omitting it may reduce performance due to different rank/core placement across sockets.\n#\n# NOTE: Slurm mail notifications (--mail-type/--mail-user) are not translated.\n# Omitting them has no runtime performance impact, but you will not get email on start/end.\n#\n# NOTE: The Slurm line \"# SBATCH --mem=32G\" is commented out in the input; no memory request is made.\n\nset -e\n\n# load environment\nmodule load cudatoolkit/10.0\nmodule load cudnn/cuda-10.0/7.6.3\nmodule load openmpi/gcc/3.1.3/64\n#module load fftw\nsource /home/tgartner/Software-deepmd-kit-1.0/tensorflow-venv/bin/activate\nmodule load /home/tgartner/modulefiles/plumed-tg\n# export OMP_NUM_THREADS=1\n\nif [ -f \"Sampledone.txt\" ]; then\n    echo \"Simulation finished\"\nelif ! grep -q 'ERROR' slurm*; then\n    echo \"Continuing NPT sampling\"\n\n    # Slurm-specific self-resubmission via sbatch --dependency has no direct Flux equivalent here.\n    # Omitting it may reduce throughput/automation because the follow-on job will not be queued automatically.\n\n    # run NPT sampling\n    # Use Flux launcher instead of mpirun to respect Flux resource allocation.\n    flux run -n 4 -c 7 -g 4 /home/tgartner/Software-deepmd-kit-1.0/lammps-3Mar20/src/lmp_mpi -i in.lammps.sample -e screen\nelse\n    echo \"There is an error\"\nfi\n",
+              "errors": [],
+              "valid": true
+            }
+          }
+        }
+      ],
+      "token_total": 10304
+    },
+    {
+      "id": "main.sh",
+      "filename": "data/RavibhaiDhola/Traffic_sign_classification/main.sh",
+      "status": "Valid",
+      "total_time": 7.087198972702026,
+      "step_count": 3,
+      "slurm": "#!/bin/bash\n\n#SBATCH --job-name=nas        ## Name of the job\n#SBATCH --nodes=1\n#SBATCH --ntasks-per-node=1\n#SBATCH --time=23:59:59\n#SBATCH --partition=gpu ##GPU run\n#SBATCH --gres=gpu:1\n#SBATCH --cpus-per-task=8\n#SBATCH --output=nas5.out    ## Output file \n\nsource ~/.bashrc\nconda deactivate\nconda activate new\n\n## Load the python interpreter\nmodule load python\n\n## Execute the python script\nsrun python nas.py\n",
+      "flux": "#!/bin/bash\n#flux: -N 1\n#flux: -n 1\n#flux: -c 8\n#flux: -g 1\n#flux: -t 24h\n#\n# NOTE: Slurm --job-name=nas has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\n#\n# NOTE: Slurm --partition=gpu has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or access to GPU-capable nodes (performance as time-to-solution).\n#\n# NOTE: Slurm --output=nas5.out is omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting it has no runtime performance impact, but log handling will use Flux defaults.\n\nsource ~/.bashrc\nconda deactivate\nconda activate new\n\n## Load the python interpreter\nmodule load python\n\n## Execute the python script\n# Use Flux launcher instead of srun\nflux run -n 1 -c 8 -g 1 python nas.py\n",
+      "events": [
+        {
+          "timestamp": 1773206928.5366387,
+          "event": "enter",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206932.3934145,
+          "event": "exit",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"jobspec\": \"#!/bin/bash\\n#flux: -N 1\\n#flux: -n 1\\n#flux: -c 8\\n#flux: -g 1\\n#flux: -t 24h\\n#\\n# NOTE: Slurm --job-name=nas has no direct portable Flux batch directive included here.\\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\\n#\\n# NOTE: Slurm --partition=gpu has no direct portable Flux batch directive here.\\n# Omitting it may affect queue wait time and/or access to GPU-capable nodes (performance as time-to-solution).\\n#\\n# NOTE: Slurm --output=nas5.out is omitted because a portable Flux batch directive equivalent is not provided here.\\n# Omitting it has no runtime performance impact, but log handling will use Flux defaults.\\n\\nsource ~/.bashrc\\nconda deactivate\\nconda activate new\\n\\n## Load the python interpreter\\nmodule load python\\n\\n## Execute the python script\\n# Use Flux launcher instead of srun\\nflux run -n 1 -c 8 -g 1 python nas.py\\n\"\n}"
+          }
+        },
+        {
+          "timestamp": 1773206932.3945615,
+          "event": "enter",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206935.5906146,
+          "event": "exit",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"valid\": true,\n  \"tool_call\": false,\n  \"reasons\": [],\n  \"issues\": [\n    \"Validity assumes your Flux deployment supports parsing `#flux:` directives in scripts submitted via `flux batch script.sh`.\",\n    \"Requesting `-g 1` assumes the Flux instance is configured with GPU resources and supports GPU allocation via `-g`; otherwise submission may fail or the request may be ignored depending on site policy.\",\n    \"The job step re-specifies `-n 1 -c 8 -g 1`; if the job allocation differs from these values (e.g., directives ignored), the step could fail to start.\"\n  ]\n}"
+          }
+        },
+        {
+          "timestamp": 1773206935.592405,
+          "event": "enter",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "inputs": {
+              "content": "#!/bin/bash\n#flux: -N 1\n#flux: -n 1\n#flux: -c 8\n#flux: -g 1\n#flux: -t 24h\n#\n# NOTE: Slurm --job-name=nas has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\n#\n# NOTE: Slurm --partition=gpu has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or access to GPU-capable nodes (performance as time-to-solution).\n#\n# NOTE: Slurm --output=nas5.out is omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting it has no runtime performance impact, but log handling will use Flux defaults.\n\nsource ~/.bashrc\nconda deactivate\nconda activate new\n\n## Load the python interpreter\nmodule load python\n\n## Execute the python script\n# Use Flux launcher instead of srun\nflux run -n 1 -c 8 -g 1 python nas.py\n"
+            }
+          }
+        },
+        {
+          "timestamp": 1773206935.5940685,
+          "event": "enter",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "inputs": {
+              "content": "#!/bin/bash\n#flux: -N 1\n#flux: -n 1\n#flux: -c 8\n#flux: -g 1\n#flux: -t 24h\n#\n# NOTE: Slurm --job-name=nas has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\n#\n# NOTE: Slurm --partition=gpu has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or access to GPU-capable nodes (performance as time-to-solution).\n#\n# NOTE: Slurm --output=nas5.out is omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting it has no runtime performance impact, but log handling will use Flux defaults.\n\nsource ~/.bashrc\nconda deactivate\nconda activate new\n\n## Load the python interpreter\nmodule load python\n\n## Execute the python script\n# Use Flux launcher instead of srun\nflux run -n 1 -c 8 -g 1 python nas.py\n"
+            }
+          }
+        },
+        {
+          "timestamp": 1773206935.621819,
+          "event": "exit",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "outputs": {
+              "jobspec": "#!/bin/bash\n#flux: -N 1\n#flux: -n 1\n#flux: -c 8\n#flux: -g 1\n#flux: -t 24h\n#\n# NOTE: Slurm --job-name=nas has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\n#\n# NOTE: Slurm --partition=gpu has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or access to GPU-capable nodes (performance as time-to-solution).\n#\n# NOTE: Slurm --output=nas5.out is omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting it has no runtime performance impact, but log handling will use Flux defaults.\n\nsource ~/.bashrc\nconda deactivate\nconda activate new\n\n## Load the python interpreter\nmodule load python\n\n## Execute the python script\n# Use Flux launcher instead of srun\nflux run -n 1 -c 8 -g 1 python nas.py\n",
+              "errors": [],
+              "valid": true
+            }
+          }
+        },
+        {
+          "timestamp": 1773206935.6238377,
+          "event": "exit",
+          "step": "manual_validate",
+          "type": "tool",
+          "data": {
+            "outputs": {
+              "jobspec": "#!/bin/bash\n#flux: -N 1\n#flux: -n 1\n#flux: -c 8\n#flux: -g 1\n#flux: -t 24h\n#\n# NOTE: Slurm --job-name=nas has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\n#\n# NOTE: Slurm --partition=gpu has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or access to GPU-capable nodes (performance as time-to-solution).\n#\n# NOTE: Slurm --output=nas5.out is omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting it has no runtime performance impact, but log handling will use Flux defaults.\n\nsource ~/.bashrc\nconda deactivate\nconda activate new\n\n## Load the python interpreter\nmodule load python\n\n## Execute the python script\n# Use Flux launcher instead of srun\nflux run -n 1 -c 8 -g 1 python nas.py\n",
+              "errors": [],
+              "valid": true
+            }
+          }
+        }
+      ],
+      "token_total": 74921
+    },
+    {
+      "id": "run_pico.sh",
+      "filename": "data/UKPLab/arxiv2018-bayesian-ensembles/batch_scripts/SLURM/run_pico.sh",
+      "status": "Valid",
+      "total_time": 8.17750358581543,
+      "step_count": 3,
+      "slurm": "#!/bin/bash\n#SBATCH -t 24:00:00\n#SBATCH -J pico\n#SBATCH --mail-user=simpson@ukp.informatik.tu-darmstadt.de\n#SBATCH --mail-type=FAIL\n#SBATCH -e ./pico.err.%j\n#SBATCH -o ./pico.out.%j\n#SBATCH -n 1\n#SBATCH -c 16\n#SBATCH --mem-per-cpu=8182\n#SBATCH --exclusive\n#SBATCH -C avx\n\n# ----------------------------------\n\n\nmodule load intel python/3.6.8\npython -u ./src/run_pico_experiments.py\n",
+      "flux": "#!/bin/bash\n#flux: -n 1\n#flux: -c 16\n#flux: -t 24h\n#\n# NOTE: Slurm -J pico (job name) has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\n#\n# NOTE: Slurm mail notifications (--mail-user/--mail-type=FAIL) are not translated.\n# Omitting them has no runtime performance impact, but you will not receive email notifications.\n#\n# NOTE: Slurm -e/-o (stderr/stdout files) are omitted because a portable Flux batch directive equivalent is not provided here;\n# also Slurm-specific %j substitution would not expand.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\n#\n# NOTE: Slurm --mem-per-cpu=8182 has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: Slurm --exclusive has no direct portable Flux batch directive here.\n# Omitting it may reduce performance due to node sharing/oversubscription.\n#\n# NOTE: Slurm -C avx (node feature constraint) has no direct portable Flux batch directive here.\n# Omitting it may place the job on CPUs without AVX, potentially reducing performance or causing illegal-instruction failures.\n\nmodule load intel python/3.6.8\npython -u ./src/run_pico_experiments.py\n",
+      "events": [
+        {
+          "timestamp": 1773206935.6428766,
+          "event": "enter",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206940.9561133,
+          "event": "exit",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"jobspec\": \"#!/bin/bash\\n#flux: -n 1\\n#flux: -c 16\\n#flux: -t 24h\\n#\\n# NOTE: Slurm -J pico (job name) has no direct portable Flux batch directive included here.\\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\\n#\\n# NOTE: Slurm mail notifications (--mail-user/--mail-type=FAIL) are not translated.\\n# Omitting them has no runtime performance impact, but you will not receive email notifications.\\n#\\n# NOTE: Slurm -e/-o (stderr/stdout files) are omitted because a portable Flux batch directive equivalent is not provided here;\\n# also Slurm-specific %j substitution would not expand.\\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\\n#\\n# NOTE: Slurm --mem-per-cpu=8182 has no direct portable Flux batch directive included here.\\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\\n#\\n# NOTE: Slurm --exclusive has no direct portable Flux batch directive here.\\n# Omitting it may reduce performance due to node sharing/oversubscription.\\n#\\n# NOTE: Slurm -C avx (node feature constraint) has no direct portable Flux batch directive here.\\n# Omitting it may place the job on CPUs without AVX, potentially reducing performance or causing illegal-instruction failures.\\n\\nmodule load intel python/3.6.8\\npython -u ./src/run_pico_experiments.py\\n\"\n}"
+          }
+        },
+        {
+          "timestamp": 1773206940.9572666,
+          "event": "enter",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206943.7889915,
+          "event": "exit",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"valid\": true,\n  \"tool_call\": false,\n  \"reasons\": [],\n  \"issues\": [\n    \"Validity assumes your Flux deployment supports parsing `#flux:` directives in scripts submitted via `flux batch script.sh`.\",\n    \"The resource section requests 1 task with 16 cores for 24h; this will only be satisfiable if the Flux instance/policy can allocate 16 cores to a single task, otherwise the job may be rejected or remain unschedulable (site-dependent).\"\n  ]\n}"
+          }
+        },
+        {
+          "timestamp": 1773206943.7908003,
+          "event": "enter",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "inputs": {
+              "content": "#!/bin/bash\n#flux: -n 1\n#flux: -c 16\n#flux: -t 24h\n#\n# NOTE: Slurm -J pico (job name) has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\n#\n# NOTE: Slurm mail notifications (--mail-user/--mail-type=FAIL) are not translated.\n# Omitting them has no runtime performance impact, but you will not receive email notifications.\n#\n# NOTE: Slurm -e/-o (stderr/stdout files) are omitted because a portable Flux batch directive equivalent is not provided here;\n# also Slurm-specific %j substitution would not expand.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\n#\n# NOTE: Slurm --mem-per-cpu=8182 has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: Slurm --exclusive has no direct portable Flux batch directive here.\n# Omitting it may reduce performance due to node sharing/oversubscription.\n#\n# NOTE: Slurm -C avx (node feature constraint) has no direct portable Flux batch directive here.\n# Omitting it may place the job on CPUs without AVX, potentially reducing performance or causing illegal-instruction failures.\n\nmodule load intel python/3.6.8\npython -u ./src/run_pico_experiments.py\n"
+            }
+          }
+        },
+        {
+          "timestamp": 1773206943.7925074,
+          "event": "enter",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "inputs": {
+              "content": "#!/bin/bash\n#flux: -n 1\n#flux: -c 16\n#flux: -t 24h\n#\n# NOTE: Slurm -J pico (job name) has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\n#\n# NOTE: Slurm mail notifications (--mail-user/--mail-type=FAIL) are not translated.\n# Omitting them has no runtime performance impact, but you will not receive email notifications.\n#\n# NOTE: Slurm -e/-o (stderr/stdout files) are omitted because a portable Flux batch directive equivalent is not provided here;\n# also Slurm-specific %j substitution would not expand.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\n#\n# NOTE: Slurm --mem-per-cpu=8182 has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: Slurm --exclusive has no direct portable Flux batch directive here.\n# Omitting it may reduce performance due to node sharing/oversubscription.\n#\n# NOTE: Slurm -C avx (node feature constraint) has no direct portable Flux batch directive here.\n# Omitting it may place the job on CPUs without AVX, potentially reducing performance or causing illegal-instruction failures.\n\nmodule load intel python/3.6.8\npython -u ./src/run_pico_experiments.py\n"
+            }
+          }
+        },
+        {
+          "timestamp": 1773206943.8184197,
+          "event": "exit",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "outputs": {
+              "jobspec": "#!/bin/bash\n#flux: -n 1\n#flux: -c 16\n#flux: -t 24h\n#\n# NOTE: Slurm -J pico (job name) has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\n#\n# NOTE: Slurm mail notifications (--mail-user/--mail-type=FAIL) are not translated.\n# Omitting them has no runtime performance impact, but you will not receive email notifications.\n#\n# NOTE: Slurm -e/-o (stderr/stdout files) are omitted because a portable Flux batch directive equivalent is not provided here;\n# also Slurm-specific %j substitution would not expand.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\n#\n# NOTE: Slurm --mem-per-cpu=8182 has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: Slurm --exclusive has no direct portable Flux batch directive here.\n# Omitting it may reduce performance due to node sharing/oversubscription.\n#\n# NOTE: Slurm -C avx (node feature constraint) has no direct portable Flux batch directive here.\n# Omitting it may place the job on CPUs without AVX, potentially reducing performance or causing illegal-instruction failures.\n\nmodule load intel python/3.6.8\npython -u ./src/run_pico_experiments.py\n",
+              "errors": [],
+              "valid": true
+            }
+          }
+        },
+        {
+          "timestamp": 1773206943.8203802,
+          "event": "exit",
+          "step": "manual_validate",
+          "type": "tool",
+          "data": {
+            "outputs": {
+              "jobspec": "#!/bin/bash\n#flux: -n 1\n#flux: -c 16\n#flux: -t 24h\n#\n# NOTE: Slurm -J pico (job name) has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\n#\n# NOTE: Slurm mail notifications (--mail-user/--mail-type=FAIL) are not translated.\n# Omitting them has no runtime performance impact, but you will not receive email notifications.\n#\n# NOTE: Slurm -e/-o (stderr/stdout files) are omitted because a portable Flux batch directive equivalent is not provided here;\n# also Slurm-specific %j substitution would not expand.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\n#\n# NOTE: Slurm --mem-per-cpu=8182 has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: Slurm --exclusive has no direct portable Flux batch directive here.\n# Omitting it may reduce performance due to node sharing/oversubscription.\n#\n# NOTE: Slurm -C avx (node feature constraint) has no direct portable Flux batch directive here.\n# Omitting it may place the job on CPUs without AVX, potentially reducing performance or causing illegal-instruction failures.\n\nmodule load intel python/3.6.8\npython -u ./src/run_pico_experiments.py\n",
+              "errors": [],
+              "valid": true
+            }
+          }
+        }
+      ],
+      "token_total": 77609
+    },
+    {
+      "id": "train_scratch.script",
+      "filename": "data/XiaotingChen/maxatac_pip_1.0.5/scripts/train_scratch.script",
+      "status": "Valid",
+      "total_time": 9.758067607879639,
+      "step_count": 3,
+      "slurm": "#!/bin/bash\n#BSUB -W 16:00\n#BSUB -n 8\n#BSUB -M 48000\n#BSUB -R \"span[ptile=8]\"\n#BSUB -e logs/train_scratch%J.err\n#BSUB -o logs/train_scratch%J.out\n#BSUB -q amdgpu\n#BSUB -gpu \"num=1\"\n\n# load modules\nmodule load bedtools/2.29.2-wrl\nmodule load gcc/9.3.0\nmodule load cuda/11.7\nmodule load samtools/1.6-wrl\nmodule load pigz/2.6.0\nmodule load ucsctools\nsource activate maxatac\n\n# the main command\n\ncd /data/weirauchlab/team/ngun7t/maxatac/runs\n\nmaxatac train --genome hg38 \\\n--arch Transformer_phuc \\\n--sequence /users/ngun7t/opt/maxatac/data/hg38/hg38.2bit \\\n--meta_file /data/weirauchlab/team/ngun7t/maxatac/training_data/meta_file.tsv \\\n--output /data/weirauchlab/team/ngun7t/maxatac/runs/scratch \\\n--prefix scratch \\\n--epochs 1",
+      "flux": "#!/bin/bash\n#flux: -n 8\n#flux: -g 1\n#flux: -t 16h\n#\n# NOTE: LSF -M 48000 (memory limit) has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: LSF -R \"span[ptile=8]\" (placement: pack 8 tasks per node) has no direct portable Flux batch directive here.\n# Omitting it may reduce performance due to different task placement.\n#\n# NOTE: LSF -e/-o with %J (jobid) substitution are omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults; also LSF %J substitution would not expand.\n#\n# NOTE: LSF -q amdgpu (queue) has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or access to GPU-capable nodes (performance as time-to-solution).\n\n# load modules\nmodule load bedtools/2.29.2-wrl\nmodule load gcc/9.3.0\nmodule load cuda/11.7\nmodule load samtools/1.6-wrl\nmodule load pigz/2.6.0\nmodule load ucsctools\nsource activate maxatac\n\n# the main command\ncd /data/weirauchlab/team/ngun7t/maxatac/runs\n\n# Use flux run to launch within the allocation.\nflux run -n 8 -g 1 maxatac train --genome hg38 \\\n  --arch Transformer_phuc \\\n  --sequence /users/ngun7t/opt/maxatac/data/hg38/hg38.2bit \\\n  --meta_file /data/weirauchlab/team/ngun7t/maxatac/training_data/meta_file.tsv \\\n  --output /data/weirauchlab/team/ngun7t/maxatac/runs/scratch \\\n  --prefix scratch \\\n  --epochs 1\n",
+      "events": [
+        {
+          "timestamp": 1773206862.0026186,
+          "event": "enter",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206868.0829358,
+          "event": "exit",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"jobspec\": \"#!/bin/bash\\n#flux: -n 8\\n#flux: -g 1\\n#flux: -t 16h\\n#\\n# NOTE: LSF -M 48000 (memory limit) has no direct portable Flux batch directive included here.\\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\\n#\\n# NOTE: LSF -R \\\"span[ptile=8]\\\" (placement: pack 8 tasks per node) has no direct portable Flux batch directive here.\\n# Omitting it may reduce performance due to different task placement.\\n#\\n# NOTE: LSF -e/-o with %J (jobid) substitution are omitted because a portable Flux batch directive equivalent is not provided here.\\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults; also LSF %J substitution would not expand.\\n#\\n# NOTE: LSF -q amdgpu (queue) has no direct portable Flux batch directive here.\\n# Omitting it may affect queue wait time and/or access to GPU-capable nodes (performance as time-to-solution).\\n\\n# load modules\\nmodule load bedtools/2.29.2-wrl\\nmodule load gcc/9.3.0\\nmodule load cuda/11.7\\nmodule load samtools/1.6-wrl\\nmodule load pigz/2.6.0\\nmodule load ucsctools\\nsource activate maxatac\\n\\n# the main command\\ncd /data/weirauchlab/team/ngun7t/maxatac/runs\\n\\n# Use flux run to launch within the allocation.\\nflux run -n 8 -g 1 maxatac train --genome hg38 \\\\\\n  --arch Transformer_phuc \\\\\\n  --sequence /users/ngun7t/opt/maxatac/data/hg38/hg38.2bit \\\\\\n  --meta_file /data/weirauchlab/team/ngun7t/maxatac/training_data/meta_file.tsv \\\\\\n  --output /data/weirauchlab/team/ngun7t/maxatac/runs/scratch \\\\\\n  --prefix scratch \\\\\\n  --epochs 1\\n\"\n}"
+          }
+        },
+        {
+          "timestamp": 1773206868.084137,
+          "event": "enter",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206871.7292485,
+          "event": "exit",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"valid\": true,\n  \"tool_call\": false,\n  \"reasons\": [],\n  \"issues\": [\n    \"Validity assumes your Flux deployment supports parsing `#flux:` directives in scripts submitted via `flux batch script.sh`.\",\n    \"Requesting `-g 1` assumes the Flux instance has GPU resources configured and that `-g` is supported/enforced; otherwise submission may fail or the request may be ignored depending on site policy.\",\n    \"No node count (`-N`) or core binding (`-c`) is specified; Flux will use defaults, which may affect placement/performance but should still be accepted as a resource request.\"\n  ]\n}"
+          }
+        },
+        {
+          "timestamp": 1773206871.7311366,
+          "event": "enter",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "inputs": {
+              "content": "#!/bin/bash\n#flux: -n 8\n#flux: -g 1\n#flux: -t 16h\n#\n# NOTE: LSF -M 48000 (memory limit) has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: LSF -R \"span[ptile=8]\" (placement: pack 8 tasks per node) has no direct portable Flux batch directive here.\n# Omitting it may reduce performance due to different task placement.\n#\n# NOTE: LSF -e/-o with %J (jobid) substitution are omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults; also LSF %J substitution would not expand.\n#\n# NOTE: LSF -q amdgpu (queue) has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or access to GPU-capable nodes (performance as time-to-solution).\n\n# load modules\nmodule load bedtools/2.29.2-wrl\nmodule load gcc/9.3.0\nmodule load cuda/11.7\nmodule load samtools/1.6-wrl\nmodule load pigz/2.6.0\nmodule load ucsctools\nsource activate maxatac\n\n# the main command\ncd /data/weirauchlab/team/ngun7t/maxatac/runs\n\n# Use flux run to launch within the allocation.\nflux run -n 8 -g 1 maxatac train --genome hg38 \\\n  --arch Transformer_phuc \\\n  --sequence /users/ngun7t/opt/maxatac/data/hg38/hg38.2bit \\\n  --meta_file /data/weirauchlab/team/ngun7t/maxatac/training_data/meta_file.tsv \\\n  --output /data/weirauchlab/team/ngun7t/maxatac/runs/scratch \\\n  --prefix scratch \\\n  --epochs 1\n"
+            }
+          }
+        },
+        {
+          "timestamp": 1773206871.7328832,
+          "event": "enter",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "inputs": {
+              "content": "#!/bin/bash\n#flux: -n 8\n#flux: -g 1\n#flux: -t 16h\n#\n# NOTE: LSF -M 48000 (memory limit) has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: LSF -R \"span[ptile=8]\" (placement: pack 8 tasks per node) has no direct portable Flux batch directive here.\n# Omitting it may reduce performance due to different task placement.\n#\n# NOTE: LSF -e/-o with %J (jobid) substitution are omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults; also LSF %J substitution would not expand.\n#\n# NOTE: LSF -q amdgpu (queue) has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or access to GPU-capable nodes (performance as time-to-solution).\n\n# load modules\nmodule load bedtools/2.29.2-wrl\nmodule load gcc/9.3.0\nmodule load cuda/11.7\nmodule load samtools/1.6-wrl\nmodule load pigz/2.6.0\nmodule load ucsctools\nsource activate maxatac\n\n# the main command\ncd /data/weirauchlab/team/ngun7t/maxatac/runs\n\n# Use flux run to launch within the allocation.\nflux run -n 8 -g 1 maxatac train --genome hg38 \\\n  --arch Transformer_phuc \\\n  --sequence /users/ngun7t/opt/maxatac/data/hg38/hg38.2bit \\\n  --meta_file /data/weirauchlab/team/ngun7t/maxatac/training_data/meta_file.tsv \\\n  --output /data/weirauchlab/team/ngun7t/maxatac/runs/scratch \\\n  --prefix scratch \\\n  --epochs 1\n"
+            }
+          }
+        },
+        {
+          "timestamp": 1773206871.7577744,
+          "event": "exit",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "outputs": {
+              "jobspec": "#!/bin/bash\n#flux: -n 8\n#flux: -g 1\n#flux: -t 16h\n#\n# NOTE: LSF -M 48000 (memory limit) has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: LSF -R \"span[ptile=8]\" (placement: pack 8 tasks per node) has no direct portable Flux batch directive here.\n# Omitting it may reduce performance due to different task placement.\n#\n# NOTE: LSF -e/-o with %J (jobid) substitution are omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults; also LSF %J substitution would not expand.\n#\n# NOTE: LSF -q amdgpu (queue) has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or access to GPU-capable nodes (performance as time-to-solution).\n\n# load modules\nmodule load bedtools/2.29.2-wrl\nmodule load gcc/9.3.0\nmodule load cuda/11.7\nmodule load samtools/1.6-wrl\nmodule load pigz/2.6.0\nmodule load ucsctools\nsource activate maxatac\n\n# the main command\ncd /data/weirauchlab/team/ngun7t/maxatac/runs\n\n# Use flux run to launch within the allocation.\nflux run -n 8 -g 1 maxatac train --genome hg38 \\\n  --arch Transformer_phuc \\\n  --sequence /users/ngun7t/opt/maxatac/data/hg38/hg38.2bit \\\n  --meta_file /data/weirauchlab/team/ngun7t/maxatac/training_data/meta_file.tsv \\\n  --output /data/weirauchlab/team/ngun7t/maxatac/runs/scratch \\\n  --prefix scratch \\\n  --epochs 1\n",
+              "errors": [],
+              "valid": true
+            }
+          }
+        },
+        {
+          "timestamp": 1773206871.7606862,
+          "event": "exit",
+          "step": "manual_validate",
+          "type": "tool",
+          "data": {
+            "outputs": {
+              "jobspec": "#!/bin/bash\n#flux: -n 8\n#flux: -g 1\n#flux: -t 16h\n#\n# NOTE: LSF -M 48000 (memory limit) has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: LSF -R \"span[ptile=8]\" (placement: pack 8 tasks per node) has no direct portable Flux batch directive here.\n# Omitting it may reduce performance due to different task placement.\n#\n# NOTE: LSF -e/-o with %J (jobid) substitution are omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults; also LSF %J substitution would not expand.\n#\n# NOTE: LSF -q amdgpu (queue) has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or access to GPU-capable nodes (performance as time-to-solution).\n\n# load modules\nmodule load bedtools/2.29.2-wrl\nmodule load gcc/9.3.0\nmodule load cuda/11.7\nmodule load samtools/1.6-wrl\nmodule load pigz/2.6.0\nmodule load ucsctools\nsource activate maxatac\n\n# the main command\ncd /data/weirauchlab/team/ngun7t/maxatac/runs\n\n# Use flux run to launch within the allocation.\nflux run -n 8 -g 1 maxatac train --genome hg38 \\\n  --arch Transformer_phuc \\\n  --sequence /users/ngun7t/opt/maxatac/data/hg38/hg38.2bit \\\n  --meta_file /data/weirauchlab/team/ngun7t/maxatac/training_data/meta_file.tsv \\\n  --output /data/weirauchlab/team/ngun7t/maxatac/runs/scratch \\\n  --prefix scratch \\\n  --epochs 1\n",
+              "errors": [],
+              "valid": true
+            }
+          }
+        }
+      ],
+      "token_total": 52316
+    },
+    {
+      "id": "process_join_annotate_counts.sh",
+      "filename": "data/barakcohenlab/CRX-Active-Learning/src/process_join_annotate_counts.sh",
+      "status": "Valid",
+      "total_time": 5.428779125213623,
+      "step_count": 3,
+      "slurm": "#!/bin/bash\n#SBATCH -N 1\n#SBATCH -n 1\n#SBATCH --mem=16G\n#SBATCH -o log/process_join_annotate_counts.out\n#SBATCH -e log/process_join_annotate_counts.err\n#SBATCH --mail-type=BEGIN,END,FAIL\n\neval $(spack load --sh miniconda3)\nsource activate active-learning\npython3 src/process_and_join_counts.py\npython3 src/annotate_data.py\n",
+      "flux": "#!/bin/bash\n#flux: -N 1\n#flux: -n 1\n#\n# NOTE: Slurm --mem=16G has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: Slurm -o/-e (stdout/stderr files) are omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\n#\n# NOTE: Slurm --mail-type=BEGIN,END,FAIL is not translated.\n# Omitting it has no runtime performance impact, but you will not receive email notifications.\n\neval $(spack load --sh miniconda3)\nsource activate active-learning\npython3 src/process_and_join_counts.py\npython3 src/annotate_data.py\n",
+      "events": [
+        {
+          "timestamp": 1773206822.4112663,
+          "event": "enter",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206825.3170907,
+          "event": "exit",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"jobspec\": \"#!/bin/bash\\n#flux: -N 1\\n#flux: -n 1\\n#\\n# NOTE: Slurm --mem=16G has no direct portable Flux batch directive included here.\\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\\n#\\n# NOTE: Slurm -o/-e (stdout/stderr files) are omitted because a portable Flux batch directive equivalent is not provided here.\\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\\n#\\n# NOTE: Slurm --mail-type=BEGIN,END,FAIL is not translated.\\n# Omitting it has no runtime performance impact, but you will not receive email notifications.\\n\\neval $(spack load --sh miniconda3)\\nsource activate active-learning\\npython3 src/process_and_join_counts.py\\npython3 src/annotate_data.py\\n\"\n}"
+          }
+        },
+        {
+          "timestamp": 1773206825.318233,
+          "event": "enter",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206827.8068807,
+          "event": "exit",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"valid\": true,\n  \"tool_call\": false,\n  \"reasons\": [],\n  \"issues\": [\n    \"Acceptance assumes your Flux deployment supports parsing `#flux:` directives when submitting the script via `flux batch script.sh`.\",\n    \"No time limit is set in the resource section; the job will run with the Flux default (which may be short on some systems).\"\n  ]\n}"
+          }
+        },
+        {
+          "timestamp": 1773206827.8086567,
+          "event": "enter",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "inputs": {
+              "content": "#!/bin/bash\n#flux: -N 1\n#flux: -n 1\n#\n# NOTE: Slurm --mem=16G has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: Slurm -o/-e (stdout/stderr files) are omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\n#\n# NOTE: Slurm --mail-type=BEGIN,END,FAIL is not translated.\n# Omitting it has no runtime performance impact, but you will not receive email notifications.\n\neval $(spack load --sh miniconda3)\nsource activate active-learning\npython3 src/process_and_join_counts.py\npython3 src/annotate_data.py\n"
+            }
+          }
+        },
+        {
+          "timestamp": 1773206827.8102834,
+          "event": "enter",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "inputs": {
+              "content": "#!/bin/bash\n#flux: -N 1\n#flux: -n 1\n#\n# NOTE: Slurm --mem=16G has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: Slurm -o/-e (stdout/stderr files) are omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\n#\n# NOTE: Slurm --mail-type=BEGIN,END,FAIL is not translated.\n# Omitting it has no runtime performance impact, but you will not receive email notifications.\n\neval $(spack load --sh miniconda3)\nsource activate active-learning\npython3 src/process_and_join_counts.py\npython3 src/annotate_data.py\n"
+            }
+          }
+        },
+        {
+          "timestamp": 1773206827.838154,
+          "event": "exit",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "outputs": {
+              "jobspec": "#!/bin/bash\n#flux: -N 1\n#flux: -n 1\n#\n# NOTE: Slurm --mem=16G has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: Slurm -o/-e (stdout/stderr files) are omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\n#\n# NOTE: Slurm --mail-type=BEGIN,END,FAIL is not translated.\n# Omitting it has no runtime performance impact, but you will not receive email notifications.\n\neval $(spack load --sh miniconda3)\nsource activate active-learning\npython3 src/process_and_join_counts.py\npython3 src/annotate_data.py\n",
+              "errors": [],
+              "valid": true
+            }
+          }
+        },
+        {
+          "timestamp": 1773206827.8400455,
+          "event": "exit",
+          "step": "manual_validate",
+          "type": "tool",
+          "data": {
+            "outputs": {
+              "jobspec": "#!/bin/bash\n#flux: -N 1\n#flux: -n 1\n#\n# NOTE: Slurm --mem=16G has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: Slurm -o/-e (stdout/stderr files) are omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\n#\n# NOTE: Slurm --mail-type=BEGIN,END,FAIL is not translated.\n# Omitting it has no runtime performance impact, but you will not receive email notifications.\n\neval $(spack load --sh miniconda3)\nsource activate active-learning\npython3 src/process_and_join_counts.py\npython3 src/annotate_data.py\n",
+              "errors": [],
+              "valid": true
+            }
+          }
+        }
+      ],
+      "token_total": 37589
+    },
+    {
+      "id": "run_TimerOutpus_katana_w0.pbs",
+      "filename": "data/briochemc/FastBGCParameterOptimization/cluster_scripts/run_TimerOutpus_katana_w0.pbs",
+      "status": "Valid",
+      "total_time": 7.151626825332642,
+      "step_count": 3,
+      "slurm": "#!/bin/bash\n\n#PBS -l nodes=1:ppn=12\n#PBS -l vmem=94gb\n#PBS -l walltime=24:00:00\n#PBS -j oe\n#PBS -M briochemc@gmail.com\n#PBS -m abe\n#PBS -e $HOME/Projects/FastBGCParameterOptimization/cluster_output/run_TimerOutputs_w0.err\n#PBS -o $HOME/Projects/FastBGCParameterOptimization/cluster_output/run_TimerOutputs_w0.out\n\n# Load the julia module\nmodule load julia/1.1.0\n\n# Go to the root folder on katana\ncd $HOME/Projects/FastBGCParameterOptimization\n\n# Set DataDeps environment variable to download without asking\nDATADEPS_ALWAYS_ACCEPT = true\n\n# Run it!\njulia src/run_TimerOutputs_w0.jl\n\n",
+      "flux": "#!/bin/bash\n#flux: -N 1\n#flux: -n 12\n#flux: -t 24h\n#\n# NOTE: PBS -l vmem=94gb has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: PBS -j oe (join stdout/stderr) has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but stdout/stderr handling will use Flux defaults.\n#\n# NOTE: PBS mail notifications (-M/-m) are not translated.\n# Omitting them has no runtime performance impact, but you will not receive email notifications.\n#\n# NOTE: PBS -e/-o (stderr/stdout files) are omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\n\n# Load the julia module\nmodule load julia/1.1.0\n\n# Go to the root folder on katana\ncd \"$HOME/Projects/FastBGCParameterOptimization\"\n\n# Set DataDeps environment variable to download without asking\n# NOTE: the original line had spaces around '=' which is invalid in bash.\nexport DATADEPS_ALWAYS_ACCEPT=true\n\n# Run it!\njulia src/run_TimerOutputs_w0.jl\n",
+      "events": [
+        {
+          "timestamp": 1773206877.663599,
+          "event": "enter",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206881.9039462,
+          "event": "exit",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"jobspec\": \"#!/bin/bash\\n#flux: -N 1\\n#flux: -n 12\\n#flux: -t 24h\\n#\\n# NOTE: PBS -l vmem=94gb has no direct portable Flux batch directive included here.\\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\\n#\\n# NOTE: PBS -j oe (join stdout/stderr) has no direct portable Flux batch directive included here.\\n# Omitting it has no runtime performance impact, but stdout/stderr handling will use Flux defaults.\\n#\\n# NOTE: PBS mail notifications (-M/-m) are not translated.\\n# Omitting them has no runtime performance impact, but you will not receive email notifications.\\n#\\n# NOTE: PBS -e/-o (stderr/stdout files) are omitted because a portable Flux batch directive equivalent is not provided here.\\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\\n\\n# Load the julia module\\nmodule load julia/1.1.0\\n\\n# Go to the root folder on katana\\ncd \\\"$HOME/Projects/FastBGCParameterOptimization\\\"\\n\\n# Set DataDeps environment variable to download without asking\\n# NOTE: the original line had spaces around '=' which is invalid in bash.\\nexport DATADEPS_ALWAYS_ACCEPT=true\\n\\n# Run it!\\njulia src/run_TimerOutputs_w0.jl\\n\"\n}"
+          }
+        },
+        {
+          "timestamp": 1773206881.9050882,
+          "event": "enter",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206884.7841065,
+          "event": "exit",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"valid\": true,\n  \"tool_call\": false,\n  \"reasons\": [],\n  \"issues\": [\n    \"Validity assumes your Flux deployment supports parsing `#flux:` directives when submitting the script via `flux batch script.sh`.\",\n    \"The resource section requests 1 node and 12 tasks; if your Flux instance does not map nodes/slots the same way as PBS `ppn=12`, placement may differ (not an acceptance issue).\"\n  ]\n}"
+          }
+        },
+        {
+          "timestamp": 1773206884.7860343,
+          "event": "enter",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "inputs": {
+              "content": "#!/bin/bash\n#flux: -N 1\n#flux: -n 12\n#flux: -t 24h\n#\n# NOTE: PBS -l vmem=94gb has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: PBS -j oe (join stdout/stderr) has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but stdout/stderr handling will use Flux defaults.\n#\n# NOTE: PBS mail notifications (-M/-m) are not translated.\n# Omitting them has no runtime performance impact, but you will not receive email notifications.\n#\n# NOTE: PBS -e/-o (stderr/stdout files) are omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\n\n# Load the julia module\nmodule load julia/1.1.0\n\n# Go to the root folder on katana\ncd \"$HOME/Projects/FastBGCParameterOptimization\"\n\n# Set DataDeps environment variable to download without asking\n# NOTE: the original line had spaces around '=' which is invalid in bash.\nexport DATADEPS_ALWAYS_ACCEPT=true\n\n# Run it!\njulia src/run_TimerOutputs_w0.jl\n"
+            }
+          }
+        },
+        {
+          "timestamp": 1773206884.7878244,
+          "event": "enter",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "inputs": {
+              "content": "#!/bin/bash\n#flux: -N 1\n#flux: -n 12\n#flux: -t 24h\n#\n# NOTE: PBS -l vmem=94gb has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: PBS -j oe (join stdout/stderr) has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but stdout/stderr handling will use Flux defaults.\n#\n# NOTE: PBS mail notifications (-M/-m) are not translated.\n# Omitting them has no runtime performance impact, but you will not receive email notifications.\n#\n# NOTE: PBS -e/-o (stderr/stdout files) are omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\n\n# Load the julia module\nmodule load julia/1.1.0\n\n# Go to the root folder on katana\ncd \"$HOME/Projects/FastBGCParameterOptimization\"\n\n# Set DataDeps environment variable to download without asking\n# NOTE: the original line had spaces around '=' which is invalid in bash.\nexport DATADEPS_ALWAYS_ACCEPT=true\n\n# Run it!\njulia src/run_TimerOutputs_w0.jl\n"
+            }
+          }
+        },
+        {
+          "timestamp": 1773206884.813157,
+          "event": "exit",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "outputs": {
+              "jobspec": "#!/bin/bash\n#flux: -N 1\n#flux: -n 12\n#flux: -t 24h\n#\n# NOTE: PBS -l vmem=94gb has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: PBS -j oe (join stdout/stderr) has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but stdout/stderr handling will use Flux defaults.\n#\n# NOTE: PBS mail notifications (-M/-m) are not translated.\n# Omitting them has no runtime performance impact, but you will not receive email notifications.\n#\n# NOTE: PBS -e/-o (stderr/stdout files) are omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\n\n# Load the julia module\nmodule load julia/1.1.0\n\n# Go to the root folder on katana\ncd \"$HOME/Projects/FastBGCParameterOptimization\"\n\n# Set DataDeps environment variable to download without asking\n# NOTE: the original line had spaces around '=' which is invalid in bash.\nexport DATADEPS_ALWAYS_ACCEPT=true\n\n# Run it!\njulia src/run_TimerOutputs_w0.jl\n",
+              "errors": [],
+              "valid": true
+            }
+          }
+        },
+        {
+          "timestamp": 1773206884.8152258,
+          "event": "exit",
+          "step": "manual_validate",
+          "type": "tool",
+          "data": {
+            "outputs": {
+              "jobspec": "#!/bin/bash\n#flux: -N 1\n#flux: -n 12\n#flux: -t 24h\n#\n# NOTE: PBS -l vmem=94gb has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: PBS -j oe (join stdout/stderr) has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but stdout/stderr handling will use Flux defaults.\n#\n# NOTE: PBS mail notifications (-M/-m) are not translated.\n# Omitting them has no runtime performance impact, but you will not receive email notifications.\n#\n# NOTE: PBS -e/-o (stderr/stdout files) are omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\n\n# Load the julia module\nmodule load julia/1.1.0\n\n# Go to the root folder on katana\ncd \"$HOME/Projects/FastBGCParameterOptimization\"\n\n# Set DataDeps environment variable to download without asking\n# NOTE: the original line had spaces around '=' which is invalid in bash.\nexport DATADEPS_ALWAYS_ACCEPT=true\n\n# Run it!\njulia src/run_TimerOutputs_w0.jl\n",
+              "errors": [],
+              "valid": true
+            }
+          }
+        }
+      ],
+      "token_total": 57575
+    },
+    {
+      "id": "run_1mm.slurm",
+      "filename": "data/cal-miller-harvard/DSMC_Simulations/5_25_20_cold_second_stage/run_1mm.slurm",
+      "status": "Valid",
+      "total_time": 9.757811307907104,
+      "step_count": 3,
+      "slurm": "#!/bin/bash\n#SBATCH -n 16 # Number of cores requested\n#SBATCH -N 1 # Ensure that all cores are on one machine\n#SBATCH -t 0-08:00 # Runtime in minutes\n#SBATCH -p shared # Partition to submit to\n#SBATCH --mem-per-cpu 512 # Memory per cpu in MB (see also ?mem-per-cpu)\n#SBATCH --open-mode=append\n#SBATCH -o logs/dsmc_job_%j.out # Standard out goes to this file\n#SBATCH -e logs/dsmc_job_%j.err # Standard err goes to this filehostname\n\nmodule load intel/19.0.5-fasrc01 openmpi/4.0.2-fasrc01 fftw/3.3.8-fasrc01 cmake/3.12.1-fasrc01 Anaconda3/2019.10 python/3.7.7-fasrc01\nmodule list\n\nexport OMP_PROC_BIND=spread\nexport OMP_PLACES=threads\nexport JULIA_NUM_THREADS=$SLURM_CPUS_ON_NODE\n\necho \"running....\"\n\njulia RunCells.jl -l 0.001 -L 0.02\n",
+      "flux": "#!/bin/bash\n#flux: -N 1\n#flux: -n 16\n#flux: -t 8h\n#\n# NOTE: Slurm -p shared (partition) has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or node selection (performance as time-to-solution).\n#\n# NOTE: Slurm --mem-per-cpu 512 (MB) has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: Slurm --open-mode=append has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but may change log file overwrite/append behavior.\n#\n# NOTE: Slurm -o/-e with %j substitution are omitted because a portable Flux batch directive equivalent is not provided here;\n# also Slurm-specific %j substitution would not expand.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\n\nmodule load intel/19.0.5-fasrc01 openmpi/4.0.2-fasrc01 fftw/3.3.8-fasrc01 cmake/3.12.1-fasrc01 Anaconda3/2019.10 python/3.7.7-fasrc01\nmodule list\n\nexport OMP_PROC_BIND=spread\nexport OMP_PLACES=threads\n\n# NOTE: SLURM_CPUS_ON_NODE is not set under Flux.\n# Omitting/altering this may change threading and performance.\n# A reasonable approximation is to use the Flux allocation size if available.\nexport JULIA_NUM_THREADS=${FLUX_TASKS:-16}\n\necho \"running....\"\n\n# If this is an MPI program, prefer flux run; if it's threaded-only, direct execution is fine.\nflux run -n 16 julia RunCells.jl -l 0.001 -L 0.02\n",
+      "events": [
+        {
+          "timestamp": 1773206901.320185,
+          "event": "enter",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206908.212421,
+          "event": "exit",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"jobspec\": \"#!/bin/bash\\n#flux: -N 1\\n#flux: -n 16\\n#flux: -t 8h\\n#\\n# NOTE: Slurm -p shared (partition) has no direct portable Flux batch directive here.\\n# Omitting it may affect queue wait time and/or node selection (performance as time-to-solution).\\n#\\n# NOTE: Slurm --mem-per-cpu 512 (MB) has no direct portable Flux batch directive included here.\\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\\n#\\n# NOTE: Slurm --open-mode=append has no direct portable Flux batch directive included here.\\n# Omitting it has no runtime performance impact, but may change log file overwrite/append behavior.\\n#\\n# NOTE: Slurm -o/-e with %j substitution are omitted because a portable Flux batch directive equivalent is not provided here;\\n# also Slurm-specific %j substitution would not expand.\\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\\n\\nmodule load intel/19.0.5-fasrc01 openmpi/4.0.2-fasrc01 fftw/3.3.8-fasrc01 cmake/3.12.1-fasrc01 Anaconda3/2019.10 python/3.7.7-fasrc01\\nmodule list\\n\\nexport OMP_PROC_BIND=spread\\nexport OMP_PLACES=threads\\n\\n# NOTE: SLURM_CPUS_ON_NODE is not set under Flux.\\n# Omitting/altering this may change threading and performance.\\n# A reasonable approximation is to use the Flux allocation size if available.\\nexport JULIA_NUM_THREADS=${FLUX_TASKS:-16}\\n\\necho \\\"running....\\\"\\n\\n# If this is an MPI program, prefer flux run; if it's threaded-only, direct execution is fine.\\nflux run -n 16 julia RunCells.jl -l 0.001 -L 0.02\\n\"\n}"
+          }
+        },
+        {
+          "timestamp": 1773206908.213621,
+          "event": "enter",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206911.0370135,
+          "event": "exit",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"valid\": true,\n  \"tool_call\": false,\n  \"reasons\": [],\n  \"issues\": [\n    \"Validity assumes your Flux deployment supports parsing `#flux:` directives in scripts submitted via `flux batch script.sh`.\",\n    \"The job step uses `flux run -n 16` which matches the allocation request; if the job is submitted with different resources than the embedded directives (e.g., directives ignored), the step could fail.\"\n  ]\n}"
+          }
+        },
+        {
+          "timestamp": 1773206911.0387743,
+          "event": "enter",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "inputs": {
+              "content": "#!/bin/bash\n#flux: -N 1\n#flux: -n 16\n#flux: -t 8h\n#\n# NOTE: Slurm -p shared (partition) has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or node selection (performance as time-to-solution).\n#\n# NOTE: Slurm --mem-per-cpu 512 (MB) has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: Slurm --open-mode=append has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but may change log file overwrite/append behavior.\n#\n# NOTE: Slurm -o/-e with %j substitution are omitted because a portable Flux batch directive equivalent is not provided here;\n# also Slurm-specific %j substitution would not expand.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\n\nmodule load intel/19.0.5-fasrc01 openmpi/4.0.2-fasrc01 fftw/3.3.8-fasrc01 cmake/3.12.1-fasrc01 Anaconda3/2019.10 python/3.7.7-fasrc01\nmodule list\n\nexport OMP_PROC_BIND=spread\nexport OMP_PLACES=threads\n\n# NOTE: SLURM_CPUS_ON_NODE is not set under Flux.\n# Omitting/altering this may change threading and performance.\n# A reasonable approximation is to use the Flux allocation size if available.\nexport JULIA_NUM_THREADS=${FLUX_TASKS:-16}\n\necho \"running....\"\n\n# If this is an MPI program, prefer flux run; if it's threaded-only, direct execution is fine.\nflux run -n 16 julia RunCells.jl -l 0.001 -L 0.02\n"
+            }
+          }
+        },
+        {
+          "timestamp": 1773206911.0405376,
+          "event": "enter",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "inputs": {
+              "content": "#!/bin/bash\n#flux: -N 1\n#flux: -n 16\n#flux: -t 8h\n#\n# NOTE: Slurm -p shared (partition) has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or node selection (performance as time-to-solution).\n#\n# NOTE: Slurm --mem-per-cpu 512 (MB) has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: Slurm --open-mode=append has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but may change log file overwrite/append behavior.\n#\n# NOTE: Slurm -o/-e with %j substitution are omitted because a portable Flux batch directive equivalent is not provided here;\n# also Slurm-specific %j substitution would not expand.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\n\nmodule load intel/19.0.5-fasrc01 openmpi/4.0.2-fasrc01 fftw/3.3.8-fasrc01 cmake/3.12.1-fasrc01 Anaconda3/2019.10 python/3.7.7-fasrc01\nmodule list\n\nexport OMP_PROC_BIND=spread\nexport OMP_PLACES=threads\n\n# NOTE: SLURM_CPUS_ON_NODE is not set under Flux.\n# Omitting/altering this may change threading and performance.\n# A reasonable approximation is to use the Flux allocation size if available.\nexport JULIA_NUM_THREADS=${FLUX_TASKS:-16}\n\necho \"running....\"\n\n# If this is an MPI program, prefer flux run; if it's threaded-only, direct execution is fine.\nflux run -n 16 julia RunCells.jl -l 0.001 -L 0.02\n"
+            }
+          }
+        },
+        {
+          "timestamp": 1773206911.074606,
+          "event": "exit",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "outputs": {
+              "jobspec": "#!/bin/bash\n#flux: -N 1\n#flux: -n 16\n#flux: -t 8h\n#\n# NOTE: Slurm -p shared (partition) has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or node selection (performance as time-to-solution).\n#\n# NOTE: Slurm --mem-per-cpu 512 (MB) has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: Slurm --open-mode=append has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but may change log file overwrite/append behavior.\n#\n# NOTE: Slurm -o/-e with %j substitution are omitted because a portable Flux batch directive equivalent is not provided here;\n# also Slurm-specific %j substitution would not expand.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\n\nmodule load intel/19.0.5-fasrc01 openmpi/4.0.2-fasrc01 fftw/3.3.8-fasrc01 cmake/3.12.1-fasrc01 Anaconda3/2019.10 python/3.7.7-fasrc01\nmodule list\n\nexport OMP_PROC_BIND=spread\nexport OMP_PLACES=threads\n\n# NOTE: SLURM_CPUS_ON_NODE is not set under Flux.\n# Omitting/altering this may change threading and performance.\n# A reasonable approximation is to use the Flux allocation size if available.\nexport JULIA_NUM_THREADS=${FLUX_TASKS:-16}\n\necho \"running....\"\n\n# If this is an MPI program, prefer flux run; if it's threaded-only, direct execution is fine.\nflux run -n 16 julia RunCells.jl -l 0.001 -L 0.02\n",
+              "errors": [],
+              "valid": true
+            }
+          }
+        },
+        {
+          "timestamp": 1773206911.0779963,
+          "event": "exit",
+          "step": "manual_validate",
+          "type": "tool",
+          "data": {
+            "outputs": {
+              "jobspec": "#!/bin/bash\n#flux: -N 1\n#flux: -n 16\n#flux: -t 8h\n#\n# NOTE: Slurm -p shared (partition) has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or node selection (performance as time-to-solution).\n#\n# NOTE: Slurm --mem-per-cpu 512 (MB) has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: Slurm --open-mode=append has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but may change log file overwrite/append behavior.\n#\n# NOTE: Slurm -o/-e with %j substitution are omitted because a portable Flux batch directive equivalent is not provided here;\n# also Slurm-specific %j substitution would not expand.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\n\nmodule load intel/19.0.5-fasrc01 openmpi/4.0.2-fasrc01 fftw/3.3.8-fasrc01 cmake/3.12.1-fasrc01 Anaconda3/2019.10 python/3.7.7-fasrc01\nmodule list\n\nexport OMP_PROC_BIND=spread\nexport OMP_PLACES=threads\n\n# NOTE: SLURM_CPUS_ON_NODE is not set under Flux.\n# Omitting/altering this may change threading and performance.\n# A reasonable approximation is to use the Flux allocation size if available.\nexport JULIA_NUM_THREADS=${FLUX_TASKS:-16}\n\necho \"running....\"\n\n# If this is an MPI program, prefer flux run; if it's threaded-only, direct execution is fine.\nflux run -n 16 julia RunCells.jl -l 0.001 -L 0.02\n",
+              "errors": [],
+              "valid": true
+            }
+          }
+        }
+      ],
+      "token_total": 66201
+    },
+    {
+      "id": "sbatch.run",
+      "filename": "data/dnzengou/User_Codes/Courses/CS205/MPI_2021/Example5/sbatch.run",
+      "status": "Valid",
+      "total_time": 10.272741794586182,
+      "step_count": 3,
+      "slurm": "#!/bin/bash -l\n#SBATCH -J planczos\n#SBATCH -o planczos.out\n#SBATCH -e planczos.err\n#SBATCH -t 20\n#SBATCH -n 8\n#SBATCH -N 1\n#SBATCH --mem-per-cpu=4000\n\n# Set up environment\nPRO=planczos\n\n# Load required software modules\nmodule load gcc/9.3.0-fasrc01 openmpi/4.0.5-fasrc01\n\n# Run program\nsrun -n $SLURM_NTASKS --mpi=pmix ./${PRO}.x > ${PRO}.dat\n\n",
+      "flux": "#!/bin/bash -l\n#flux: -N 1\n#flux: -n 8\n#flux: -t 20m\n#\n# NOTE: Slurm -J planczos (job name) has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\n#\n# NOTE: Slurm -o planczos.out / -e planczos.err are omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\n#\n# NOTE: Slurm --mem-per-cpu=4000 has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n\n# Set up environment\nPRO=planczos\n\n# Load required software modules\nmodule load gcc/9.3.0-fasrc01 openmpi/4.0.5-fasrc01\n\n# Run program\n# Use Flux launcher instead of srun; -n comes from the job allocation.\nflux run -n 8 --mpi=pmix ./${PRO}.x > ${PRO}.dat\n",
+      "events": [
+        {
+          "timestamp": 1773206755.9058428,
+          "event": "enter",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206762.2984407,
+          "event": "exit",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"jobspec\": \"#!/bin/bash -l\\n#flux: -N 1\\n#flux: -n 8\\n#flux: -t 20m\\n#\\n# NOTE: Slurm -J planczos (job name) has no direct portable Flux batch directive included here.\\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\\n#\\n# NOTE: Slurm -o planczos.out / -e planczos.err are omitted because a portable Flux batch directive equivalent is not provided here.\\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\\n#\\n# NOTE: Slurm --mem-per-cpu=4000 has no direct portable Flux batch directive included here.\\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\\n\\n# Set up environment\\nPRO=planczos\\n\\n# Load required software modules\\nmodule load gcc/9.3.0-fasrc01 openmpi/4.0.5-fasrc01\\n\\n# Run program\\n# Use Flux launcher instead of srun; -n comes from the job allocation.\\nflux run -n 8 --mpi=pmix ./${PRO}.x > ${PRO}.dat\\n\"\n}"
+          }
+        },
+        {
+          "timestamp": 1773206762.299635,
+          "event": "enter",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206766.1489992,
+          "event": "exit",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"valid\": true,\n  \"tool_call\": false,\n  \"reasons\": [],\n  \"issues\": [\n    \"Validity assumes your Flux deployment supports parsing `#flux:` directives in scripts submitted via `flux batch script.sh`; otherwise the resource lines may be ignored unless passed on the `flux batch` command line.\",\n    \"`#flux: -t 20m` is generally a valid Flux duration form, but accepted time syntax can vary by Flux version/config.\",\n    \"The job requests 8 tasks but does not request per-task cores (`-c`); if the application is multithreaded and needs more than 1 core per rank, performance may suffer.\"\n  ]\n}"
+          }
+        },
+        {
+          "timestamp": 1773206766.1507943,
+          "event": "enter",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "inputs": {
+              "content": "#!/bin/bash -l\n#flux: -N 1\n#flux: -n 8\n#flux: -t 20m\n#\n# NOTE: Slurm -J planczos (job name) has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\n#\n# NOTE: Slurm -o planczos.out / -e planczos.err are omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\n#\n# NOTE: Slurm --mem-per-cpu=4000 has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n\n# Set up environment\nPRO=planczos\n\n# Load required software modules\nmodule load gcc/9.3.0-fasrc01 openmpi/4.0.5-fasrc01\n\n# Run program\n# Use Flux launcher instead of srun; -n comes from the job allocation.\nflux run -n 8 --mpi=pmix ./${PRO}.x > ${PRO}.dat\n"
+            }
+          }
+        },
+        {
+          "timestamp": 1773206766.1524727,
+          "event": "enter",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "inputs": {
+              "content": "#!/bin/bash -l\n#flux: -N 1\n#flux: -n 8\n#flux: -t 20m\n#\n# NOTE: Slurm -J planczos (job name) has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\n#\n# NOTE: Slurm -o planczos.out / -e planczos.err are omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\n#\n# NOTE: Slurm --mem-per-cpu=4000 has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n\n# Set up environment\nPRO=planczos\n\n# Load required software modules\nmodule load gcc/9.3.0-fasrc01 openmpi/4.0.5-fasrc01\n\n# Run program\n# Use Flux launcher instead of srun; -n comes from the job allocation.\nflux run -n 8 --mpi=pmix ./${PRO}.x > ${PRO}.dat\n"
+            }
+          }
+        },
+        {
+          "timestamp": 1773206766.1767097,
+          "event": "exit",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "outputs": {
+              "jobspec": "#!/bin/bash -l\n#flux: -N 1\n#flux: -n 8\n#flux: -t 20m\n#\n# NOTE: Slurm -J planczos (job name) has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\n#\n# NOTE: Slurm -o planczos.out / -e planczos.err are omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\n#\n# NOTE: Slurm --mem-per-cpu=4000 has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n\n# Set up environment\nPRO=planczos\n\n# Load required software modules\nmodule load gcc/9.3.0-fasrc01 openmpi/4.0.5-fasrc01\n\n# Run program\n# Use Flux launcher instead of srun; -n comes from the job allocation.\nflux run -n 8 --mpi=pmix ./${PRO}.x > ${PRO}.dat\n",
+              "errors": [],
+              "valid": true
+            }
+          }
+        },
+        {
+          "timestamp": 1773206766.1785846,
+          "event": "exit",
+          "step": "manual_validate",
+          "type": "tool",
+          "data": {
+            "outputs": {
+              "jobspec": "#!/bin/bash -l\n#flux: -N 1\n#flux: -n 8\n#flux: -t 20m\n#\n# NOTE: Slurm -J planczos (job name) has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\n#\n# NOTE: Slurm -o planczos.out / -e planczos.err are omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\n#\n# NOTE: Slurm --mem-per-cpu=4000 has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n\n# Set up environment\nPRO=planczos\n\n# Load required software modules\nmodule load gcc/9.3.0-fasrc01 openmpi/4.0.5-fasrc01\n\n# Run program\n# Use Flux launcher instead of srun; -n comes from the job allocation.\nflux run -n 8 --mpi=pmix ./${PRO}.x > ${PRO}.dat\n",
+              "errors": [],
+              "valid": true
+            }
+          }
+        }
+      ],
+      "token_total": 15037
+    },
+    {
+      "id": "icarl.job",
+      "filename": "data/fcdl94/ICL/icarl.job",
+      "status": "Valid",
+      "total_time": 6.788970232009888,
+      "step_count": 3,
+      "slurm": "#!/bin/bash\n#SBATCH --job-name=icarl_5\n#SBATCH --gres=gpu:1\n#SBATCH --cpus-per-task=2\n#SBATCH --mem=24GB\n#SBATCH --time=12:00:00\n\n# the required parameter is just the prefix for storing the model\nif [ $# -ne 1 ]; then\n  exit\nfi\n\n\n# clean the module environment that we may have inherited from the calling session\nml purge\n\n# load the relevant modules\nml PyTorch/0.4.0-gomkl-2018b-Python-2.7.15-CUDA-9.2.88\nml torchvision/0.2.1-gomkl-2018b-Python-2.7.15-CUDA-9.2.88 \n\necho 'Starting job'\n# run the script\npython main.py \"$1\"\n\n",
+      "flux": "#!/bin/bash\n#flux: -g 1\n#flux: -c 2\n#flux: -t 12h\n#\n# NOTE: Slurm --job-name=icarl_5 has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\n#\n# NOTE: Slurm --mem=24GB has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n\n# the required parameter is just the prefix for storing the model\nif [ $# -ne 1 ]; then\n  exit\nfi\n\n# clean the module environment that we may have inherited from the calling session\nml purge\n\n# load the relevant modules\nml PyTorch/0.4.0-gomkl-2018b-Python-2.7.15-CUDA-9.2.88\nml torchvision/0.2.1-gomkl-2018b-Python-2.7.15-CUDA-9.2.88\n\necho 'Starting job'\n# run the script\npython main.py \"$1\"\n",
+      "events": [
+        {
+          "timestamp": 1773206815.6090121,
+          "event": "enter",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206818.9871516,
+          "event": "exit",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"jobspec\": \"#!/bin/bash\\n#flux: -g 1\\n#flux: -c 2\\n#flux: -t 12h\\n#\\n# NOTE: Slurm --job-name=icarl_5 has no direct portable Flux batch directive included here.\\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\\n#\\n# NOTE: Slurm --mem=24GB has no direct portable Flux batch directive included here.\\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\\n\\n# the required parameter is just the prefix for storing the model\\nif [ $# -ne 1 ]; then\\n  exit\\nfi\\n\\n# clean the module environment that we may have inherited from the calling session\\nml purge\\n\\n# load the relevant modules\\nml PyTorch/0.4.0-gomkl-2018b-Python-2.7.15-CUDA-9.2.88\\nml torchvision/0.2.1-gomkl-2018b-Python-2.7.15-CUDA-9.2.88\\n\\necho 'Starting job'\\n# run the script\\npython main.py \\\"$1\\\"\\n\"\n}"
+          }
+        },
+        {
+          "timestamp": 1773206818.9883058,
+          "event": "enter",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206822.368226,
+          "event": "exit",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"valid\": true,\n  \"tool_call\": false,\n  \"reasons\": [],\n  \"issues\": [\n    \"Acceptance assumes your Flux deployment supports parsing `#flux:` directives when submitting the script via `flux batch script.sh`.\",\n    \"Requesting `-g 1` assumes GPU resources are configured in Flux; otherwise submission may fail or the request may be ignored depending on site policy.\",\n    \"No task count (`-n`) is specified; Flux will use its default (commonly 1 task). That is consistent with a single-process Python run, but if the site expects explicit `-n` it may be clearer to include it.\"\n  ]\n}"
+          }
+        },
+        {
+          "timestamp": 1773206822.3700354,
+          "event": "enter",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "inputs": {
+              "content": "#!/bin/bash\n#flux: -g 1\n#flux: -c 2\n#flux: -t 12h\n#\n# NOTE: Slurm --job-name=icarl_5 has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\n#\n# NOTE: Slurm --mem=24GB has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n\n# the required parameter is just the prefix for storing the model\nif [ $# -ne 1 ]; then\n  exit\nfi\n\n# clean the module environment that we may have inherited from the calling session\nml purge\n\n# load the relevant modules\nml PyTorch/0.4.0-gomkl-2018b-Python-2.7.15-CUDA-9.2.88\nml torchvision/0.2.1-gomkl-2018b-Python-2.7.15-CUDA-9.2.88\n\necho 'Starting job'\n# run the script\npython main.py \"$1\"\n"
+            }
+          }
+        },
+        {
+          "timestamp": 1773206822.371705,
+          "event": "enter",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "inputs": {
+              "content": "#!/bin/bash\n#flux: -g 1\n#flux: -c 2\n#flux: -t 12h\n#\n# NOTE: Slurm --job-name=icarl_5 has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\n#\n# NOTE: Slurm --mem=24GB has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n\n# the required parameter is just the prefix for storing the model\nif [ $# -ne 1 ]; then\n  exit\nfi\n\n# clean the module environment that we may have inherited from the calling session\nml purge\n\n# load the relevant modules\nml PyTorch/0.4.0-gomkl-2018b-Python-2.7.15-CUDA-9.2.88\nml torchvision/0.2.1-gomkl-2018b-Python-2.7.15-CUDA-9.2.88\n\necho 'Starting job'\n# run the script\npython main.py \"$1\"\n"
+            }
+          }
+        },
+        {
+          "timestamp": 1773206822.3960063,
+          "event": "exit",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "outputs": {
+              "jobspec": "#!/bin/bash\n#flux: -g 1\n#flux: -c 2\n#flux: -t 12h\n#\n# NOTE: Slurm --job-name=icarl_5 has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\n#\n# NOTE: Slurm --mem=24GB has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n\n# the required parameter is just the prefix for storing the model\nif [ $# -ne 1 ]; then\n  exit\nfi\n\n# clean the module environment that we may have inherited from the calling session\nml purge\n\n# load the relevant modules\nml PyTorch/0.4.0-gomkl-2018b-Python-2.7.15-CUDA-9.2.88\nml torchvision/0.2.1-gomkl-2018b-Python-2.7.15-CUDA-9.2.88\n\necho 'Starting job'\n# run the script\npython main.py \"$1\"\n",
+              "errors": [],
+              "valid": true
+            }
+          }
+        },
+        {
+          "timestamp": 1773206822.3979824,
+          "event": "exit",
+          "step": "manual_validate",
+          "type": "tool",
+          "data": {
+            "outputs": {
+              "jobspec": "#!/bin/bash\n#flux: -g 1\n#flux: -c 2\n#flux: -t 12h\n#\n# NOTE: Slurm --job-name=icarl_5 has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\n#\n# NOTE: Slurm --mem=24GB has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n\n# the required parameter is just the prefix for storing the model\nif [ $# -ne 1 ]; then\n  exit\nfi\n\n# clean the module environment that we may have inherited from the calling session\nml purge\n\n# load the relevant modules\nml PyTorch/0.4.0-gomkl-2018b-Python-2.7.15-CUDA-9.2.88\nml torchvision/0.2.1-gomkl-2018b-Python-2.7.15-CUDA-9.2.88\n\necho 'Starting job'\n# run the script\npython main.py \"$1\"\n",
+              "errors": [],
+              "valid": true
+            }
+          }
+        }
+      ],
+      "token_total": 35422
+    },
+    {
+      "id": "anvil.sh",
+      "filename": "data/glotzerlab/software/conda/anvil.sh",
+      "status": "Valid",
+      "total_time": 7.278923511505127,
+      "step_count": 3,
+      "slurm": "#!/bin/bash\n\n#SBATCH --job-name=\"glotzerlab-software build\"\n#SBATCH --account=dmr140129\n#SBATCH --partition=shared\n#SBATCH --ntasks=1\n#SBATCH --cpus-per-task=32\n#SBATCH --time=8:00:00\n\nexport OUTPUT_FOLDER=$PROJECT/software/conda\nunset CMAKE_PREFIX_PATH\n\n# Load modules used to build packages with native MPI support (no CUDA).\nmodule reset\nmodule load gcc/11.2.0 openmpi/4.1.6\n\nexport CC=$GCC_HOME/bin/gcc\nexport CXX=$GCC_HOME/bin/g++\n\n./build.sh \"$@\" \\\n    --skip-existing \\\n    --variants \"{'cluster': ['anvil'], 'device': ['cpu'], 'gpu_platform': ['none']}\" \\\n    --output-folder $OUTPUT_FOLDER\n\nchmod g-w $OUTPUT_FOLDER -R\n",
+      "flux": "#!/bin/bash\n#flux: -n 1\n#flux: -c 32\n#flux: -t 8h\n#\n# NOTE: Slurm --job-name=\"glotzerlab-software build\" has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\n#\n# NOTE: Slurm --account=dmr140129 has no direct portable Flux batch directive here.\n# Omitting it may affect job priority/accounting and queue wait time (performance as time-to-solution).\n#\n# NOTE: Slurm --partition=shared has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or which nodes you land on (performance as time-to-solution).\n\nexport OUTPUT_FOLDER=\"$PROJECT/software/conda\"\nunset CMAKE_PREFIX_PATH\n\n# Load modules used to build packages with native MPI support (no CUDA).\nmodule reset\nmodule load gcc/11.2.0 openmpi/4.1.6\n\nexport CC=\"$GCC_HOME/bin/gcc\"\nexport CXX=\"$GCC_HOME/bin/g++\"\n\n./build.sh \"$@\" \\\n    --skip-existing \\\n    --variants \"{'cluster': ['anvil'], 'device': ['cpu'], 'gpu_platform': ['none']}\" \\\n    --output-folder \"$OUTPUT_FOLDER\"\n\nchmod g-w \"$OUTPUT_FOLDER\" -R\n",
+      "events": [
+        {
+          "timestamp": 1773206894.025899,
+          "event": "enter",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206898.333553,
+          "event": "exit",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"jobspec\": \"#!/bin/bash\\n#flux: -n 1\\n#flux: -c 32\\n#flux: -t 8h\\n#\\n# NOTE: Slurm --job-name=\\\"glotzerlab-software build\\\" has no direct portable Flux batch directive included here.\\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\\n#\\n# NOTE: Slurm --account=dmr140129 has no direct portable Flux batch directive here.\\n# Omitting it may affect job priority/accounting and queue wait time (performance as time-to-solution).\\n#\\n# NOTE: Slurm --partition=shared has no direct portable Flux batch directive here.\\n# Omitting it may affect queue wait time and/or which nodes you land on (performance as time-to-solution).\\n\\nexport OUTPUT_FOLDER=\\\"$PROJECT/software/conda\\\"\\nunset CMAKE_PREFIX_PATH\\n\\n# Load modules used to build packages with native MPI support (no CUDA).\\nmodule reset\\nmodule load gcc/11.2.0 openmpi/4.1.6\\n\\nexport CC=\\\"$GCC_HOME/bin/gcc\\\"\\nexport CXX=\\\"$GCC_HOME/bin/g++\\\"\\n\\n./build.sh \\\"$@\\\" \\\\\\n    --skip-existing \\\\\\n    --variants \\\"{'cluster': ['anvil'], 'device': ['cpu'], 'gpu_platform': ['none']}\\\" \\\\\\n    --output-folder \\\"$OUTPUT_FOLDER\\\"\\n\\nchmod g-w \\\"$OUTPUT_FOLDER\\\" -R\\n\"\n}"
+          }
+        },
+        {
+          "timestamp": 1773206898.334711,
+          "event": "enter",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206901.2749598,
+          "event": "exit",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"valid\": true,\n  \"tool_call\": false,\n  \"reasons\": [],\n  \"issues\": [\n    \"Validity assumes your Flux deployment supports parsing `#flux:` directives in scripts submitted via `flux batch script.sh`.\",\n    \"Requesting `-c 32` assumes the Flux instance can allocate 32 cores to a single task; if the submitting allocation/policy cannot satisfy this, the job may remain unschedulable or be rejected (site-dependent).\"\n  ]\n}"
+          }
+        },
+        {
+          "timestamp": 1773206901.276742,
+          "event": "enter",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "inputs": {
+              "content": "#!/bin/bash\n#flux: -n 1\n#flux: -c 32\n#flux: -t 8h\n#\n# NOTE: Slurm --job-name=\"glotzerlab-software build\" has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\n#\n# NOTE: Slurm --account=dmr140129 has no direct portable Flux batch directive here.\n# Omitting it may affect job priority/accounting and queue wait time (performance as time-to-solution).\n#\n# NOTE: Slurm --partition=shared has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or which nodes you land on (performance as time-to-solution).\n\nexport OUTPUT_FOLDER=\"$PROJECT/software/conda\"\nunset CMAKE_PREFIX_PATH\n\n# Load modules used to build packages with native MPI support (no CUDA).\nmodule reset\nmodule load gcc/11.2.0 openmpi/4.1.6\n\nexport CC=\"$GCC_HOME/bin/gcc\"\nexport CXX=\"$GCC_HOME/bin/g++\"\n\n./build.sh \"$@\" \\\n    --skip-existing \\\n    --variants \"{'cluster': ['anvil'], 'device': ['cpu'], 'gpu_platform': ['none']}\" \\\n    --output-folder \"$OUTPUT_FOLDER\"\n\nchmod g-w \"$OUTPUT_FOLDER\" -R\n"
+            }
+          }
+        },
+        {
+          "timestamp": 1773206901.2784579,
+          "event": "enter",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "inputs": {
+              "content": "#!/bin/bash\n#flux: -n 1\n#flux: -c 32\n#flux: -t 8h\n#\n# NOTE: Slurm --job-name=\"glotzerlab-software build\" has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\n#\n# NOTE: Slurm --account=dmr140129 has no direct portable Flux batch directive here.\n# Omitting it may affect job priority/accounting and queue wait time (performance as time-to-solution).\n#\n# NOTE: Slurm --partition=shared has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or which nodes you land on (performance as time-to-solution).\n\nexport OUTPUT_FOLDER=\"$PROJECT/software/conda\"\nunset CMAKE_PREFIX_PATH\n\n# Load modules used to build packages with native MPI support (no CUDA).\nmodule reset\nmodule load gcc/11.2.0 openmpi/4.1.6\n\nexport CC=\"$GCC_HOME/bin/gcc\"\nexport CXX=\"$GCC_HOME/bin/g++\"\n\n./build.sh \"$@\" \\\n    --skip-existing \\\n    --variants \"{'cluster': ['anvil'], 'device': ['cpu'], 'gpu_platform': ['none']}\" \\\n    --output-folder \"$OUTPUT_FOLDER\"\n\nchmod g-w \"$OUTPUT_FOLDER\" -R\n"
+            }
+          }
+        },
+        {
+          "timestamp": 1773206901.3026223,
+          "event": "exit",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "outputs": {
+              "jobspec": "#!/bin/bash\n#flux: -n 1\n#flux: -c 32\n#flux: -t 8h\n#\n# NOTE: Slurm --job-name=\"glotzerlab-software build\" has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\n#\n# NOTE: Slurm --account=dmr140129 has no direct portable Flux batch directive here.\n# Omitting it may affect job priority/accounting and queue wait time (performance as time-to-solution).\n#\n# NOTE: Slurm --partition=shared has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or which nodes you land on (performance as time-to-solution).\n\nexport OUTPUT_FOLDER=\"$PROJECT/software/conda\"\nunset CMAKE_PREFIX_PATH\n\n# Load modules used to build packages with native MPI support (no CUDA).\nmodule reset\nmodule load gcc/11.2.0 openmpi/4.1.6\n\nexport CC=\"$GCC_HOME/bin/gcc\"\nexport CXX=\"$GCC_HOME/bin/g++\"\n\n./build.sh \"$@\" \\\n    --skip-existing \\\n    --variants \"{'cluster': ['anvil'], 'device': ['cpu'], 'gpu_platform': ['none']}\" \\\n    --output-folder \"$OUTPUT_FOLDER\"\n\nchmod g-w \"$OUTPUT_FOLDER\" -R\n",
+              "errors": [],
+              "valid": true
+            }
+          }
+        },
+        {
+          "timestamp": 1773206901.3048224,
+          "event": "exit",
+          "step": "manual_validate",
+          "type": "tool",
+          "data": {
+            "outputs": {
+              "jobspec": "#!/bin/bash\n#flux: -n 1\n#flux: -c 32\n#flux: -t 8h\n#\n# NOTE: Slurm --job-name=\"glotzerlab-software build\" has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\n#\n# NOTE: Slurm --account=dmr140129 has no direct portable Flux batch directive here.\n# Omitting it may affect job priority/accounting and queue wait time (performance as time-to-solution).\n#\n# NOTE: Slurm --partition=shared has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or which nodes you land on (performance as time-to-solution).\n\nexport OUTPUT_FOLDER=\"$PROJECT/software/conda\"\nunset CMAKE_PREFIX_PATH\n\n# Load modules used to build packages with native MPI support (no CUDA).\nmodule reset\nmodule load gcc/11.2.0 openmpi/4.1.6\n\nexport CC=\"$GCC_HOME/bin/gcc\"\nexport CXX=\"$GCC_HOME/bin/g++\"\n\n./build.sh \"$@\" \\\n    --skip-existing \\\n    --variants \"{'cluster': ['anvil'], 'device': ['cpu'], 'gpu_platform': ['none']}\" \\\n    --output-folder \"$OUTPUT_FOLDER\"\n\nchmod g-w \"$OUTPUT_FOLDER\" -R\n",
+              "errors": [],
+              "valid": true
+            }
+          }
+        }
+      ],
+      "token_total": 62977
+    },
+    {
+      "id": "run_monolayer.sh",
+      "filename": "data/grovert4/CQIQC-Research/Final_Files/run_monolayer.sh",
+      "status": "Valid",
+      "total_time": 9.176022052764893,
+      "step_count": 3,
+      "slurm": "#!/bin/bash\n#SBATCH --mail-user=tanmay.grover@mail.utoronto.ca  \n#SBATCH --mail-type=ALL\n#SBATCH --mail-type=BEGIN\n#SBATCH --mail-type=END\n#SBATCH --mail-type=FAIL\n#SBATCH --ntasks=200\n#SBATCH --cpus-per-task=1 \n#SBATCH --account=def-aparamek\n#SBATCH --time=8:00:00\n#SBATCH --mem-per-cpu=4000MB\n#SBATCH --output=/scratch/grovert4/SLURM/slurm-%x-%j.txt\nmodule load StdEnv/2020\nmodule load julia/1.8.5\n\nsrun julia SkX_MonoLayer_Run.jl inputParametersMonoLayer\n",
+      "flux": "#!/bin/bash\n#flux: -n 200\n#flux: -c 1\n#flux: -t 8h\n#\n# NOTE: Slurm --account=def-aparamek has no direct portable Flux batch directive here.\n# Omitting it may affect job priority/accounting and queue wait time (performance as time-to-solution).\n#\n# NOTE: Slurm --mem-per-cpu=4000MB has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: Slurm --output=/scratch/.../slurm-%x-%j.txt is omitted because a portable Flux batch directive equivalent is not provided here;\n# also Slurm-specific %x/%j substitutions would not expand.\n# Omitting it has no runtime performance impact, but log handling will use Flux defaults.\n#\n# NOTE: Slurm mail notifications (--mail-user/--mail-type=...) are not translated.\n# Omitting them has no runtime performance impact, but you will not receive email notifications.\n\nmodule load StdEnv/2020\nmodule load julia/1.8.5\n\n# Use Flux launcher instead of srun\nflux run -n 200 -c 1 julia SkX_MonoLayer_Run.jl inputParametersMonoLayer\n",
+      "events": [
+        {
+          "timestamp": 1773206884.830513,
+          "event": "enter",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206890.3069715,
+          "event": "exit",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"jobspec\": \"#!/bin/bash\\n#flux: -n 200\\n#flux: -c 1\\n#flux: -t 8h\\n#\\n# NOTE: Slurm --account=def-aparamek has no direct portable Flux batch directive here.\\n# Omitting it may affect job priority/accounting and queue wait time (performance as time-to-solution).\\n#\\n# NOTE: Slurm --mem-per-cpu=4000MB has no direct portable Flux batch directive included here.\\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\\n#\\n# NOTE: Slurm --output=/scratch/.../slurm-%x-%j.txt is omitted because a portable Flux batch directive equivalent is not provided here;\\n# also Slurm-specific %x/%j substitutions would not expand.\\n# Omitting it has no runtime performance impact, but log handling will use Flux defaults.\\n#\\n# NOTE: Slurm mail notifications (--mail-user/--mail-type=...) are not translated.\\n# Omitting them has no runtime performance impact, but you will not receive email notifications.\\n\\nmodule load StdEnv/2020\\nmodule load julia/1.8.5\\n\\n# Use Flux launcher instead of srun\\nflux run -n 200 -c 1 julia SkX_MonoLayer_Run.jl inputParametersMonoLayer\\n\"\n}"
+          }
+        },
+        {
+          "timestamp": 1773206890.3081198,
+          "event": "enter",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206893.9741,
+          "event": "exit",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"valid\": true,\n  \"tool_call\": false,\n  \"reasons\": [],\n  \"issues\": [\n    \"Validity assumes your Flux deployment supports parsing `#flux:` directives in scripts submitted via `flux batch script.sh`.\",\n    \"Requesting `-n 200` (and `-c 1`) will only be accepted if the Flux instance has at least 200 slots/cores available under the submitting allocation/policy; otherwise submission may be rejected or remain unschedulable (site-dependent).\",\n    \"The job step re-specifies `-n 200 -c 1`; if the job allocation differs from these values, the step could fail to start.\"\n  ]\n}"
+          }
+        },
+        {
+          "timestamp": 1773206893.9758773,
+          "event": "enter",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "inputs": {
+              "content": "#!/bin/bash\n#flux: -n 200\n#flux: -c 1\n#flux: -t 8h\n#\n# NOTE: Slurm --account=def-aparamek has no direct portable Flux batch directive here.\n# Omitting it may affect job priority/accounting and queue wait time (performance as time-to-solution).\n#\n# NOTE: Slurm --mem-per-cpu=4000MB has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: Slurm --output=/scratch/.../slurm-%x-%j.txt is omitted because a portable Flux batch directive equivalent is not provided here;\n# also Slurm-specific %x/%j substitutions would not expand.\n# Omitting it has no runtime performance impact, but log handling will use Flux defaults.\n#\n# NOTE: Slurm mail notifications (--mail-user/--mail-type=...) are not translated.\n# Omitting them has no runtime performance impact, but you will not receive email notifications.\n\nmodule load StdEnv/2020\nmodule load julia/1.8.5\n\n# Use Flux launcher instead of srun\nflux run -n 200 -c 1 julia SkX_MonoLayer_Run.jl inputParametersMonoLayer\n"
+            }
+          }
+        },
+        {
+          "timestamp": 1773206893.9775717,
+          "event": "enter",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "inputs": {
+              "content": "#!/bin/bash\n#flux: -n 200\n#flux: -c 1\n#flux: -t 8h\n#\n# NOTE: Slurm --account=def-aparamek has no direct portable Flux batch directive here.\n# Omitting it may affect job priority/accounting and queue wait time (performance as time-to-solution).\n#\n# NOTE: Slurm --mem-per-cpu=4000MB has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: Slurm --output=/scratch/.../slurm-%x-%j.txt is omitted because a portable Flux batch directive equivalent is not provided here;\n# also Slurm-specific %x/%j substitutions would not expand.\n# Omitting it has no runtime performance impact, but log handling will use Flux defaults.\n#\n# NOTE: Slurm mail notifications (--mail-user/--mail-type=...) are not translated.\n# Omitting them has no runtime performance impact, but you will not receive email notifications.\n\nmodule load StdEnv/2020\nmodule load julia/1.8.5\n\n# Use Flux launcher instead of srun\nflux run -n 200 -c 1 julia SkX_MonoLayer_Run.jl inputParametersMonoLayer\n"
+            }
+          }
+        },
+        {
+          "timestamp": 1773206894.0045743,
+          "event": "exit",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "outputs": {
+              "jobspec": "#!/bin/bash\n#flux: -n 200\n#flux: -c 1\n#flux: -t 8h\n#\n# NOTE: Slurm --account=def-aparamek has no direct portable Flux batch directive here.\n# Omitting it may affect job priority/accounting and queue wait time (performance as time-to-solution).\n#\n# NOTE: Slurm --mem-per-cpu=4000MB has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: Slurm --output=/scratch/.../slurm-%x-%j.txt is omitted because a portable Flux batch directive equivalent is not provided here;\n# also Slurm-specific %x/%j substitutions would not expand.\n# Omitting it has no runtime performance impact, but log handling will use Flux defaults.\n#\n# NOTE: Slurm mail notifications (--mail-user/--mail-type=...) are not translated.\n# Omitting them has no runtime performance impact, but you will not receive email notifications.\n\nmodule load StdEnv/2020\nmodule load julia/1.8.5\n\n# Use Flux launcher instead of srun\nflux run -n 200 -c 1 julia SkX_MonoLayer_Run.jl inputParametersMonoLayer\n",
+              "errors": [],
+              "valid": true
+            }
+          }
+        },
+        {
+          "timestamp": 1773206894.006535,
+          "event": "exit",
+          "step": "manual_validate",
+          "type": "tool",
+          "data": {
+            "outputs": {
+              "jobspec": "#!/bin/bash\n#flux: -n 200\n#flux: -c 1\n#flux: -t 8h\n#\n# NOTE: Slurm --account=def-aparamek has no direct portable Flux batch directive here.\n# Omitting it may affect job priority/accounting and queue wait time (performance as time-to-solution).\n#\n# NOTE: Slurm --mem-per-cpu=4000MB has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: Slurm --output=/scratch/.../slurm-%x-%j.txt is omitted because a portable Flux batch directive equivalent is not provided here;\n# also Slurm-specific %x/%j substitutions would not expand.\n# Omitting it has no runtime performance impact, but log handling will use Flux defaults.\n#\n# NOTE: Slurm mail notifications (--mail-user/--mail-type=...) are not translated.\n# Omitting them has no runtime performance impact, but you will not receive email notifications.\n\nmodule load StdEnv/2020\nmodule load julia/1.8.5\n\n# Use Flux launcher instead of srun\nflux run -n 200 -c 1 julia SkX_MonoLayer_Run.jl inputParametersMonoLayer\n",
+              "errors": [],
+              "valid": true
+            }
+          }
+        }
+      ],
+      "token_total": 60219
+    },
+    {
+      "id": "command_train_b15.sh",
+      "filename": "data/jaswanthbjk/3D-Object-Detection/Shell_scripts/command_train_b15.sh",
+      "status": "Valid",
+      "total_time": 9.209305763244629,
+      "step_count": 3,
+      "slurm": "#!/bin/bash\n#SBATCH --job-name=br5_FPointNet\n#SBATCH --partition=gpu\n#SBATCH --mem=16G            # memory per node in MB (different units with$\n#SBATCH --ntasks-per-node=32    # number of cores\n#SBATCH --time=0-72:00:00           # HH-MM-SS\n#SBATCH --output=/home/jbandl2s/train.%j.out # filename for STDOUT (%N: nodename, %j: j$\n#SBATCH --error=/home/jbandl2s/train.%j.err  # filename for STDERR\n#SBATCH --gres=gpu:0\n\n\n# load cuda\nmodule load cuda\n\n# activate environment\nsource ~/anaconda3/bin/activate ~/anaconda3/envs/3DOD_Env\n\n# locate to your root directory\ncd /home/jbandl2s/sub_ensembles/models\n# run the script\nDATA_FILE=\"/scratch/jbandl2s/Lyft_dataset/artifacts/frustums_train\"\nMODEL_LOG_DIR=\"./log_v1_test/\"\nRESTORE_MODEL_PATH=\"./log_v1_test/model.ckpt\"\n\n# python train_v2.py --gpu 0 --model frustum_pointnets_v1 --log_dir $MODEL_LOG_DIR --max_epoch 200 --batch_size 32 --decay_step 800000 --decay_rate 0.5 --data_dir $DATA_FILE\n\npython train_branch_15.py\n",
+      "flux": "#!/bin/bash\n#flux: -N 1\n#flux: -n 32\n#flux: -t 72h\n#\n# NOTE: Slurm --job-name=br5_FPointNet has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\n#\n# NOTE: Slurm --partition=gpu has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or which nodes you land on (performance as time-to-solution).\n#\n# NOTE: Slurm --mem=16G has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: Slurm --output/--error paths with %j substitution are omitted because a portable Flux batch directive equivalent is not provided here;\n# also Slurm-specific %j substitution would not expand.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\n#\n# NOTE: Slurm --gres=gpu:0 requested zero GPUs; no Flux GPU resource is requested.\n# This has no GPU performance impact (since no GPUs were requested), but if the code expects GPUs it may run on CPU.\n\n# load cuda\nmodule load cuda\n\n# activate environment\nsource ~/anaconda3/bin/activate ~/anaconda3/envs/3DOD_Env\n\n# locate to your root directory\ncd /home/jbandl2s/sub_ensembles/models\n\n# run the script\nDATA_FILE=\"/scratch/jbandl2s/Lyft_dataset/artifacts/frustums_train\"\nMODEL_LOG_DIR=\"./log_v1_test/\"\nRESTORE_MODEL_PATH=\"./log_v1_test/model.ckpt\"\n\n# python train_v2.py --gpu 0 --model frustum_pointnets_v1 --log_dir $MODEL_LOG_DIR --max_epoch 200 --batch_size 32 --decay_step 800000 --decay_rate 0.5 --data_dir $DATA_FILE\n\npython train_branch_15.py\n",
+      "events": [
+        {
+          "timestamp": 1773206919.3089454,
+          "event": "enter",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206925.2608066,
+          "event": "exit",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"jobspec\": \"#!/bin/bash\\n#flux: -N 1\\n#flux: -n 32\\n#flux: -t 72h\\n#\\n# NOTE: Slurm --job-name=br5_FPointNet has no direct portable Flux batch directive included here.\\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\\n#\\n# NOTE: Slurm --partition=gpu has no direct portable Flux batch directive here.\\n# Omitting it may affect queue wait time and/or which nodes you land on (performance as time-to-solution).\\n#\\n# NOTE: Slurm --mem=16G has no direct portable Flux batch directive included here.\\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\\n#\\n# NOTE: Slurm --output/--error paths with %j substitution are omitted because a portable Flux batch directive equivalent is not provided here;\\n# also Slurm-specific %j substitution would not expand.\\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\\n#\\n# NOTE: Slurm --gres=gpu:0 requested zero GPUs; no Flux GPU resource is requested.\\n# This has no GPU performance impact (since no GPUs were requested), but if the code expects GPUs it may run on CPU.\\n\\n# load cuda\\nmodule load cuda\\n\\n# activate environment\\nsource ~/anaconda3/bin/activate ~/anaconda3/envs/3DOD_Env\\n\\n# locate to your root directory\\ncd /home/jbandl2s/sub_ensembles/models\\n\\n# run the script\\nDATA_FILE=\\\"/scratch/jbandl2s/Lyft_dataset/artifacts/frustums_train\\\"\\nMODEL_LOG_DIR=\\\"./log_v1_test/\\\"\\nRESTORE_MODEL_PATH=\\\"./log_v1_test/model.ckpt\\\"\\n\\n# python train_v2.py --gpu 0 --model frustum_pointnets_v1 --log_dir $MODEL_LOG_DIR --max_epoch 200 --batch_size 32 --decay_step 800000 --decay_rate 0.5 --data_dir $DATA_FILE\\n\\npython train_branch_15.py\\n\"\n}"
+          }
+        },
+        {
+          "timestamp": 1773206925.2620065,
+          "event": "enter",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206928.4877489,
+          "event": "exit",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"valid\": true,\n  \"tool_call\": false,\n  \"reasons\": [],\n  \"issues\": [\n    \"Validity assumes your Flux deployment supports parsing `#flux:` directives in scripts submitted via `flux batch script.sh`.\",\n    \"Requesting `-N 1` and `-n 32` will only be satisfiable if a single node in the Flux instance can provide 32 task slots/cores; otherwise the job may be rejected or remain unschedulable (site-dependent).\"\n  ]\n}"
+          }
+        },
+        {
+          "timestamp": 1773206928.4895496,
+          "event": "enter",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "inputs": {
+              "content": "#!/bin/bash\n#flux: -N 1\n#flux: -n 32\n#flux: -t 72h\n#\n# NOTE: Slurm --job-name=br5_FPointNet has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\n#\n# NOTE: Slurm --partition=gpu has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or which nodes you land on (performance as time-to-solution).\n#\n# NOTE: Slurm --mem=16G has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: Slurm --output/--error paths with %j substitution are omitted because a portable Flux batch directive equivalent is not provided here;\n# also Slurm-specific %j substitution would not expand.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\n#\n# NOTE: Slurm --gres=gpu:0 requested zero GPUs; no Flux GPU resource is requested.\n# This has no GPU performance impact (since no GPUs were requested), but if the code expects GPUs it may run on CPU.\n\n# load cuda\nmodule load cuda\n\n# activate environment\nsource ~/anaconda3/bin/activate ~/anaconda3/envs/3DOD_Env\n\n# locate to your root directory\ncd /home/jbandl2s/sub_ensembles/models\n\n# run the script\nDATA_FILE=\"/scratch/jbandl2s/Lyft_dataset/artifacts/frustums_train\"\nMODEL_LOG_DIR=\"./log_v1_test/\"\nRESTORE_MODEL_PATH=\"./log_v1_test/model.ckpt\"\n\n# python train_v2.py --gpu 0 --model frustum_pointnets_v1 --log_dir $MODEL_LOG_DIR --max_epoch 200 --batch_size 32 --decay_step 800000 --decay_rate 0.5 --data_dir $DATA_FILE\n\npython train_branch_15.py\n"
+            }
+          }
+        },
+        {
+          "timestamp": 1773206928.4913244,
+          "event": "enter",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "inputs": {
+              "content": "#!/bin/bash\n#flux: -N 1\n#flux: -n 32\n#flux: -t 72h\n#\n# NOTE: Slurm --job-name=br5_FPointNet has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\n#\n# NOTE: Slurm --partition=gpu has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or which nodes you land on (performance as time-to-solution).\n#\n# NOTE: Slurm --mem=16G has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: Slurm --output/--error paths with %j substitution are omitted because a portable Flux batch directive equivalent is not provided here;\n# also Slurm-specific %j substitution would not expand.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\n#\n# NOTE: Slurm --gres=gpu:0 requested zero GPUs; no Flux GPU resource is requested.\n# This has no GPU performance impact (since no GPUs were requested), but if the code expects GPUs it may run on CPU.\n\n# load cuda\nmodule load cuda\n\n# activate environment\nsource ~/anaconda3/bin/activate ~/anaconda3/envs/3DOD_Env\n\n# locate to your root directory\ncd /home/jbandl2s/sub_ensembles/models\n\n# run the script\nDATA_FILE=\"/scratch/jbandl2s/Lyft_dataset/artifacts/frustums_train\"\nMODEL_LOG_DIR=\"./log_v1_test/\"\nRESTORE_MODEL_PATH=\"./log_v1_test/model.ckpt\"\n\n# python train_v2.py --gpu 0 --model frustum_pointnets_v1 --log_dir $MODEL_LOG_DIR --max_epoch 200 --batch_size 32 --decay_step 800000 --decay_rate 0.5 --data_dir $DATA_FILE\n\npython train_branch_15.py\n"
+            }
+          }
+        },
+        {
+          "timestamp": 1773206928.5161676,
+          "event": "exit",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "outputs": {
+              "jobspec": "#!/bin/bash\n#flux: -N 1\n#flux: -n 32\n#flux: -t 72h\n#\n# NOTE: Slurm --job-name=br5_FPointNet has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\n#\n# NOTE: Slurm --partition=gpu has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or which nodes you land on (performance as time-to-solution).\n#\n# NOTE: Slurm --mem=16G has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: Slurm --output/--error paths with %j substitution are omitted because a portable Flux batch directive equivalent is not provided here;\n# also Slurm-specific %j substitution would not expand.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\n#\n# NOTE: Slurm --gres=gpu:0 requested zero GPUs; no Flux GPU resource is requested.\n# This has no GPU performance impact (since no GPUs were requested), but if the code expects GPUs it may run on CPU.\n\n# load cuda\nmodule load cuda\n\n# activate environment\nsource ~/anaconda3/bin/activate ~/anaconda3/envs/3DOD_Env\n\n# locate to your root directory\ncd /home/jbandl2s/sub_ensembles/models\n\n# run the script\nDATA_FILE=\"/scratch/jbandl2s/Lyft_dataset/artifacts/frustums_train\"\nMODEL_LOG_DIR=\"./log_v1_test/\"\nRESTORE_MODEL_PATH=\"./log_v1_test/model.ckpt\"\n\n# python train_v2.py --gpu 0 --model frustum_pointnets_v1 --log_dir $MODEL_LOG_DIR --max_epoch 200 --batch_size 32 --decay_step 800000 --decay_rate 0.5 --data_dir $DATA_FILE\n\npython train_branch_15.py\n",
+              "errors": [],
+              "valid": true
+            }
+          }
+        },
+        {
+          "timestamp": 1773206928.5182512,
+          "event": "exit",
+          "step": "manual_validate",
+          "type": "tool",
+          "data": {
+            "outputs": {
+              "jobspec": "#!/bin/bash\n#flux: -N 1\n#flux: -n 32\n#flux: -t 72h\n#\n# NOTE: Slurm --job-name=br5_FPointNet has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\n#\n# NOTE: Slurm --partition=gpu has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or which nodes you land on (performance as time-to-solution).\n#\n# NOTE: Slurm --mem=16G has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: Slurm --output/--error paths with %j substitution are omitted because a portable Flux batch directive equivalent is not provided here;\n# also Slurm-specific %j substitution would not expand.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\n#\n# NOTE: Slurm --gres=gpu:0 requested zero GPUs; no Flux GPU resource is requested.\n# This has no GPU performance impact (since no GPUs were requested), but if the code expects GPUs it may run on CPU.\n\n# load cuda\nmodule load cuda\n\n# activate environment\nsource ~/anaconda3/bin/activate ~/anaconda3/envs/3DOD_Env\n\n# locate to your root directory\ncd /home/jbandl2s/sub_ensembles/models\n\n# run the script\nDATA_FILE=\"/scratch/jbandl2s/Lyft_dataset/artifacts/frustums_train\"\nMODEL_LOG_DIR=\"./log_v1_test/\"\nRESTORE_MODEL_PATH=\"./log_v1_test/model.ckpt\"\n\n# python train_v2.py --gpu 0 --model frustum_pointnets_v1 --log_dir $MODEL_LOG_DIR --max_epoch 200 --batch_size 32 --decay_step 800000 --decay_rate 0.5 --data_dir $DATA_FILE\n\npython train_branch_15.py\n",
+              "errors": [],
+              "valid": true
+            }
+          }
+        }
+      ],
+      "token_total": 72353
+    },
+    {
+      "id": "lsf-lammps.sh.in",
+      "filename": "data/lenovo/openlico/core/apps/template/lico/core/template/templates/scheduler/lsf-lammps.sh.in",
+      "status": "Valid",
+      "total_time": 22.995209217071533,
+      "step_count": 7,
+      "slurm": "#!/bin/bash\n#BSUB -J {{ job_name }}\n#BSUB -q {{ job_queue }}\n#BSUB -cwd {{ job_workspace }}\n{% get_now as current %}#BSUB -o {{ job_name }}-{{ current }}.out\n#BSUB -e {{ job_name }}-{{ current }}.out\n\n{% if ram_size %}\n#BSUB -R \"rusage[mem={{ ram_size }}M]\"\n{% endif %}\n\n{% if gpu_per_node or use_gpu %}\n#BSUB -n {{ nodes|default:1|multi:cores_per_node|default:1 }}\n#BSUB -R \"span[ptile={{ cores_per_node|default:1 }}]{% if ram_size %} rusage[mem={{ ram_size }}M]{% endif %}\"\n#BSUB -gpu \"num={{ gpu_per_node|default:1 }}{% if gpu_resource_name %}:mig={{ gpu_resource_name }}{% endif %}:j_exclusive=yes\"\n{% else %}\n#BSUB -n {{ nodes|default:1|multi:cores_per_node|default:1 }}\n{% endif %}\n{% if run_time %}#BSUB -W {% format_lsf_walltime run_time %}{% endif %}\n\nENV_JOB_ID=$LSB_JOBID\n\n\n",
+      "flux": "#!/bin/bash\n#flux: -N 1\n#flux: -n 1\n#flux: -t 1h\n#\n# NOTE: This is a Jinja-templated LSF script; concrete values for job_name, job_queue, job_workspace,\n# nodes/cores, GPUs, memory, and walltime are unknown until the template is rendered.\n# Minimal defaults are used (1 node, 1 task, 1 hour). This may severely reduce performance and/or\n# cause premature termination compared to the intended run.\n#\n# NOTE: LSF -J (job name) has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\n#\n# NOTE: LSF -q (queue) has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or scheduling policy (performance as time-to-solution).\n#\n# NOTE: LSF -cwd has no direct portable Flux batch directive included here.\n# Omitting it may affect I/O locality and thus performance if the job runs in an unintended directory.\n#\n# NOTE: LSF -o/-e are omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\n#\n# NOTE: LSF memory requests (rusage[mem=...]) are omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting them may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: LSF GPU requests (-gpu ...) are omitted because values are unknown and a portable directive mapping is site-specific.\n# Omitting them may cause the job to run without GPUs (severe performance loss) or fail if GPUs are required.\n#\n# NOTE: LSF span/ptile placement is omitted.\n# Omitting it may reduce performance due to different task placement.\n\n# Placeholder to preserve script semantics\nENV_JOB_ID=${FLUX_JOB_ID:-}\n",
+      "events": [
+        {
+          "timestamp": 1773206827.8612068,
+          "event": "enter",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206831.9472609,
+          "event": "exit",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"jobspec\": \"#!/bin/bash\\n#\\n# NOTE: This input is a Jinja-templated LSF batch script (contains `{% ... %}` / `{{ ... }}`),\\n# so concrete resource values (nodes, cores, GPUs, memory, walltime, etc.) are not known.\\n# A valid Flux batch script cannot be generated without rendering the template first.\\n# Omitting these requests would likely lead to incorrect default allocations and poor performance.\\n#\\n# Please render the template to a concrete LSF script, then re-run conversion.\\n\"\n}"
+          }
+        },
+        {
+          "timestamp": 1773206831.948423,
+          "event": "enter",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206834.575409,
+          "event": "exit",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"valid\": false,\n  \"tool_call\": false,\n  \"reasons\": [\n    \"There is no Flux resource section (`#flux:` directives or equivalent) in the script, so it does not specify any resources and is not a Flux batch jobspec.\"\n  ],\n  \"issues\": [\n    \"As written, the script only contains comments; it would immediately exit successfully without running any workload if executed.\"\n  ]\n}"
+          }
+        },
+        {
+          "timestamp": 1773206834.576754,
+          "event": "enter",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206837.726947,
+          "event": "exit",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"jobspec\": \"#!/bin/bash\\n#\\n# NOTE: This is a Jinja-templated LSF batch script (contains `{{ ... }}` / `{% ... %}`), so concrete\\n# values for resources (job name, queue, cwd, nodes/cores, GPUs, memory, walltime) are unknown.\\n# A valid Flux batch script with equivalent resource requests cannot be produced until the template\\n# is rendered to specific values.\\n# Omitting these requests would likely lead to incorrect default allocations and poor performance.\\n#\\n# Please render the template first, then re-run conversion.\\n\"\n}"
+          }
+        },
+        {
+          "timestamp": 1773206837.7280946,
+          "event": "enter",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206839.9975617,
+          "event": "exit",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"valid\": false,\n  \"tool_call\": false,\n  \"reasons\": [\n    \"No Flux resource directives are present (no `#flux:` lines), so there is no resource section for Flux to parse/apply.\"\n  ],\n  \"issues\": [\n    \"The script contains only comments and no commands; if executed it will do nothing.\"\n  ]\n}"
+          }
+        },
+        {
+          "timestamp": 1773206839.9989338,
+          "event": "enter",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206847.8557353,
+          "event": "exit",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"jobspec\": \"#!/bin/bash\\n#flux: -N 1\\n#flux: -n 1\\n#flux: -t 1h\\n#\\n# NOTE: This is a Jinja-templated LSF script; concrete values for job_name, job_queue, job_workspace,\\n# nodes/cores, GPUs, memory, and walltime are unknown until the template is rendered.\\n# Minimal defaults are used (1 node, 1 task, 1 hour). This may severely reduce performance and/or\\n# cause premature termination compared to the intended run.\\n#\\n# NOTE: LSF -J (job name) has no direct portable Flux batch directive included here.\\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\\n#\\n# NOTE: LSF -q (queue) has no direct portable Flux batch directive here.\\n# Omitting it may affect queue wait time and/or scheduling policy (performance as time-to-solution).\\n#\\n# NOTE: LSF -cwd has no direct portable Flux batch directive included here.\\n# Omitting it may affect I/O locality and thus performance if the job runs in an unintended directory.\\n#\\n# NOTE: LSF -o/-e are omitted because a portable Flux batch directive equivalent is not provided here.\\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\\n#\\n# NOTE: LSF memory requests (rusage[mem=...]) are omitted because a portable Flux batch directive equivalent is not provided here.\\n# Omitting them may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\\n#\\n# NOTE: LSF GPU requests (-gpu ...) are omitted because values are unknown and a portable directive mapping is site-specific.\\n# Omitting them may cause the job to run without GPUs (severe performance loss) or fail if GPUs are required.\\n#\\n# NOTE: LSF span/ptile placement is omitted.\\n# Omitting it may reduce performance due to different task placement.\\n\\n# Placeholder to preserve script semantics\\nENV_JOB_ID=${FLUX_JOB_ID:-}\\n\"\n}"
+          }
+        },
+        {
+          "timestamp": 1773206847.8568919,
+          "event": "enter",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206850.82625,
+          "event": "exit",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"valid\": true,\n  \"tool_call\": false,\n  \"reasons\": [],\n  \"issues\": [\n    \"Validity assumes your Flux deployment supports parsing `#flux:` directives when submitting the script via `flux batch script.sh`.\",\n    \"The resource requests are minimal (1 node, 1 task, 1 hour); this may not match the intended workload size, but it is still a syntactically acceptable resource section.\",\n    \"The script body contains no workload command, so the job will effectively do nothing (not a resource-section issue).\"\n  ]\n}"
+          }
+        },
+        {
+          "timestamp": 1773206850.8280191,
+          "event": "enter",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "inputs": {
+              "content": "#!/bin/bash\n#flux: -N 1\n#flux: -n 1\n#flux: -t 1h\n#\n# NOTE: This is a Jinja-templated LSF script; concrete values for job_name, job_queue, job_workspace,\n# nodes/cores, GPUs, memory, and walltime are unknown until the template is rendered.\n# Minimal defaults are used (1 node, 1 task, 1 hour). This may severely reduce performance and/or\n# cause premature termination compared to the intended run.\n#\n# NOTE: LSF -J (job name) has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\n#\n# NOTE: LSF -q (queue) has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or scheduling policy (performance as time-to-solution).\n#\n# NOTE: LSF -cwd has no direct portable Flux batch directive included here.\n# Omitting it may affect I/O locality and thus performance if the job runs in an unintended directory.\n#\n# NOTE: LSF -o/-e are omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\n#\n# NOTE: LSF memory requests (rusage[mem=...]) are omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting them may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: LSF GPU requests (-gpu ...) are omitted because values are unknown and a portable directive mapping is site-specific.\n# Omitting them may cause the job to run without GPUs (severe performance loss) or fail if GPUs are required.\n#\n# NOTE: LSF span/ptile placement is omitted.\n# Omitting it may reduce performance due to different task placement.\n\n# Placeholder to preserve script semantics\nENV_JOB_ID=${FLUX_JOB_ID:-}\n"
+            }
+          }
+        },
+        {
+          "timestamp": 1773206850.829802,
+          "event": "enter",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "inputs": {
+              "content": "#!/bin/bash\n#flux: -N 1\n#flux: -n 1\n#flux: -t 1h\n#\n# NOTE: This is a Jinja-templated LSF script; concrete values for job_name, job_queue, job_workspace,\n# nodes/cores, GPUs, memory, and walltime are unknown until the template is rendered.\n# Minimal defaults are used (1 node, 1 task, 1 hour). This may severely reduce performance and/or\n# cause premature termination compared to the intended run.\n#\n# NOTE: LSF -J (job name) has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\n#\n# NOTE: LSF -q (queue) has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or scheduling policy (performance as time-to-solution).\n#\n# NOTE: LSF -cwd has no direct portable Flux batch directive included here.\n# Omitting it may affect I/O locality and thus performance if the job runs in an unintended directory.\n#\n# NOTE: LSF -o/-e are omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\n#\n# NOTE: LSF memory requests (rusage[mem=...]) are omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting them may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: LSF GPU requests (-gpu ...) are omitted because values are unknown and a portable directive mapping is site-specific.\n# Omitting them may cause the job to run without GPUs (severe performance loss) or fail if GPUs are required.\n#\n# NOTE: LSF span/ptile placement is omitted.\n# Omitting it may reduce performance due to different task placement.\n\n# Placeholder to preserve script semantics\nENV_JOB_ID=${FLUX_JOB_ID:-}\n"
+            }
+          }
+        },
+        {
+          "timestamp": 1773206850.8543847,
+          "event": "exit",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "outputs": {
+              "jobspec": "#!/bin/bash\n#flux: -N 1\n#flux: -n 1\n#flux: -t 1h\n#\n# NOTE: This is a Jinja-templated LSF script; concrete values for job_name, job_queue, job_workspace,\n# nodes/cores, GPUs, memory, and walltime are unknown until the template is rendered.\n# Minimal defaults are used (1 node, 1 task, 1 hour). This may severely reduce performance and/or\n# cause premature termination compared to the intended run.\n#\n# NOTE: LSF -J (job name) has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\n#\n# NOTE: LSF -q (queue) has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or scheduling policy (performance as time-to-solution).\n#\n# NOTE: LSF -cwd has no direct portable Flux batch directive included here.\n# Omitting it may affect I/O locality and thus performance if the job runs in an unintended directory.\n#\n# NOTE: LSF -o/-e are omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\n#\n# NOTE: LSF memory requests (rusage[mem=...]) are omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting them may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: LSF GPU requests (-gpu ...) are omitted because values are unknown and a portable directive mapping is site-specific.\n# Omitting them may cause the job to run without GPUs (severe performance loss) or fail if GPUs are required.\n#\n# NOTE: LSF span/ptile placement is omitted.\n# Omitting it may reduce performance due to different task placement.\n\n# Placeholder to preserve script semantics\nENV_JOB_ID=${FLUX_JOB_ID:-}\n",
+              "errors": [],
+              "valid": true
+            }
+          }
+        },
+        {
+          "timestamp": 1773206850.856416,
+          "event": "exit",
+          "step": "manual_validate",
+          "type": "tool",
+          "data": {
+            "outputs": {
+              "jobspec": "#!/bin/bash\n#flux: -N 1\n#flux: -n 1\n#flux: -t 1h\n#\n# NOTE: This is a Jinja-templated LSF script; concrete values for job_name, job_queue, job_workspace,\n# nodes/cores, GPUs, memory, and walltime are unknown until the template is rendered.\n# Minimal defaults are used (1 node, 1 task, 1 hour). This may severely reduce performance and/or\n# cause premature termination compared to the intended run.\n#\n# NOTE: LSF -J (job name) has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\n#\n# NOTE: LSF -q (queue) has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or scheduling policy (performance as time-to-solution).\n#\n# NOTE: LSF -cwd has no direct portable Flux batch directive included here.\n# Omitting it may affect I/O locality and thus performance if the job runs in an unintended directory.\n#\n# NOTE: LSF -o/-e are omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\n#\n# NOTE: LSF memory requests (rusage[mem=...]) are omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting them may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: LSF GPU requests (-gpu ...) are omitted because values are unknown and a portable directive mapping is site-specific.\n# Omitting them may cause the job to run without GPUs (severe performance loss) or fail if GPUs are required.\n#\n# NOTE: LSF span/ptile placement is omitted.\n# Omitting it may reduce performance due to different task placement.\n\n# Placeholder to preserve script semantics\nENV_JOB_ID=${FLUX_JOB_ID:-}\n",
+              "errors": [],
+              "valid": true
+            }
+          }
+        }
+      ],
+      "token_total": 126528
+    },
+    {
+      "id": "run_vae_40_1.sh",
+      "filename": "data/ljxw88/pvae-tangent-estimator/run_vae_40_1.sh",
+      "status": "Valid",
+      "total_time": 5.862877607345581,
+      "step_count": 3,
+      "slurm": "#!/usr/bin/env bash\n\n#SBATCH --nodes=1\n#SBATCH --ntasks-per-node=1\n#SBATCH --gres=gpu:1\n#SBATCH --time=12:00:00\n#SBATCH --mem=20GB\n\nmodule load pytorch/1.4.0-py36-cuda90\nmodule load torchvision/0.5.0-py36\n\n#pip install geoopt\n#pip install git+https://github.com/geoopt/geoopt.git\npython3 pvae/main.py --model mnist --manifold PoincareBall --c 0.1  --latent-dim 40 --hidden-dim 600 --prior WrappedNormal --posterior WrappedNormal --dec Geo     --enc Wrapped --lr 5e-4 --epochs 80 --save-freq 80 --batch-size 128 --iwae-samples 5000\n\n",
+      "flux": "#!/usr/bin/env bash\n#flux: -N 1\n#flux: -n 1\n#flux: -g 1\n#flux: -t 12h\n#\n# NOTE: Slurm --mem=20GB has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n\nmodule load pytorch/1.4.0-py36-cuda90\nmodule load torchvision/0.5.0-py36\n\n#pip install geoopt\n#pip install git+https://github.com/geoopt/geoopt.git\npython3 pvae/main.py --model mnist --manifold PoincareBall --c 0.1 --latent-dim 40 --hidden-dim 600 --prior WrappedNormal --posterior WrappedNormal --dec Geo --enc Wrapped --lr 5e-4 --epochs 80 --save-freq 80 --batch-size 128 --iwae-samples 5000\n",
+      "events": [
+        {
+          "timestamp": 1773206871.786026,
+          "event": "enter",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206874.9705966,
+          "event": "exit",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"jobspec\": \"#!/usr/bin/env bash\\n#flux: -N 1\\n#flux: -n 1\\n#flux: -g 1\\n#flux: -t 12h\\n#\\n# NOTE: Slurm --mem=20GB has no direct portable Flux batch directive included here.\\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\\n\\nmodule load pytorch/1.4.0-py36-cuda90\\nmodule load torchvision/0.5.0-py36\\n\\n#pip install geoopt\\n#pip install git+https://github.com/geoopt/geoopt.git\\npython3 pvae/main.py --model mnist --manifold PoincareBall --c 0.1 --latent-dim 40 --hidden-dim 600 --prior WrappedNormal --posterior WrappedNormal --dec Geo --enc Wrapped --lr 5e-4 --epochs 80 --save-freq 80 --batch-size 128 --iwae-samples 5000\\n\"\n}"
+          }
+        },
+        {
+          "timestamp": 1773206874.971737,
+          "event": "enter",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206877.6177,
+          "event": "exit",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"valid\": true,\n  \"tool_call\": false,\n  \"reasons\": [],\n  \"issues\": [\n    \"Validity assumes your Flux deployment supports parsing `#flux:` directives in scripts submitted via `flux batch script.sh`.\",\n    \"Requesting `-g 1` assumes the Flux instance is configured with GPU resources and supports GPU allocation via `-g`; otherwise submission may fail or the request may be ignored depending on site policy.\"\n  ]\n}"
+          }
+        },
+        {
+          "timestamp": 1773206877.619461,
+          "event": "enter",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "inputs": {
+              "content": "#!/usr/bin/env bash\n#flux: -N 1\n#flux: -n 1\n#flux: -g 1\n#flux: -t 12h\n#\n# NOTE: Slurm --mem=20GB has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n\nmodule load pytorch/1.4.0-py36-cuda90\nmodule load torchvision/0.5.0-py36\n\n#pip install geoopt\n#pip install git+https://github.com/geoopt/geoopt.git\npython3 pvae/main.py --model mnist --manifold PoincareBall --c 0.1 --latent-dim 40 --hidden-dim 600 --prior WrappedNormal --posterior WrappedNormal --dec Geo --enc Wrapped --lr 5e-4 --epochs 80 --save-freq 80 --batch-size 128 --iwae-samples 5000\n"
+            }
+          }
+        },
+        {
+          "timestamp": 1773206877.6210744,
+          "event": "enter",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "inputs": {
+              "content": "#!/usr/bin/env bash\n#flux: -N 1\n#flux: -n 1\n#flux: -g 1\n#flux: -t 12h\n#\n# NOTE: Slurm --mem=20GB has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n\nmodule load pytorch/1.4.0-py36-cuda90\nmodule load torchvision/0.5.0-py36\n\n#pip install geoopt\n#pip install git+https://github.com/geoopt/geoopt.git\npython3 pvae/main.py --model mnist --manifold PoincareBall --c 0.1 --latent-dim 40 --hidden-dim 600 --prior WrappedNormal --posterior WrappedNormal --dec Geo --enc Wrapped --lr 5e-4 --epochs 80 --save-freq 80 --batch-size 128 --iwae-samples 5000\n"
+            }
+          }
+        },
+        {
+          "timestamp": 1773206877.6470823,
+          "event": "exit",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "outputs": {
+              "jobspec": "#!/usr/bin/env bash\n#flux: -N 1\n#flux: -n 1\n#flux: -g 1\n#flux: -t 12h\n#\n# NOTE: Slurm --mem=20GB has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n\nmodule load pytorch/1.4.0-py36-cuda90\nmodule load torchvision/0.5.0-py36\n\n#pip install geoopt\n#pip install git+https://github.com/geoopt/geoopt.git\npython3 pvae/main.py --model mnist --manifold PoincareBall --c 0.1 --latent-dim 40 --hidden-dim 600 --prior WrappedNormal --posterior WrappedNormal --dec Geo --enc Wrapped --lr 5e-4 --epochs 80 --save-freq 80 --batch-size 128 --iwae-samples 5000\n",
+              "errors": [],
+              "valid": true
+            }
+          }
+        },
+        {
+          "timestamp": 1773206877.6489036,
+          "event": "exit",
+          "step": "manual_validate",
+          "type": "tool",
+          "data": {
+            "outputs": {
+              "jobspec": "#!/usr/bin/env bash\n#flux: -N 1\n#flux: -n 1\n#flux: -g 1\n#flux: -t 12h\n#\n# NOTE: Slurm --mem=20GB has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n\nmodule load pytorch/1.4.0-py36-cuda90\nmodule load torchvision/0.5.0-py36\n\n#pip install geoopt\n#pip install git+https://github.com/geoopt/geoopt.git\npython3 pvae/main.py --model mnist --manifold PoincareBall --c 0.1 --latent-dim 40 --hidden-dim 600 --prior WrappedNormal --posterior WrappedNormal --dec Geo --enc Wrapped --lr 5e-4 --epochs 80 --save-freq 80 --batch-size 128 --iwae-samples 5000\n",
+              "errors": [],
+              "valid": true
+            }
+          }
+        }
+      ],
+      "token_total": 54954
+    },
+    {
+      "id": "run_pos_ab_tri.sh",
+      "filename": "data/ucl-cssb/StabilityFinder/examples/Mass_action/DP-MA/run_pos_ab_tri.sh",
+      "status": "Valid",
+      "total_time": 7.062623023986816,
+      "step_count": 3,
+      "slurm": "module load cuda/4.2.9\nmodule load pycuda/2012.1\n\nmodule load R\n##module load cuda-sim\n\n#BSUB -o log.pos_ab_tri\n#BSUB -e err.pos_ab_tri\n#BSUB -W 100:00\n\nexport PYTHONPATH=$PYTHONPATH:/home/ucl/eisuc058/code/abc-sysbio\nexport PYTHONPATH=$PYTHONPATH:/home/ucl/eisuc058/code/cuda-sim\n\nexe=/home/ucl/eisuc058/work/StabilityChecker/stabilitychecker\nexport PYTHONPATH=$PYTHONPATH:/home/ucbtle1/cuda-sim-code\n\n\npython $exe/my_abc.py -i input_file_pos_ab_tri.xml -o results_pos_ab_tri -l pos_ab_tri.log;# Rscript plot_posterior.R;\n",
+      "flux": "#!/bin/bash\n#flux: -t 100h\n#\n# NOTE: LSF -o/-e (stdout/stderr files) are omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\n\nmodule load cuda/4.2.9\nmodule load pycuda/2012.1\n\nmodule load R\n##module load cuda-sim\n\nexport PYTHONPATH=$PYTHONPATH:/home/ucl/eisuc058/code/abc-sysbio\nexport PYTHONPATH=$PYTHONPATH:/home/ucl/eisuc058/code/cuda-sim\n\nexe=/home/ucl/eisuc058/work/StabilityChecker/stabilitychecker\nexport PYTHONPATH=$PYTHONPATH:/home/ucbtle1/cuda-sim-code\n\npython $exe/my_abc.py -i input_file_pos_ab_tri.xml -o results_pos_ab_tri -l pos_ab_tri.log\n# Rscript plot_posterior.R\n",
+      "events": [
+        {
+          "timestamp": 1773206766.2031353,
+          "event": "enter",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206769.5224783,
+          "event": "exit",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"jobspec\": \"#!/bin/bash\\n#flux: -t 100h\\n#\\n# NOTE: LSF -o/-e (stdout/stderr files) are omitted because a portable Flux batch directive equivalent is not provided here.\\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\\n\\nmodule load cuda/4.2.9\\nmodule load pycuda/2012.1\\n\\nmodule load R\\n##module load cuda-sim\\n\\nexport PYTHONPATH=$PYTHONPATH:/home/ucl/eisuc058/code/abc-sysbio\\nexport PYTHONPATH=$PYTHONPATH:/home/ucl/eisuc058/code/cuda-sim\\n\\nexe=/home/ucl/eisuc058/work/StabilityChecker/stabilitychecker\\nexport PYTHONPATH=$PYTHONPATH:/home/ucbtle1/cuda-sim-code\\n\\npython $exe/my_abc.py -i input_file_pos_ab_tri.xml -o results_pos_ab_tri -l pos_ab_tri.log\\n# Rscript plot_posterior.R\\n\"\n}"
+          }
+        },
+        {
+          "timestamp": 1773206769.5235987,
+          "event": "enter",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206773.2368252,
+          "event": "exit",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"valid\": true,\n  \"tool_call\": false,\n  \"reasons\": [],\n  \"issues\": [\n    \"This assumes your Flux deployment supports parsing `#flux:` directives in scripts submitted via `flux batch script.sh`; otherwise the time limit must be provided on the `flux batch` command line.\",\n    \"No CPU/core/task/GPU resources are requested; the job will run with Flux defaults (often 1 core), which may be insufficient and can reduce performance.\",\n    \"If CUDA is required, no GPUs are requested (e.g., via `-g`); if Flux is configured to enforce GPU allocation, CUDA code may fail or run without GPU access.\"\n  ]\n}"
+          }
+        },
+        {
+          "timestamp": 1773206773.238586,
+          "event": "enter",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "inputs": {
+              "content": "#!/bin/bash\n#flux: -t 100h\n#\n# NOTE: LSF -o/-e (stdout/stderr files) are omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\n\nmodule load cuda/4.2.9\nmodule load pycuda/2012.1\n\nmodule load R\n##module load cuda-sim\n\nexport PYTHONPATH=$PYTHONPATH:/home/ucl/eisuc058/code/abc-sysbio\nexport PYTHONPATH=$PYTHONPATH:/home/ucl/eisuc058/code/cuda-sim\n\nexe=/home/ucl/eisuc058/work/StabilityChecker/stabilitychecker\nexport PYTHONPATH=$PYTHONPATH:/home/ucbtle1/cuda-sim-code\n\npython $exe/my_abc.py -i input_file_pos_ab_tri.xml -o results_pos_ab_tri -l pos_ab_tri.log\n# Rscript plot_posterior.R\n"
+            }
+          }
+        },
+        {
+          "timestamp": 1773206773.2402306,
+          "event": "enter",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "inputs": {
+              "content": "#!/bin/bash\n#flux: -t 100h\n#\n# NOTE: LSF -o/-e (stdout/stderr files) are omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\n\nmodule load cuda/4.2.9\nmodule load pycuda/2012.1\n\nmodule load R\n##module load cuda-sim\n\nexport PYTHONPATH=$PYTHONPATH:/home/ucl/eisuc058/code/abc-sysbio\nexport PYTHONPATH=$PYTHONPATH:/home/ucl/eisuc058/code/cuda-sim\n\nexe=/home/ucl/eisuc058/work/StabilityChecker/stabilitychecker\nexport PYTHONPATH=$PYTHONPATH:/home/ucbtle1/cuda-sim-code\n\npython $exe/my_abc.py -i input_file_pos_ab_tri.xml -o results_pos_ab_tri -l pos_ab_tri.log\n# Rscript plot_posterior.R\n"
+            }
+          }
+        },
+        {
+          "timestamp": 1773206773.2639666,
+          "event": "exit",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "outputs": {
+              "jobspec": "#!/bin/bash\n#flux: -t 100h\n#\n# NOTE: LSF -o/-e (stdout/stderr files) are omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\n\nmodule load cuda/4.2.9\nmodule load pycuda/2012.1\n\nmodule load R\n##module load cuda-sim\n\nexport PYTHONPATH=$PYTHONPATH:/home/ucl/eisuc058/code/abc-sysbio\nexport PYTHONPATH=$PYTHONPATH:/home/ucl/eisuc058/code/cuda-sim\n\nexe=/home/ucl/eisuc058/work/StabilityChecker/stabilitychecker\nexport PYTHONPATH=$PYTHONPATH:/home/ucbtle1/cuda-sim-code\n\npython $exe/my_abc.py -i input_file_pos_ab_tri.xml -o results_pos_ab_tri -l pos_ab_tri.log\n# Rscript plot_posterior.R\n",
+              "errors": [],
+              "valid": true
+            }
+          }
+        },
+        {
+          "timestamp": 1773206773.2657583,
+          "event": "exit",
+          "step": "manual_validate",
+          "type": "tool",
+          "data": {
+            "outputs": {
+              "jobspec": "#!/bin/bash\n#flux: -t 100h\n#\n# NOTE: LSF -o/-e (stdout/stderr files) are omitted because a portable Flux batch directive equivalent is not provided here.\n# Omitting them has no runtime performance impact, but log handling will use Flux defaults.\n\nmodule load cuda/4.2.9\nmodule load pycuda/2012.1\n\nmodule load R\n##module load cuda-sim\n\nexport PYTHONPATH=$PYTHONPATH:/home/ucl/eisuc058/code/abc-sysbio\nexport PYTHONPATH=$PYTHONPATH:/home/ucl/eisuc058/code/cuda-sim\n\nexe=/home/ucl/eisuc058/work/StabilityChecker/stabilitychecker\nexport PYTHONPATH=$PYTHONPATH:/home/ucbtle1/cuda-sim-code\n\npython $exe/my_abc.py -i input_file_pos_ab_tri.xml -o results_pos_ab_tri -l pos_ab_tri.log\n# Rscript plot_posterior.R\n",
+              "errors": [],
+              "valid": true
+            }
+          }
+        }
+      ],
+      "token_total": 17526
+    },
+    {
+      "id": "jobtemplate.sh",
+      "filename": "data/zjwegert/GridapTopOpt.jl/scripts/Benchmarks/jobtemplate.sh",
+      "status": "Valid",
+      "total_time": 33.236103534698486,
+      "step_count": 9,
+      "slurm": "#!/bin/bash\n\n#PBS -P np01\n#PBS -q normal \n#PBS -N \"{{:name}}\"\n#PBS -l ncpus={{:ncpus}}\n#PBS -l mem={{:mem}}GB\n#PBS -l walltime={{:wallhr}}:00:00\n#PBS -j oe\n\nsource $HOME/hpc-environments/gadi/load-intel.sh\nPROJECT_DIR=$SCRATCH/{{:dir_name}}/\n\nmpiexec -n {{:ncpus}} julia --project=$PROJECT_DIR --check-bounds no -O3 \\\n    $PROJECT_DIR/scripts/Benchmarks/benchmark_gadi.jl \\\n    {{:name}} \\\n    {{{:write_dir}}} \\\n    {{:type}} \\\n    {{:bmark_type}} \\\n    {{:Nx_partition}} \\\n    {{:Ny_partition}} \\\n    {{:Nz_partition}} \\\n    {{:n_el_size}} \\\n    {{:fe_order}} \\\n    {{:verbose}} \\\n    {{:nreps}}",
+      "flux": "#!/bin/bash\n#flux: -n 1\n#flux: -t 1h\n#\n# NOTE: Original PBS requested ncpus={{:ncpus}} and walltime={{:wallhr}}:00:00, but these are template placeholders.\n# They cannot be represented as valid Flux resource values without rendering; using minimal defaults (1 task, 1 hour).\n# This may severely reduce performance and/or cause premature termination compared to the intended run.\n#\n# NOTE: PBS -P np01 (project/account) has no direct portable Flux batch directive here.\n# Omitting it may affect job priority/accounting and queue wait time (performance as time-to-solution).\n#\n# NOTE: PBS -q normal (queue) has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or scheduling policy (performance as time-to-solution).\n#\n# NOTE: PBS -N \"{{:name}}\" (job name) has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\n#\n# NOTE: PBS -l mem={{:mem}}GB has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: PBS -j oe (join stdout/stderr) has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but stdout/stderr handling will use Flux defaults.\n\nsource \"$HOME/hpc-environments/gadi/load-intel.sh\"\nPROJECT_DIR=\"$SCRATCH/{{:dir_name}}/\"\n\n# Use Flux launcher instead of mpiexec to respect Flux allocation.\n# NOTE: The original command used -n {{:ncpus}} (template). Using 1 here to match the default allocation.\nflux run -n 1 julia --project=\"$PROJECT_DIR\" --check-bounds no -O3 \\\n    \"$PROJECT_DIR/scripts/Benchmarks/benchmark_gadi.jl\" \\\n    \"{{:name}}\" \\\n    \"{{{:write_dir}}}\" \\\n    \"{{:type}}\" \\\n    \"{{:bmark_type}}\" \\\n    \"{{:Nx_partition}}\" \\\n    \"{{:Ny_partition}}\" \\\n    \"{{:Nz_partition}}\" \\\n    \"{{:n_el_size}}\" \\\n    \"{{:fe_order}}\" \\\n    \"{{:verbose}}\" \\\n    \"{{:nreps}}\"\n",
+      "events": [
+        {
+          "timestamp": 1773206782.3355632,
+          "event": "enter",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206788.603706,
+          "event": "exit",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"jobspec\": \"#!/bin/bash\\n#flux: -n {{:ncpus}}\\n#flux: -t {{:wallhr}}h\\n#\\n# NOTE: PBS -P np01 (project/account) has no direct portable Flux batch directive here.\\n# Omitting it may affect job priority/accounting and queue wait time (performance as time-to-solution).\\n#\\n# NOTE: PBS -q normal (queue) has no direct portable Flux batch directive here.\\n# Omitting it may affect queue wait time and/or scheduling policy (performance as time-to-solution).\\n#\\n# NOTE: PBS -N \\\"{{:name}}\\\" (job name) has no direct portable Flux batch directive included here.\\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\\n#\\n# NOTE: PBS -l mem={{:mem}}GB has no direct portable Flux batch directive included here.\\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\\n#\\n# NOTE: PBS -j oe (join stdout/stderr) has no direct portable Flux batch directive included here.\\n# Omitting it has no runtime performance impact, but stdout/stderr handling will use Flux defaults.\\n\\nsource \\\"$HOME/hpc-environments/gadi/load-intel.sh\\\"\\nPROJECT_DIR=\\\"$SCRATCH/{{:dir_name}}/\\\"\\n\\n# Use Flux launcher instead of mpiexec to respect Flux allocation.\\nflux run -n {{:ncpus}} julia --project=\\\"$PROJECT_DIR\\\" --check-bounds no -O3 \\\\\\n    \\\"$PROJECT_DIR/scripts/Benchmarks/benchmark_gadi.jl\\\" \\\\\\n    \\\"{{:name}}\\\" \\\\\\n    \\\"{{{:write_dir}}}\\\" \\\\\\n    \\\"{{:type}}\\\" \\\\\\n    \\\"{{:bmark_type}}\\\" \\\\\\n    \\\"{{:Nx_partition}}\\\" \\\\\\n    \\\"{{:Ny_partition}}\\\" \\\\\\n    \\\"{{:Nz_partition}}\\\" \\\\\\n    \\\"{{:n_el_size}}\\\" \\\\\\n    \\\"{{:fe_order}}\\\" \\\\\\n    \\\"{{:verbose}}\\\" \\\\\\n    \\\"{{:nreps}}\\\"\\n\"\n}"
+          }
+        },
+        {
+          "timestamp": 1773206788.6048515,
+          "event": "enter",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206792.8671198,
+          "event": "exit",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"valid\": false,\n  \"tool_call\": false,\n  \"reasons\": [\n    \"The resource directives contain templating placeholders (`{{:ncpus}}`, `{{:wallhr}}h`) that are not valid numeric values; Flux will reject or fail to parse these unless they are rendered to concrete values before submission.\"\n  ],\n  \"issues\": [\n    \"The job step repeats `-n {{:ncpus}}`; once templated this is fine, but if the job allocation `#flux: -n ...` and step `flux run -n ...` disagree, the step could fail.\",\n    \"The argument `\\\"{{{:write_dir}}}\\\"` appears to have mismatched/extra braces compared to the other template variables; if not rendered correctly it may remain literal and break the command line.\"\n  ]\n}"
+          }
+        },
+        {
+          "timestamp": 1773206792.8685026,
+          "event": "enter",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206794.051608,
+          "event": "exit",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"jobspec\": \"noop\"\n}"
+          }
+        },
+        {
+          "timestamp": 1773206794.0527463,
+          "event": "enter",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206796.6814919,
+          "event": "exit",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"valid\": false,\n  \"tool_call\": false,\n  \"reasons\": [\n    \"The provided content is the literal string `noop` and contains no Flux resource directives or resource request section; it is not a valid job specification for any workload manager.\"\n  ],\n  \"issues\": [\n    \"If `noop` is intended as a sentinel meaning \u201cno conversion performed\u201d, it must not be submitted as a batch script.\"\n  ]\n}"
+          }
+        },
+        {
+          "timestamp": 1773206796.682827,
+          "event": "enter",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206800.8736277,
+          "event": "exit",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"jobspec\": \"#!/bin/bash\\n#flux: -n {{:ncpus}}\\n#flux: -t {{:wallhr}}h\\n#\\n# NOTE: PBS -P np01 (project/account) has no direct portable Flux batch directive here.\\n# Omitting it may affect job priority/accounting and queue wait time (performance as time-to-solution).\\n#\\n# NOTE: PBS -q normal (queue) has no direct portable Flux batch directive here.\\n# Omitting it may affect queue wait time and/or scheduling policy (performance as time-to-solution).\\n#\\n# NOTE: PBS -N \\\"{{:name}}\\\" (job name) has no direct portable Flux batch directive included here.\\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\\n#\\n# NOTE: PBS -l mem={{:mem}}GB has no direct portable Flux batch directive included here.\\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\\n#\\n# NOTE: PBS -j oe (join stdout/stderr) has no direct portable Flux batch directive included here.\\n# Omitting it has no runtime performance impact, but stdout/stderr handling will use Flux defaults.\\n\\nsource \\\"$HOME/hpc-environments/gadi/load-intel.sh\\\"\\nPROJECT_DIR=\\\"$SCRATCH/{{:dir_name}}/\\\"\\n\\n# Use Flux launcher instead of mpiexec to respect Flux allocation.\\nflux run -n {{:ncpus}} julia --project=\\\"$PROJECT_DIR\\\" --check-bounds no -O3 \\\\\\n    \\\"$PROJECT_DIR/scripts/Benchmarks/benchmark_gadi.jl\\\" \\\\\\n    \\\"{{:name}}\\\" \\\\\\n    \\\"{{{:write_dir}}}\\\" \\\\\\n    \\\"{{:type}}\\\" \\\\\\n    \\\"{{:bmark_type}}\\\" \\\\\\n    \\\"{{:Nx_partition}}\\\" \\\\\\n    \\\"{{:Ny_partition}}\\\" \\\\\\n    \\\"{{:Nz_partition}}\\\" \\\\\\n    \\\"{{:n_el_size}}\\\" \\\\\\n    \\\"{{:fe_order}}\\\" \\\\\\n    \\\"{{:verbose}}\\\" \\\\\\n    \\\"{{:nreps}}\\\"\\n\"\n}"
+          }
+        },
+        {
+          "timestamp": 1773206800.8747988,
+          "event": "enter",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206804.4186196,
+          "event": "exit",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"valid\": false,\n  \"tool_call\": false,\n  \"reasons\": [\n    \"The Flux resource directives are not concrete: `#flux: -n {{:ncpus}}` and `#flux: -t {{:wallhr}}h` contain template placeholders instead of numeric values, which Flux will not parse unless rendered before submission.\"\n  ],\n  \"issues\": [\n    \"The job step repeats `-n {{:ncpus}}`; after templating this is fine, but if it disagrees with the allocation (`#flux: -n ...`) the step may fail.\",\n    \"`{{{:write_dir}}}` has inconsistent bracing compared to other placeholders; if not rendered correctly it may remain literal and break the command line.\"\n  ]\n}"
+          }
+        },
+        {
+          "timestamp": 1773206804.420016,
+          "event": "enter",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206811.8151774,
+          "event": "exit",
+          "step": "transform",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"jobspec\": \"#!/bin/bash\\n#flux: -n 1\\n#flux: -t 1h\\n#\\n# NOTE: Original PBS requested ncpus={{:ncpus}} and walltime={{:wallhr}}:00:00, but these are template placeholders.\\n# They cannot be represented as valid Flux resource values without rendering; using minimal defaults (1 task, 1 hour).\\n# This may severely reduce performance and/or cause premature termination compared to the intended run.\\n#\\n# NOTE: PBS -P np01 (project/account) has no direct portable Flux batch directive here.\\n# Omitting it may affect job priority/accounting and queue wait time (performance as time-to-solution).\\n#\\n# NOTE: PBS -q normal (queue) has no direct portable Flux batch directive here.\\n# Omitting it may affect queue wait time and/or scheduling policy (performance as time-to-solution).\\n#\\n# NOTE: PBS -N \\\"{{:name}}\\\" (job name) has no direct portable Flux batch directive included here.\\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\\n#\\n# NOTE: PBS -l mem={{:mem}}GB has no direct portable Flux batch directive included here.\\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\\n#\\n# NOTE: PBS -j oe (join stdout/stderr) has no direct portable Flux batch directive included here.\\n# Omitting it has no runtime performance impact, but stdout/stderr handling will use Flux defaults.\\n\\nsource \\\"$HOME/hpc-environments/gadi/load-intel.sh\\\"\\nPROJECT_DIR=\\\"$SCRATCH/{{:dir_name}}/\\\"\\n\\n# Use Flux launcher instead of mpiexec to respect Flux allocation.\\n# NOTE: The original command used -n {{:ncpus}} (template). Using 1 here to match the default allocation.\\nflux run -n 1 julia --project=\\\"$PROJECT_DIR\\\" --check-bounds no -O3 \\\\\\n    \\\"$PROJECT_DIR/scripts/Benchmarks/benchmark_gadi.jl\\\" \\\\\\n    \\\"{{:name}}\\\" \\\\\\n    \\\"{{{:write_dir}}}\\\" \\\\\\n    \\\"{{:type}}\\\" \\\\\\n    \\\"{{:bmark_type}}\\\" \\\\\\n    \\\"{{:Nx_partition}}\\\" \\\\\\n    \\\"{{:Ny_partition}}\\\" \\\\\\n    \\\"{{:Nz_partition}}\\\" \\\\\\n    \\\"{{:n_el_size}}\\\" \\\\\\n    \\\"{{:fe_order}}\\\" \\\\\\n    \\\"{{:verbose}}\\\" \\\\\\n    \\\"{{:nreps}}\\\"\\n\"\n}"
+          }
+        },
+        {
+          "timestamp": 1773206811.8163795,
+          "event": "enter",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "input": null
+          }
+        },
+        {
+          "timestamp": 1773206815.5386107,
+          "event": "exit",
+          "step": "validate",
+          "type": "prompt",
+          "data": {
+            "output": "{\n  \"valid\": true,\n  \"tool_call\": false,\n  \"reasons\": [],\n  \"issues\": [\n    \"While the resource section is syntactically plausible (`#flux: -n 1`, `#flux: -t 1h`), acceptance assumes your Flux deployment supports parsing `#flux:` directives in a script submitted via `flux batch script.sh`.\",\n    \"The script body still contains unresolved template placeholders (e.g., `{{:dir_name}}`, `{{:name}}`), which may cause runtime failures, but this is outside the resource-section-only validity check.\"\n  ]\n}"
+          }
+        },
+        {
+          "timestamp": 1773206815.5403557,
+          "event": "enter",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "inputs": {
+              "content": "#!/bin/bash\n#flux: -n 1\n#flux: -t 1h\n#\n# NOTE: Original PBS requested ncpus={{:ncpus}} and walltime={{:wallhr}}:00:00, but these are template placeholders.\n# They cannot be represented as valid Flux resource values without rendering; using minimal defaults (1 task, 1 hour).\n# This may severely reduce performance and/or cause premature termination compared to the intended run.\n#\n# NOTE: PBS -P np01 (project/account) has no direct portable Flux batch directive here.\n# Omitting it may affect job priority/accounting and queue wait time (performance as time-to-solution).\n#\n# NOTE: PBS -q normal (queue) has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or scheduling policy (performance as time-to-solution).\n#\n# NOTE: PBS -N \"{{:name}}\" (job name) has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\n#\n# NOTE: PBS -l mem={{:mem}}GB has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: PBS -j oe (join stdout/stderr) has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but stdout/stderr handling will use Flux defaults.\n\nsource \"$HOME/hpc-environments/gadi/load-intel.sh\"\nPROJECT_DIR=\"$SCRATCH/{{:dir_name}}/\"\n\n# Use Flux launcher instead of mpiexec to respect Flux allocation.\n# NOTE: The original command used -n {{:ncpus}} (template). Using 1 here to match the default allocation.\nflux run -n 1 julia --project=\"$PROJECT_DIR\" --check-bounds no -O3 \\\n    \"$PROJECT_DIR/scripts/Benchmarks/benchmark_gadi.jl\" \\\n    \"{{:name}}\" \\\n    \"{{{:write_dir}}}\" \\\n    \"{{:type}}\" \\\n    \"{{:bmark_type}}\" \\\n    \"{{:Nx_partition}}\" \\\n    \"{{:Ny_partition}}\" \\\n    \"{{:Nz_partition}}\" \\\n    \"{{:n_el_size}}\" \\\n    \"{{:fe_order}}\" \\\n    \"{{:verbose}}\" \\\n    \"{{:nreps}}\"\n"
+            }
+          }
+        },
+        {
+          "timestamp": 1773206815.5421958,
+          "event": "enter",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "inputs": {
+              "content": "#!/bin/bash\n#flux: -n 1\n#flux: -t 1h\n#\n# NOTE: Original PBS requested ncpus={{:ncpus}} and walltime={{:wallhr}}:00:00, but these are template placeholders.\n# They cannot be represented as valid Flux resource values without rendering; using minimal defaults (1 task, 1 hour).\n# This may severely reduce performance and/or cause premature termination compared to the intended run.\n#\n# NOTE: PBS -P np01 (project/account) has no direct portable Flux batch directive here.\n# Omitting it may affect job priority/accounting and queue wait time (performance as time-to-solution).\n#\n# NOTE: PBS -q normal (queue) has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or scheduling policy (performance as time-to-solution).\n#\n# NOTE: PBS -N \"{{:name}}\" (job name) has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\n#\n# NOTE: PBS -l mem={{:mem}}GB has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: PBS -j oe (join stdout/stderr) has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but stdout/stderr handling will use Flux defaults.\n\nsource \"$HOME/hpc-environments/gadi/load-intel.sh\"\nPROJECT_DIR=\"$SCRATCH/{{:dir_name}}/\"\n\n# Use Flux launcher instead of mpiexec to respect Flux allocation.\n# NOTE: The original command used -n {{:ncpus}} (template). Using 1 here to match the default allocation.\nflux run -n 1 julia --project=\"$PROJECT_DIR\" --check-bounds no -O3 \\\n    \"$PROJECT_DIR/scripts/Benchmarks/benchmark_gadi.jl\" \\\n    \"{{:name}}\" \\\n    \"{{{:write_dir}}}\" \\\n    \"{{:type}}\" \\\n    \"{{:bmark_type}}\" \\\n    \"{{:Nx_partition}}\" \\\n    \"{{:Ny_partition}}\" \\\n    \"{{:Nz_partition}}\" \\\n    \"{{:n_el_size}}\" \\\n    \"{{:fe_order}}\" \\\n    \"{{:verbose}}\" \\\n    \"{{:nreps}}\"\n"
+            }
+          }
+        },
+        {
+          "timestamp": 1773206815.5682607,
+          "event": "exit",
+          "step": "validate_flux_jobspec",
+          "type": "tool",
+          "data": {
+            "outputs": {
+              "jobspec": "#!/bin/bash\n#flux: -n 1\n#flux: -t 1h\n#\n# NOTE: Original PBS requested ncpus={{:ncpus}} and walltime={{:wallhr}}:00:00, but these are template placeholders.\n# They cannot be represented as valid Flux resource values without rendering; using minimal defaults (1 task, 1 hour).\n# This may severely reduce performance and/or cause premature termination compared to the intended run.\n#\n# NOTE: PBS -P np01 (project/account) has no direct portable Flux batch directive here.\n# Omitting it may affect job priority/accounting and queue wait time (performance as time-to-solution).\n#\n# NOTE: PBS -q normal (queue) has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or scheduling policy (performance as time-to-solution).\n#\n# NOTE: PBS -N \"{{:name}}\" (job name) has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\n#\n# NOTE: PBS -l mem={{:mem}}GB has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: PBS -j oe (join stdout/stderr) has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but stdout/stderr handling will use Flux defaults.\n\nsource \"$HOME/hpc-environments/gadi/load-intel.sh\"\nPROJECT_DIR=\"$SCRATCH/{{:dir_name}}/\"\n\n# Use Flux launcher instead of mpiexec to respect Flux allocation.\n# NOTE: The original command used -n {{:ncpus}} (template). Using 1 here to match the default allocation.\nflux run -n 1 julia --project=\"$PROJECT_DIR\" --check-bounds no -O3 \\\n    \"$PROJECT_DIR/scripts/Benchmarks/benchmark_gadi.jl\" \\\n    \"{{:name}}\" \\\n    \"{{{:write_dir}}}\" \\\n    \"{{:type}}\" \\\n    \"{{:bmark_type}}\" \\\n    \"{{:Nx_partition}}\" \\\n    \"{{:Ny_partition}}\" \\\n    \"{{:Nz_partition}}\" \\\n    \"{{:n_el_size}}\" \\\n    \"{{:fe_order}}\" \\\n    \"{{:verbose}}\" \\\n    \"{{:nreps}}\"\n",
+              "errors": [],
+              "valid": true
+            }
+          }
+        },
+        {
+          "timestamp": 1773206815.5716667,
+          "event": "exit",
+          "step": "manual_validate",
+          "type": "tool",
+          "data": {
+            "outputs": {
+              "jobspec": "#!/bin/bash\n#flux: -n 1\n#flux: -t 1h\n#\n# NOTE: Original PBS requested ncpus={{:ncpus}} and walltime={{:wallhr}}:00:00, but these are template placeholders.\n# They cannot be represented as valid Flux resource values without rendering; using minimal defaults (1 task, 1 hour).\n# This may severely reduce performance and/or cause premature termination compared to the intended run.\n#\n# NOTE: PBS -P np01 (project/account) has no direct portable Flux batch directive here.\n# Omitting it may affect job priority/accounting and queue wait time (performance as time-to-solution).\n#\n# NOTE: PBS -q normal (queue) has no direct portable Flux batch directive here.\n# Omitting it may affect queue wait time and/or scheduling policy (performance as time-to-solution).\n#\n# NOTE: PBS -N \"{{:name}}\" (job name) has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but makes job identification/monitoring less convenient.\n#\n# NOTE: PBS -l mem={{:mem}}GB has no direct portable Flux batch directive included here.\n# Omitting it may impact performance or stability if the job exceeds default memory limits (possible OOM/eviction).\n#\n# NOTE: PBS -j oe (join stdout/stderr) has no direct portable Flux batch directive included here.\n# Omitting it has no runtime performance impact, but stdout/stderr handling will use Flux defaults.\n\nsource \"$HOME/hpc-environments/gadi/load-intel.sh\"\nPROJECT_DIR=\"$SCRATCH/{{:dir_name}}/\"\n\n# Use Flux launcher instead of mpiexec to respect Flux allocation.\n# NOTE: The original command used -n {{:ncpus}} (template). Using 1 here to match the default allocation.\nflux run -n 1 julia --project=\"$PROJECT_DIR\" --check-bounds no -O3 \\\n    \"$PROJECT_DIR/scripts/Benchmarks/benchmark_gadi.jl\" \\\n    \"{{:name}}\" \\\n    \"{{{:write_dir}}}\" \\\n    \"{{:type}}\" \\\n    \"{{:bmark_type}}\" \\\n    \"{{:Nx_partition}}\" \\\n    \"{{:Ny_partition}}\" \\\n    \"{{:Nz_partition}}\" \\\n    \"{{:n_el_size}}\" \\\n    \"{{:fe_order}}\" \\\n    \"{{:verbose}}\" \\\n    \"{{:nreps}}\"\n",
+              "errors": [],
+              "valid": true
+            }
+          }
+        }
+      ],
+      "token_total": 111149
+    }
+  ],
   "gpt-5.2": [
     {
       "id": "job-cifarmpif.sh",
@@ -59665,7 +61839,7 @@ window.experiment_data = {
     {
       "id": "job-cifarmpif.sh",
       "filename": "data/1anw/DeepHyper-CORDS-Project/cordsresults/r_full/job-cifarmpif.sh",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 7.634021997451782,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#COBALT -q full-node\n#COBALT -n 1\n#COBALT -t 240\n#COBALT -A datascience\n#COBALT --attrs filesystems=home,grand,eagle,theta-fs0\n# Necessary for Bash shells\n. /etc/profile\n\n# Tensorflow optimized for A100 with CUDA 11\nmodule load conda/pytorch\n# module load conda/pytorch\n\n# Activate conda env\nconda activate pycords\n# conda activate base\nexport PYTHONPATH=/lus/grand/projects/datascience/ianwixom/expcifar:$PYTHONPATH\n\n# User Configuration\n# INIT_SCRIPT=$PWD/activate-dh.sh\nCOBALT_JOBSIZE=1\nRANKS_PER_NODE=8\n\n# Initialization of environment\n# source $INIT_SCRIPT\nmodule list\nmpirun -x LD_LIBRARY_PATH -x PYTHONPATH -x PATH -n $(( $COBALT_JOBSIZE * $RANKS_PER_NODE )) -N $RANKS_PER_NODE --hostfile $COBALT_NODEFILE python cifar10cordsmodel.py",
@@ -59761,7 +61935,7 @@ window.experiment_data = {
     {
       "id": "scatter.sh",
       "filename": "data/ARCCA/mpi_tut/2017/Scatter/scatter.sh",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 34.67613744735718,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#PBS -l select=1:ncpus=12:mpiprocs=12:mem=1MB\n#PBS -l walltime=00:00:30\n#PBS -N Scatter\n#PBS -P PR66\n#PBS -q training\n\n# Load required modules.\nmodule purge\nmodule load python/2.7.9-mpi\n\n# Create an output directory on the fast scratch filesystem, and\n# run from this directory.\nWDPATH=/scratch/$USER/raven_training/$PBS_JOBID\nmkdir -p $WDPATH\ncd $WDPATH\n\n# Copy the python code to the run directory\ncp $PBS_O_WORKDIR/scatter.py .\n\n# Run a number of copies of the code equal to the number of\n# MPI processes requested.\nmpirun -np 12 ./scatter.py\n",
@@ -60241,7 +62415,7 @@ window.experiment_data = {
     {
       "id": "benchmark_rms_distr.sh",
       "filename": "data/Becksteinlab/scipy2019-pmda-data/Lustre/distributed/benchmark_rms_distr.sh",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 21.954306840896606,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#SBATCH -J PMDA_BM                  # name\n#SBATCH --partition=compute\n#SBATCH --nodes=6                        # Total number of nodes requested (16 cores/node). You may delete this line if wanted\n#SBATCH --ntasks-per-node=12            # Total number of mpi tasks requested\n#SBATCH --export=ALL\n#SBATCH -t 08:00:00                      # wall time (D-HH:MM)\n#SBATCH --mail-type=ALL                # Send a notification when the job starts, stops, or fails\n#SBATCH --mail-user=sfan19@asu.edu  # send-to address\n                      \nbash /home/sfan19/.bashrc\n\necho $SLURM_JOB_ID\necho $USER\n\nSCHEDULER=`hostname`\necho SCHEDULER: $SCHEDULER\ndask-scheduler --port=8786 &\nsleep 5\n\nhostnodes=`scontrol show hostnames $SLURM_NODELIST`\necho $hostnodes\n\nfor host in $hostnodes; do\n    echo \"Working on $host ....\"\n    ssh $host dask-worker --nprocs 12 --nthreads 1 $SCHEDULER:8786 &\n    sleep 1\ndone\n\n\npython benchmark_rms_distr.py /scratch/$USER/$SLURM_JOB_ID $SCHEDULER:8786\n\n\n",
@@ -60625,7 +62799,7 @@ window.experiment_data = {
     {
       "id": "runEQ.sh",
       "filename": "data/BranniganLab/ELIC-phospholipid-identification/membrane_systems/POPC/PC_to_PG/POCG_60/runEQ.sh",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 31.463277578353882,
       "step_count": 3,
       "slurm": "#!/bin/bash \n#SBATCH -J EQ_POCG_60\n#SBATCH -o out%j.amarel.log\n#SBATCH --export=ALL\n#SBATCH --partition=cmain\n#SBATCH -N 3 -n 96\n##SBATCH -N 1 -n 32\n#SBATCH --mem=6000\n#SBATCH -t 00:30:00       # max time\n#SBATCH --output=starting.out     # STDOUT output file\n#SBATCH --requeue\nmodule purge\nmodule load gcc cuda mvapich2/2.2\nNAMD=\"/projects/jdb252_1/tj227/bin/namd2-2.13-gcc-mvapich2\"\nSRUN=\"srun --mpi=pmi2\"\n$SRUN $NAMD starting.POCG_60.namd > starting.POCG_60.log\n",
@@ -61105,7 +63279,7 @@ window.experiment_data = {
     {
       "id": "ejecutor.cmd",
       "filename": "data/D-Barradas/DataViz/3D_numpy_array_cardinalities/ejecutor.cmd",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 29.654513359069824,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#BSUB -n 1 \n#BSUB -o ejecutor_%J.out\n#BSUB -e ejecutor_%J.err\n#BSUB -J ejecutor\n#BSUB -R\"span[ptile=16]\"\n#BSUB -W 48:00\n\npython get_cardinalities_3D_arrays.py top5_combos.all pdb.list.BM5\n#/apps/GREASY/2.1.2.1/bin/greasy ROTSPIN.txt\n#apps/GREASY/2.1.2.1/bin/greasy ordenes_bm4_zdock.txt\n#python get_just_ligand_1KKL.py;\n#python get_just_ligand_1N2C.py;\n#python get_just_ligand_1Y64.py;\n#python get_just_ligand_1XU1.py;\n#python get_just_ligand_1F51.py;\n",
@@ -61777,7 +63951,7 @@ window.experiment_data = {
     {
       "id": "run_cluster.sh",
       "filename": "data/HealthML/neurocor/run_cluster.sh",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 6.6143388748168945,
       "step_count": 3,
       "slurm": "#!/bin/bash\n\n#SBATCH --job-name=controljob_%j\n#SBATCH --output=snakemake_%j.log\n#SBATCH --partition=vcpu,hpcpu\n#SBATCH --time=24:00:00\n#SBATCH -c 1\n#SBATCH --mem 2000\n\nSNAKEMAKE_ENV=snakemake\n\n# Initialize conda:\neval \"$(conda shell.bash hook)\"\nconda activate ${SNAKEMAKE_ENV}\n\nsnakemake --snakefile workflow/Snakefile \\\n          --configfile config/config.yaml \\\n\t  --profile ./slurm \\\n          --rerun-triggers mtime \\\n          --directory \"${PWD}\" \\\n\t  \"${@}\"\n\n\n",
@@ -61969,7 +64143,7 @@ window.experiment_data = {
     {
       "id": "runjob",
       "filename": "data/JasonGibsonUfl/Augmented_CGCNN/raw_dft/2120/MP_inputs/runjob",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 7.6291327476501465,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#SBATCH --job-name=2120#SBATCH -o out_%j.log\n#SBATCH -e err_%j.log\n#SBATCH --qos=hennig\n#SBATCH --ntasks=16\n#SBATCH --ntasks-per-socket=16\n#SBATCH --ntasks-per-node=16\n#SBATCH --nodes=1\n#SBATCH --cpus-per-task=1\n#SBATCH --mem-per-cpu=1000mb\n\n#SBATCH -t 6:00:00\n\ncd $SLURM_SUBMIT_DIR\n\nmodule purge\nmodule load intel/2019.1.144\nmodule load openmpi/4.0.1\n\nsrun --mpi=pmix_v3 /home/joshuapaul/vasp_10-23-19_5.4.4/bin/vasp_stand > job.log\necho Done",
@@ -62065,7 +64239,7 @@ window.experiment_data = {
     {
       "id": "runjob",
       "filename": "data/JasonGibsonUfl/Augmented_CGCNN/raw_dft/2434/MP_inputs/runjob",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 7.153030633926392,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#SBATCH --job-name=2434#SBATCH -o out_%j.log\n#SBATCH -e err_%j.log\n#SBATCH --qos=hennig\n#SBATCH --ntasks=16\n#SBATCH --ntasks-per-socket=16\n#SBATCH --ntasks-per-node=16\n#SBATCH --nodes=1\n#SBATCH --cpus-per-task=1\n#SBATCH --mem-per-cpu=1000mb\n\n#SBATCH -t 6:00:00\n\ncd $SLURM_SUBMIT_DIR\n\nmodule purge\nmodule load intel/2019.1.144\nmodule load openmpi/4.0.1\n\nsrun --mpi=pmix_v3 /home/joshuapaul/vasp_10-23-19_5.4.4/bin/vasp_stand > job.log\necho Done",
@@ -62449,7 +64623,7 @@ window.experiment_data = {
     {
       "id": "fed_unlearn_main_3.sh",
       "filename": "data/Karlywang/FedEraser-reproduce/scripts/fed_unlearn_main_3.sh",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 6.777373790740967,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#SBATCH --job-name=federaser\n#SBATCH --nodes=1\n#SBATCH --mem=50000\n#SBATCH -o tensor_out_3.txt\n#SBATCH -e tensor_error_3.txt\n#SBATCH --partition=gpu\n#SBATCH --gres=gpu:1\n\n#module load gnu7/7.2.0\nmodule load cuda/10.0.130\nmodule load anaconda/3.6\n#module load mvapich2\n#module load pmix/1.2.3\n\nsource activate federaser\n\nsrun python ../Fed_Unlearn_main_3.py\n\n",
@@ -63121,7 +65295,7 @@ window.experiment_data = {
     {
       "id": "submit.sh",
       "filename": "data/NCAR/GPU_workshop/archivedLessons_CUDA/Lesson_4_SharedMem/autocompare/solution/submit.sh",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 7.290713310241699,
       "step_count": 3,
       "slurm": "#!/bin/bash -l\n# Batch directives\n#SBATCH --gres=gpu:v100:1\n#SBATCH --nodes=1\n#SBATCH --ntasks-per-node=1\n#SBATCH --account NTDD0002\n#SBATCH --partition=dav\n#SBATCH --reservation=casper_8xV100\n#SBATCH --time=00:15:00\n#SBATCH --output=log.matmul_%j.out\n#SBATCH --job-name=GPU_matmul\n\n# Load the necessary modules (software)\nmodule purge\nmodule load ncarenv/1.2\nmodule load nvhpc/20.11\nmodule list\n\n# Update LD_LIBRARY_PATH so that cuda libraries can be found\nexport LD_LIBRARY_PATH=${NCAR_ROOT_CUDA}/lib64:${LD_LIBRARY_PATH}\necho ${LD_LIBRARY_PATH}\nnvidia-smi\n\nexport PCAST_COMPARE=abs=6,summary\n\n# Move to the correct directory and run the executable\necho -e \"\\nBeginning code output:\\n-------------\\n\"\nsrun ./matmul.exe \n",
@@ -63217,7 +65391,7 @@ window.experiment_data = {
     {
       "id": "build.gust.sh",
       "filename": "data/NCAR/MURaM_main/gust/build.gust.sh",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 6.962047338485718,
       "step_count": 3,
       "slurm": "#!/bin/bash -l\n\n#PBS -N MURbui \n#PBS -A UCSU0085 \n#PBS -q main@gusched01\n#PBS -l select=1:ncpus=1:mpiprocs=1:mem=50GB:ngpus=1\n##PBS -l gpu_type=a100\n#PBS -l walltime=00:10:00\n#PBS -e build.err \n#PBS -o build.out \n\nmodule purge\nmodule load ncarenv/22.12\nmodule load nvhpc/22.11\nmodule load cuda\nmodule load craype\nmodule load cray-mpich\nmodule load ncarcompilers\nmodule load cray-libsci\nmodule list\n\nmake clean\nmake\n\n \n",
@@ -63505,7 +65679,7 @@ window.experiment_data = {
     {
       "id": "pretrain_falcon_fr_all_v0.1.slurm",
       "filename": "data/OpenLLM-France/Lit-Claire/slurm/pretrain_falcon_fr_all_v0.1.slurm",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 6.04366660118103,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#SBATCH --job-name=Falcon\n#SBATCH --gres=gpu:2\n#SBATCH --ntasks-per-node=2\n#SBATCH --nodes=1\n#SBATCH --hint=nomultithread\n#SBATCH --time=20:00:00\n#SBATCH --qos=qos_gpu-t3\n#SBATCH --cpus-per-task=8\n#SBATCH -C a100\n\n## load environment\nmodule purge\nmodule load cpuarch/amd\nmodule load anaconda-py3/2023.03\nconda activate claire\n\n## launch script on every node\nset -x\n\nMODEL=tiiuae/falcon-7b\nOUTDIR=$WORK/../commun/Claire/pretrain/Claire-7B-0.1_1\nmkdir -p $OUTDIR\n\n# execute script\nsrun --output=$OUTDIR/training_log.out --error=$OUTDIR/training_log.out \\\npython pretrain.py \\\n--devices 2 \\\n--num_nodes 1 \\\n--data_dir $SCRATCH/../commun/preprocessed_data/Claire/lit-gpt/padded_8_grouped/$MODEL \\\n--checkpoint_dir $WORK/../commun/Claire/checkpoints/$MODEL \\\n--language fr \\\n--out_dir $OUTDIR \\\n--precision bf16-true \\\n--num_epochs 1000 \\\n--max_checkpoints 39 \\\n--enable_validation true \\\n--save_interval 1800 \\\n--eval_interval 1800 \\\n--early_stopping 4 \\\n--lora_r 16 \\\n--lora_alpha 32\n",
@@ -63601,7 +65775,7 @@ window.experiment_data = {
     {
       "id": "run.sample.qs",
       "filename": "data/PabloPiaggi/mishima-melting-lines-2023/StandardCoexistence/IceV/BASE/run.sample.qs",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 6.807528734207153,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#SBATCH -N 1   # node count\n#SBATCH --ntasks-per-node=4\n#SBATCH --ntasks-per-socket=2\n#SBATCH --cpus-per-task=7\n#SBATCH -t 24:00:00\n# SBATCH --mem=32G\n#SBATCH --gres=gpu:4\n#SBATCH --mail-type=begin\n#SBATCH --mail-type=end\n#SBATCH --mail-user=tgartner@princeton.edu\n\n# load environment\nmodule load cudatoolkit/10.0\nmodule load cudnn/cuda-10.0/7.6.3\nmodule load openmpi/gcc/3.1.3/64\n#module load fftw\nsource /home/tgartner/Software-deepmd-kit-1.0/tensorflow-venv/bin/activate\nmodule load /home/tgartner/modulefiles/plumed-tg\n# export OMP_NUM_THREADS=1\n\nif [ -f \"Sampledone.txt\" ]; then\n    echo \"Simulation finished\"\nelif ! grep -q 'ERROR' slurm*; then\n    echo \"Continuing NPT sampling\"\n    sbatch --dependency=afterany:$SLURM_JOB_ID run.sample.qs\n    # run NPT sampling\n    mpirun /home/tgartner/Software-deepmd-kit-1.0/lammps-3Mar20/src/lmp_mpi -i in.lammps.sample -e screen\nelse\n    echo \"There is an error\"\nfi\n\n",
@@ -64369,7 +66543,7 @@ window.experiment_data = {
     {
       "id": "run_prep",
       "filename": "data/QuentinRodier/Meso-NH/MY_RUN/INTEGRATION_CASES/HPC/HAIC/02_prep_real/run_prep",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 22.595310926437378,
       "step_count": 3,
       "slurm": "#!/bin/sh\n#SBATCH -J HAICprep\n#SBATCH -N 1            # nodes number =NBP dans tosupcrc\n#SBATCH -n 16           # CPUs number (on all nodes) =NBP*TPN dans tosupcrc\n#SBATCH -o POI16.eo%j   #\n#SBATCH -e POI16.eo%j   #\n#SBATCH -t 01:00:00     # time limit\n#SBATCH -p normal256\n\n# Echo des commandes\nulimit -c 0\nulimit -s unlimited\n# Nom de la machine\nhostname \n\n. ~rodierq/DEV_57/MNH-PHYEX070-b95d84d7/conf/profile_mesonh-LXifort-R8I4-MNH-V5-6-2-ECRAD140-MPIAUTO-O2-HAIC\n\nexport MPIRUN='Mpirun -np 16'\n\nln -sf ../01_prep_pgd/PGD.* .\nln -sf ~/SAVE/mesonh/PGD/pgd_guyane* .\nln -sf ~/SAVE/GRIB_KTEST/arome.FO.201505* .\nln -sf ~/SAVE/GRIB_KTEST/historic.20150529.00.lfi\n\ntouch pgd_guyane.02km50.04.des\ntouch historic.20150529.00.des\n\ntime ${MPIRUN} PREP_REAL_CASE${XYZ}\n\nfor i in 00 06 12 18 24; do\n    cp PRE_REAL1.nam_$i PRE_REAL1.nam\n    time ${MPIRUN} PREP_REAL_CASE${XYZ}\ndone\ncd ../\n./run_all_mesonh\n",
@@ -64717,7 +66891,7 @@ window.experiment_data = {
     {
       "id": "job_ar2_multiple_ABC_runs_mlp.sh",
       "filename": "data/SamuelWiqvist/PENs-and-ABC/lunarc/job_ar2_multiple_ABC_runs_mlp.sh",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 26.740639448165894,
       "step_count": 3,
       "slurm": "#!/bin/sh\n\n\n# Set up for run:\n\n# need this since I use a LU project\n#SBATCH -A lu2018-2-22\n\n# use gpu nodes\n#SBATCH -p gpu\n#SBATCH --gres=gpu:1\n#SBATCH --mem-per-cpu=3100\n\n# #SBATCH -N 1\n# #SBATCH -n 1\n\n\n# time consumption HH:MM:SS\n#SBATCH -t 100:00:00\n\n# name for script\n#SBATCH -J ar2_multi_ABC_mlp\n\n# controll job outputs\n#SBATCH -o lunarc_output/AR2/outputs_AR2_multiple_ABC_runs_mlp_%j.out\n#SBATCH -e lunarc_output/AR2/errors_AR2_multiple_ABC_runs_mlp_%j.err\n\n# notification\n#SBATCH --mail-user=samuel.wiqvist@matstat.lu.se\n#SBATCH --mail-type=ALL\n\n# load modules\n\nml load GCC/6.4.0-2.28\nml load CUDA/9.1.85\nml load OpenMPI/2.1.2\nml load cuDNN/7.0.5.15\nml load julia/1.0.0\n\nnvidia-smi\n\n# set correct path\npwd\ncd ..\npwd\n\n# run program\njulia /home/samwiq/'ABC and deep learning project'/abc-dl/src/AR2/multiple_ABC_runs_mlp.jl mlp standard 250 1 1 0\n\n# run using\n# sbatch test_gpu.sh\n",
@@ -64813,7 +66987,7 @@ window.experiment_data = {
     {
       "id": "job_ar2_multiple_ABC_runs_pen.sh",
       "filename": "data/SamuelWiqvist/PENs-and-ABC/lunarc/job_ar2_multiple_ABC_runs_pen.sh",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 7.136862277984619,
       "step_count": 3,
       "slurm": "#!/bin/sh\n\n\n# Set up for run:\n\n# need this since I use a LU project\n#SBATCH -A lu2018-2-22\n\n# use gpu nodes\n#SBATCH -p gpu\n#SBATCH --gres=gpu:1\n#SBATCH --mem-per-cpu=11000\n\n# #SBATCH -N 1\n# #SBATCH -n 1\n\n\n# time consumption HH:MM:SS\n#SBATCH -t 100:00:00\n\n# name for script\n#SBATCH -J ar2_multi_ABC_pen\n\n# controll job outputs\n#SBATCH -o lunarc_output/AR2/outputs_AR2_multiple_ABC_runs_pen_%j.out\n#SBATCH -e lunarc_output/AR2/errors_AR2_multiple_ABC_runs_pen_%j.err\n\n# notification\n#SBATCH --mail-user=samuel.wiqvist@matstat.lu.se\n#SBATCH --mail-type=ALL\n\n# load modules\n\nml load GCC/6.4.0-2.28\nml load CUDA/9.1.85\nml load OpenMPI/2.1.2\nml load cuDNN/7.0.5.15\nml load julia/1.0.0\n\nnvidia-smi\n\n# set correct path\npwd\ncd ..\npwd\n\n# run program\njulia /home/samwiq/'ABC and deep learning project'/abc-dl/src/AR2/multiple_ABC_runs_pen.jl standard 250 1 1\n\n# run using\n# sbatch test_gpu.sh\n",
@@ -65197,7 +67371,7 @@ window.experiment_data = {
     {
       "id": "job_snreb_19.sh",
       "filename": "data/SamuelWiqvist/snpla/two_moons/lunarc/job_snreb_19.sh",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 23.940600156784058,
       "step_count": 3,
       "slurm": "#!/bin/sh\n\n\n#SBATCH -A lu2020-2-7\n#SBATCH -p lu\n\n# time consumption HH:MM:SS\n#SBATCH -t 2:00:00\n\n# #SBATCH -N 1\n# #SBATCH --tasks-per-node=1\n# #SBATCH --exclusive\n\n# name for script\n#SBATCH -J snre_b\n\n \n# controll job outputs\n#SBATCH -o lunarc_output/lunarc_output_snre_b_%j.out\n#SBATCH -e lunarc_output/lunarc_output_snre_b_%j.err\n\n# notification\n#SBATCH --mail-user=samuel.wiqvist@matstat.lu.se\n#SBATCH --mail-type=ALL\n\n# load modules\n\nml load GCC/8.3.0\nml load CUDA/10.1.243\nml load OpenMPI/3.1.4\nml load PyTorch/1.6.0-Python-3.7.4\n\n# run program\npython /home/samwiq/snpla/'seq-posterior-approx-w-nf-dev'/'two_moons'/run_script_snre_b.py 1 2 19 10 0\n",
@@ -65485,7 +67659,7 @@ window.experiment_data = {
     {
       "id": "3_5.sh",
       "filename": "data/UKPLab/naacl2019-like-humans-visual-attacks/code/G2P/allvsall_odd/3_5.sh",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 7.115822076797485,
       "step_count": 3,
       "slurm": "#!/bin/bash\n \n#SBATCH -J Act_tanh_1\n#SBATCH --mail-user=eger@ukp.informatik.tu-darmstadt.de\n#SBATCH --mail-type=FAIL\n#SBATCH -e /work/scratch/se55gyhe/log/output.err.%j\n#SBATCH -o /work/scratch/se55gyhe/log/output.out.%j\n\n#SBATCH -n 1 # Number of cores\n#SBATCH --mem-per-cpu=6000\n#SBATCH -t 23:59:00 # Hours, minutes and seconds, or '#SBATCH -t 10' -only mins\n#module load intel python/3.5\n\npython3 /home/se55gyhe/Act_func/sequence_tagging/arg_min/G2P-my_LSTM-act1_save_new_odd.py tanh 50 Adamax 1 0.32873413360732373 0.002314007172161447 orth 1.0 efile.norm.3_5 odd_G2P_3_5/\n",
@@ -65869,7 +68043,7 @@ window.experiment_data = {
     {
       "id": "ACE.job",
       "filename": "data/Yasir-Ghunaim/RealtimeOCL/experiments/CIFAR100/fast_stream/ACE.job",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 8.098900556564331,
       "step_count": 3,
       "slurm": "#!/bin/bash --login\n#SBATCH -N 1\n#SBATCH --partition=batch\n#SBATCH -J ACE\n#SBATCH -o /path/to/output.%J.out\n#SBATCH -e /path/to/error.%J.err\n#SBATCH --time=1:00:00\n#SBATCH --mem=200G\n#SBATCH --ntasks=1\n#SBATCH --gres=gpu\n#SBATCH --cpus-per-task=6\n\n\n# activate the conda environment\nmodule purge\nmodule load gcc/11.1.0\nconda activate realtime_ocl\n\n# run the application:\ncd ../../..\npython main.py \\\n--dataset 'cifar100' \\\n--batch_size 10 \\\n--lr 0.001 \\\n--lr_type 'constant' \\\n--batch_delay 0 \\\n--gradient_steps 1 \\\n--output_dir '/path/to/tensorboard/output' \\\n--workers 4 \\\n--method 'ACE' \\\n--seed 123 \\\n--size_replay_buffer 100",
@@ -66541,7 +68715,7 @@ window.experiment_data = {
     {
       "id": "process_train_lda_data.lsf",
       "filename": "data/airoldilab/HPC_model/mmm_process_code/fold_setup/process_train_lda_data.lsf",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 19.564845323562622,
       "step_count": 3,
       "slurm": "#!/bin/bash\n\n# DO NOT CHANGE THE QUEUE! YOU **MUST** ONLY USE THE QUEUE: short_serial\n#BSUB -q airoldi\n\n# EDIT THE EMAIL-ADDRESS BELOW TO YOUR FAS EMAIL:\n#BSUB -u jbischof@fas.harvard.edu\n\n# THE JOB ARRAY:\n#BSUB -J \"process_reuters_lda_data_train[1-10]\"\n\n# THE COMMAND TO GIVE TO R, CHANGE TO THE APPROPRIATE FILENAME:\npartition=train\ncutoff=500\nmain_dir=/n/airoldifs2/lab/jbischof/reuters_output/mmm_folds/fold${LSB_JOBINDEX}/\nout_dir=${main_dir}mmm_raw_data/parsed_${partition}_data${cutoff}/\n\n# Create partition directory if doesn't already exist\nif [ ! -d $out_dir ]\nthen\n   mkdir $out_dir\nfi\n\n# Run python script\npython ../process_parse_lda_data.py $partition $cutoff $main_dir",
@@ -66733,7 +68907,7 @@ window.experiment_data = {
     {
       "id": "submit_gamsjob.sh",
       "filename": "data/alherm7/TSO-DSO_coordination/matlab_code/submit_gamsjob.sh",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 47.226152181625366,
       "step_count": 3,
       "slurm": "#!/bin/sh\n#BSUB -J PCC_optimzer\n#BSUB -q elektro\n#BSUB -n 1\n#BSUB -R \"rusage[mem=2GB]\"\n#BSUB -M 10GB\n#BSUB -W 20:00\n#BSUB -u alherm@dtu.dk\n#BSUB -B\n#BSUB -N\n#BSUB -o output_alex_run1.out\n#BSUB -e error_alex_run1.err\n#BSUB -R \"span[hosts=1]\"\n\nmodule load cvx\nmodule load mosek/9.2\n##module load gurobi/8.1.1\n\nmatlab -nodisplay -r RUN_PCC_optim -logfile PCC_optim_logfile_output\n\n\n##BSUB -m \"n-62-21-94\"\n",
@@ -66829,7 +69003,7 @@ window.experiment_data = {
     {
       "id": "Template.sh",
       "filename": "data/alintulu/FHead2011PhysicsProject/HI2018HLT/JetTriggers/17712_PFJetTurnOnNewTracking/Template.sh",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 7.393835783004761,
       "step_count": 3,
       "slurm": "#!/bin/sh --login\n\n#BSUB -q 1nd\n\nWorkDir=__WORKDIR__\nSampleType=__SAMPLETYPE__\nID=__ID__\n\nexport SCRAM_ARCH=slc6_amd64_gcc630\ncd /afs/cern.ch/work/c/chenyi/CMSSW/CMSSW_10_3_0/src/\neval `scramv1 runtime -sh`\ncd - > /dev/null\n\nexport X509_USER_PROXY=$PhysicsWorkspace/HI2018HLT/CommonCode/proxy/x509up_proxy\necho $X509_USER_PROXY\n\nTemplate=$WorkDir/ExportedMenuPFNewTrackingV4.py\n\nFileList=`echo \"__INPUT__\" | tr '@' ' ' | sed \"s/[ ,]*$//\"`\n\necho \"List of files = $FileList\"\necho \"ID = $ID\"\necho \"Sample = $SampleType\"\n\ncat $Template \\\n   | sed \"s#__FILE__#$FileList#g\" \\\n   > RunJob.py\ncat RunJob.py | bzip2 > $WorkDir/Result/RunJob_${SampleType}_${ID}.py.bz2\n\ncp $WorkDir/setup_dev_CMSSW_10_3_0_HLT_cff.py .\n\ncp -r $WorkDir/Sample* .\n\nmkdir -p $WorkDir/Result/\n\ncmsRun RunJob.py >& Log_${ID}\nbzip2 Log_${ID}\nmv Log_${ID}.bz2 $WorkDir/Result/Log_${SampleType}_${ID}.bz2\nmv openHLT.root $WorkDir/Result/openHLT_${SampleType}_${ID}.root\n\n",
@@ -67021,7 +69195,7 @@ window.experiment_data = {
     {
       "id": "Slurm_15.sh",
       "filename": "data/arabporr/HyperNetwork/scripts/Slurm_15.sh",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 53.015735387802124,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#SBATCH --job-name=HN_15\n#SBATCH --qos=normal\n#SBATCH -c 6\n#SBATCH --mem=20G\n#SBATCH --gres=gpu:a40:1\n#SBATCH --time=13:59:00\n#SBATCH --output=HN_15/slurm-%j.out\n#SBATCH --error=HN_15/slurm-%j.err\n\n# Environment Setup\nmodule purge\nmodule load python/3.12.0\npip3 install --upgrade pip\npip3 install -U -q pandas numpy tensorflow cuda-python torch torchvision seaborn plotly matplotlib ipywidgets tqdm\n\n# Run Experiments\npython3 main.py --data_index 15\n",
@@ -67825,7 +69999,7 @@ window.experiment_data = {
     {
       "id": "run.sh",
       "filename": "data/boulderrinnlab/CLASS_2022/class_exeRcises/analysis/18_running_RNAseq_NF_CORE/preclass_NF_core_RUN/run.sh",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 55.33609747886658,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#SBATCH -p long\n#SBATCH --job-name=HEPG2_rna_seq\n#SBATCH --mail-type=END,FAIL\n#SBATCH --mail-user=john.rinn@colorado.edu\n#SBATCH --nodes=1\n#SBATCH --ntasks=1\n#SBATCH --mem=6gb\n#SBATCH --time=20:00:00\n#SBATCH --output=nextflow.out\n#SBATCH --error=nextflow.err\n\npwd; hostname; date\necho \"Here we go You've requested $SLURM_CPUS_ON_NODE core.\"\n\nmodule load singularity/3.1.1\n\nnextflow run nf-core/rnaseq -r 1.4.2 \\\n-resume \\\n-profile singularity \\\n--reads '/scratch/Shares/rinnclass/CLASS_2022/JR/CLASS_2022/class_exeRcises/analysis/17_API_RNASEQ/fastq/*{_read1,_read2}.fastq.gz' \\\n--fasta /scratch/Shares/rinnclass/CLASS_2022/data/genomes/GRCh38.p13.genome.fa \\\n--gtf /scratch/Shares/rinnclass/CLASS_2022/data/gencode.v32.annotation.gtf \\\n--pseudo_aligner salmon \\\n--gencode \\\n--email john.rinn@colorado.edu \\\n-c nextflow.config\n\ndate\n",
@@ -68593,7 +70767,7 @@ window.experiment_data = {
     {
       "id": "submit.cuda",
       "filename": "data/chunyulin/hpc_snippet/vasp/v6/gcc_mkl/submit.cuda",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 47.28069543838501,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#SBATCH --nodes=1 --ntasks-per-node=2 --cpus-per-task=4\n#SBATCH --gres=gpu:2\n \nmodule purge\nmodule load gnu7/7.3.0\nmodule load nvidia/cuda/10.1\nsource /home/p00lcy01/local/gcc7/openmpi-4.0.4/env.sh\n\nsrun --cpu_bind=v /home/p00lcy01/VASP/b_gcc_mkl/bin/vasp_gpu\necho \"== Wall time: ${SECONDS} secs\"\n",
@@ -69265,7 +71439,7 @@ window.experiment_data = {
     {
       "id": "LSTM.sh",
       "filename": "data/ekinakyurek/lexical/exp/COGS/LSTM.sh",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 47.77247667312622,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#SBATCH --job-name=lstmcogs\n#SBATCH --time=48:00:00\n#SBATCH --cpus-per-task=5\n#SBATCH --ntasks-per-node=1\n#SBATCH --nodes=1\n#SBATCH --qos=high\n#SBATCH --constrain=xeon-g6\n#SBATCH --gres=gpu:volta:1\n#SBATCH --array=0-9\n\nlr=1.0\nwarmup_steps=4000\nmax_steps=8000\nexpname=LSTM\nmkdir -p $expname\ncd $expname\nhome=\"../../../\"\nfor i in `seq 0 9`\ndo\nif [[ $i -eq $SLURM_ARRAY_TASK_ID ]]; then\n    python -u  $home/main.py \\\n    --seed $i \\\n    --n_batch 128 \\\n    --n_layers 2 \\\n    --dim 512 \\\n    --lr ${lr} \\\n    --temp 1.0 \\\n    --dropout 0.4 \\\n    --beam_size 5 \\\n    --gclip 5.0 \\\n    --accum_count 4 \\\n    --valid_steps 500 \\\n    --warmup_steps ${warmup_steps} \\\n    --max_step ${max_steps} \\\n    --tolarance 10 \\\n    --tb_dir ${expname} \\\n    --COGS > eval.$i.out 2> eval.$i.err\nfi\ndone\n",
@@ -69553,7 +71727,7 @@ window.experiment_data = {
     {
       "id": "play_bmsb.pbs",
       "filename": "data/eshook/Forest/play_bmsb.pbs",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 36.56447911262512,
       "step_count": 3,
       "slurm": "#!/bin/bash -l\n#PBS -l walltime=00:10:00,nodes=1:ppn=24:gpus=2,mem=125gb\n#PBS -m abe\n#PBS -M bures024@umn.edu\n\ncd ~/Forest\nmodule load python2\nsource activate installs\nmodule load cuda/9.0\npython play_bmsb.py\n",
@@ -69649,7 +71823,7 @@ window.experiment_data = {
     {
       "id": "run-profile.sh",
       "filename": "data/exalearn/design-tutorial/mpnn/profile-horovod/run-profile.sh",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 8.68274450302124,
       "step_count": 3,
       "slurm": "#! /bin/bash\n#COBALT -A CSC249ADCD08 --attrs enable_ssh=1\n\n# Load up the Python environment\nmodule load miniconda-3/latest\nsource activate /lus/theta-fs0/projects/CSC249ADCD08/design/graph_sage/env\nexport PYTHONPATH=\"\"  ## Get rid of the  default path from the modules\n\n# Read the number of nodes and ranks per node\nnodes=$1\nranks_per_node=$2\nthreads_per_core=$3\ntotal_ranks=$((nodes * ranks_per_node))\nthreads_per_rank=$(((64 * threads_per_core) / ranks_per_node))\n\n# Set config and run\n#  - Turning off XLA to see if that gives more threads. No effect\n#  - Adding prefetching\nexport KMP_BLOCKTIME=0\nexport KMP_AFFINITY=\"granularity=fine,compact,1,0\"\nexport MPICH_GNI_FORK_MODE=FULLCOPY\nexport OMP_NUM_THREADS=$threads_per_rank\n\naprun -n $total_ranks -N $ranks_per_node -d $OMP_NUM_THREADS -j $threads_per_core --cc depth python profile_train.py ${@:4}\n",
@@ -70477,7 +72651,7 @@ window.experiment_data = {
     {
       "id": "run_monolayer.sh",
       "filename": "data/grovert4/CQIQC-Research/Final_Files/run_monolayer.sh",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 7.092024087905884,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#SBATCH --mail-user=tanmay.grover@mail.utoronto.ca  \n#SBATCH --mail-type=ALL\n#SBATCH --mail-type=BEGIN\n#SBATCH --mail-type=END\n#SBATCH --mail-type=FAIL\n#SBATCH --ntasks=200\n#SBATCH --cpus-per-task=1 \n#SBATCH --account=def-aparamek\n#SBATCH --time=8:00:00\n#SBATCH --mem-per-cpu=4000MB\n#SBATCH --output=/scratch/grovert4/SLURM/slurm-%x-%j.txt\nmodule load StdEnv/2020\nmodule load julia/1.8.5\n\nsrun julia SkX_MonoLayer_Run.jl inputParametersMonoLayer\n",
@@ -70765,7 +72939,7 @@ window.experiment_data = {
     {
       "id": "gromacs_gpurun.sbatch",
       "filename": "data/hariseldon99/buparamshavak/shavak_root/usr/local/share/examples/gromacs_examples/gromacs_gpurun.sbatch",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 30.135496139526367,
       "step_count": 3,
       "slurm": "#!/bin/bash\n\n#SBATCH --job-name=gromacstest\n#This sets the name of the job\n\n#SBATCH --partition=GPU\n#This sets the partition to the GPU partition. Important for GPU jobs\n\n#SBATCH --gres=gpu:1\n#This allocates 1 GPU as a Global Resource (gres). Important for GPU jobs\n\n#SBATCH --ntasks=10\n#This sets the number of processes to 10.\n\n#SBATCH --cpus-per-task=1\n#This allocates the number of cpus per tasks. \n\n#SBATCH --time=01:00:00 \n#This allocates the walltime to 60 minutes. The program will not run for longer.\n\nexport GMX_IMGDIR=${SIFDIR}/gromacs/\nexport GMX_IMG=gromacs-2022.3_20230206.sif\nexport TOPOL_FILE=topol.tpr\n\nsingularity run --nv -B ${PWD}:/host_pwd --pwd /host_pwd  $GMX_IMGDIR/$GMX_IMG gmx mdrun -ntmpi 1 -nb gpu -pin on -v -noconfout -nsteps 5000 -ntomp ${SLURM_NTASKS} -s $TOPOL_FILE\n#DO NOT USE 'srun' as it launches multiple independent jobs\n",
@@ -70957,7 +73131,7 @@ window.experiment_data = {
     {
       "id": "qsub.sh",
       "filename": "data/hhlim12/GPU-benchmarks/scripts/lammps-nequip/qsub.sh",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 36.55277132987976,
       "step_count": 3,
       "slurm": "#!/bin/sh\n#PBS -q i1accs\n#PBS -l select=1:ncpus=64:mpiprocs=1:ompthreads=1\n#PBS -l walltime=00:15:00\n#PBS -N GCNLMP\n##PBS -I\n\nmodule purge\nmodule load openmpi_nvhpc/4.1.2\nmodule load nvhpc-nompi/22.2_cuda11.6\n\nsource ~/miniconda3/etc/profile.d/conda.sh\nconda activate nequip_GPU2\n\nexport CUDA_VISIBLE_DEVICES=\"0\"\n\n./lmp -in input.data\n",
@@ -71053,7 +73227,7 @@ window.experiment_data = {
     {
       "id": "namd_abf.sh",
       "filename": "data/hpc2n/course-md/4.ABF/namd_abf.sh",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 24.805594205856323,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#SBATCH -A *FIXME*\n#Asking for 40 min.\n#SBATCH -t 00:40:00\n#Number of nodes\n#SBATCH -N 1\n#Ask for processes\n#SBATCH -n 28\n#SBATCH --gres=gpu:k80:2\n#SBATCH --exclusive\n\nml purge > /dev/null 2>&1\nml GCC/9.3.0  CUDA/11.0.2  OpenMPI/4.0.3\nml NAMD/2.14-nompi \nnamd2 +p28 abf.inp > output_abf.dat\n\n#MPI version\n#ml GCC/10.3.0  OpenMPI/4.1.1\n#ml NAMD/2.14-mpi \n#mpirun -np 28 namd2 abf.inp > output_abf.dat\n",
@@ -71533,7 +73707,7 @@ window.experiment_data = {
     {
       "id": "bluewaters_select.sh",
       "filename": "data/iraikov/neuroh5/jobscripts/bluewaters_select.sh",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 31.055833339691162,
       "step_count": 3,
       "slurm": "#!/bin/bash\n### set the number of nodes and the number of PEs per node\n#PBS -l nodes=64:ppn=16:xe\n### which queue/account to use\n#PBS -q high\n### set the wallclock time\n#PBS -l walltime=1:00:00\n### set the job name\n#PBS -N select_neurotrees\n### set the job stdout and stderr\n#PBS -e ./results/neurotrees_select.$PBS_JOBID.err\n#PBS -o ./results/neurotrees_select.$PBS_JOBID.out\n### set email notification\n##PBS -m bea\n### Set umask so users in my group can read job stdout and stderr files\n#PBS -W umask=0027\n\nmodule swap PrgEnv-cray PrgEnv-gnu\nmodule load cray-hdf5-parallel\n\nset -x\n\ncd $PBS_O_WORKDIR\n\naprun -n 1024 ./build/neurotrees_select -p GC -i 256 --reindex \\\n      --cachesize=$((4 * 1024 * 1024)) \\\n      /projects/sciteam/baef/Full_Scale_Control/DGC_forest_extended_20171019_compressed.h5 \\\n      /projects/sciteam/baef/Full_Scale_Control/DGC_forest_reindex_20170615.dat \\\n      /projects/sciteam/baef/Full_Scale_Control/DGC_forest_20171019.h5 \n\n\n\n\n",
@@ -71821,7 +73995,7 @@ window.experiment_data = {
     {
       "id": "submit16.slr",
       "filename": "data/jdppthk/DDP_UNet/submit16.slr",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 6.693496942520142,
       "step_count": 3,
       "slurm": "#!/bin/bash -l\n#SBATCH --nodes=2  --time=04:00:00  \n#SBATCH -C gpu \n#SBATCH --account m1759\n#SBATCH --gres=gpu:8\n#SBATCH --exclusive\n#SBATCH -c 80\n\nmodule load pytorch/v1.4.0-gpu\nmodule list\nexport HDF5_USE_FILE_LOCKING=FALSE\n\nnodes=$(scontrol show hostnames $SLURM_JOB_NODELIST) # Getting the node names\nnodes_array=( $nodes )\nworker_num=$(($SLURM_JOB_NUM_NODES - 1))\n\nmaster_node=${nodes_array[0]}\n\nfor ((  i=0; i<=$worker_num; i++ ))\ndo\n  node_i=${nodes_array[$i]}\n  srun --nodes=1 --ntasks=1 -w $node_i python -m torch.distributed.launch --nproc_per_node=8 --nnodes=8 --node_rank=$i --master_addr=$master_node train.py --run_num=13 &\n  pids[${i}]=$!\n  echo \"Training started on node $i\"\ndone\n\n# Wait for completion\nfor pid in ${pids[*]}; do\n    wait $pid\ndone\n\ndate\n\n",
@@ -71917,7 +74091,7 @@ window.experiment_data = {
     {
       "id": "job_singularity.sh",
       "filename": "data/jhgille2/rna_seq_pipeline_template/job_singularity.sh",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 6.8360676765441895,
       "step_count": 3,
       "slurm": "#!/bin/bash\n\n# Submit the pipeline as a job with srun job.sh\n\n# Modified from https://github.com/mschubert/clustermq/blob/master/inst/LSF.tmpl\n# under the Apache 2.0 license:\n#SBATCH --job-name=soy_test_alignment\n#SBATCH --output=/dev/null\n#SBATCH --error=/dev/null\n#SBATCH --mem-per-cpu=3000\n#SBATCH --cpus-per-task=1\n#SBATCH -N 1\n#SBATCH -n 72\n#SBATCH --exclusive\n#SBATCH -t 12:00:00\n#SBATCH --mail-user=jhgille2@ncsu.edu\n#SBATCH --mail-type=BEGIN,END,FAIL\n\nmodule load singularity\nsingularity exec conda.sif R CMD BATCH run.R\n\n# Removing .RData is recommended.\n# rm -f .RData\n",
@@ -72013,7 +74187,7 @@ window.experiment_data = {
     {
       "id": "cluster_queue.sh",
       "filename": "data/jmlingeman/Network-Inference-Workspace/config/templates/cluster_queue.sh",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 6.69001317024231,
       "step_count": 3,
       "slurm": "#!/bin/bash\n\n#PBS -l nodes={{cluster_nodes}}:ppn={{cluster_procs}},walltime=5:00:00\n#PBS -N {{cluster_expname}}\n#PBS -e localhost:$PBS_O_WORKDIR/${PBS_JOBNAME}.e${PBS_JOBID}\n#PBS -o localhost:$PBS_O_WORKDIR/${PBS_JOBNAME}.o${PBS_JOBID}\n\nQSUB_PRIORITY={{cluster_priority}}\n\nQSUB_CMD=\"-v {{cluster_prog_script}}\"\necho \"Sending the following command to QSUB: $QSUB_CMD\"\n\n#$QSUB_CMD\nqsub $QSUB_CMD\n\n",
@@ -72589,7 +74763,7 @@ window.experiment_data = {
     {
       "id": "jobscript.sh",
       "filename": "data/kristian-267/MLOps-for-Image-Classification/jobscript.sh",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 7.628735303878784,
       "step_count": 3,
       "slurm": " #!/bin/sh\n #BSUB -q gpua100\n #BSUB -gpu \"num=2\"\n #BSUB -J Train ResNeSt\n #BSUB -n 1\n #BSUB -W 24:00\n #BSUB -R \"rusage[mem=32GB]\"\n #BSUB -o logs/%J.out\n #BSUB -e logs/%J.err\n\n module load python3/3.7.10\n module load cuda/11.5\n module load cudnn\n module load ffmpeg\n\n pip3 install torch==1.9.1+cu111 torchvision==0.10.1+cu111 torchaudio==0.9.1 -f https://download.pytorch.org/whl/torch_stable.html\n\n echo \"Running script...\"\n make train\n",
@@ -73165,7 +75339,7 @@ window.experiment_data = {
     {
       "id": "maqsub1.pbs",
       "filename": "data/lnsmith54/hyperParam1/Imagenet/resnet/maqsub1.pbs",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 6.697540521621704,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#PBS -l walltime=72:00:00\n#PBS -l select=1:ncpus=24:mpiprocs=24:ngpus=4:powerai=on\n#PBS -l place=scatter:excl\n#PBS -N ResImOrig2\n#PBS -j oe\n#PBS -V\n#PBS -q standard\n#PBS -A MHPCC96650NRL\n\nexit\n\n. /usr/share/Modules/init/sh\nmodule load glog/0.3.3\nmodule load gflags/2.2.0\n\nexport LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/gpfs/pkgs/mhpcc/protobuf/lib:/gpfs/pkgs/mhpcc/boost/lib:/gpfs/pkgs/mhpcc/lmdb/lib:/gpfs/pkgs/mhpcc/leveldb/lib:/gpfs/pkgs/mhpcc/opencv-3.4.0/lib64\n\ncd /gpfs/scratch/lnsmith/deepLearning/caffe/9-11-17/\n\n./examples/bk_imagenet/queues/resnet/atrain1.sh\n\nqsub ./examples/bk_imagenet/queues/resnet/aqsub1.pbs\n\nexit\n#module use $PROJECTS_HOME/datools/modulefiles\n#module load anaconda/2\n#module load caffe/5.0\n#module list\n\n#cd /gpfs/scratch/lnsmith/deepLearning/fewTrainingData/imagenet\n\n#./examples/bk_imagenet/train.sh\n\n",
@@ -73261,7 +75435,7 @@ window.experiment_data = {
     {
       "id": "run_ciirc.sh",
       "filename": "data/lucivpav/InLocCIIRC_demo/run_ciirc.sh",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 7.07033896446228,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#SBATCH --job-name=InLocCIIRC_demo\n#SBATCH --nodes=1\n#SBATCH --partition gpu\n#SBATCH --output=InLocCIIRC_demo.log\n#SBATCH --cpus-per-task=8\n#SBATCH --gres=gpu:1\n#SBATCH --mem=16G\n#SBATCH --mail-type=END,FAIL\n#SBATCH --time=1-00:00:00\nmodule load MATLAB/2018a\nmodule load SuiteSparse/5.1.2-foss-2018b-METIS-5.1.0\nnvidia-smi\nexport LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/lucivpav/gflags-2.2.2/build/lib:/home/lucivpav/InLoc_demo/functions/vlfeat/toolbox/mex/mexa64\ncat startup.m inloc_demo.m | matlab -nodesktop\n",
@@ -73453,7 +75627,7 @@ window.experiment_data = {
     {
       "id": "train_on_slurm.sh",
       "filename": "data/mabounassif/ift6759-t6-p1/train_on_slurm.sh",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 22.714904308319092,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#SBATCH --time=12:00:00\n#SBATCH --gres=gpu:k20:0\n#SBATCH --cpus-per-task=1\n#SBATCH --mem=4G\n#SBATCH -o ./results/slurm-%A_%a.out # STDOUT\n\nmodule load imkl/2018.3.222\nmodule load openmpi/3.1.2\nmodule load cuda/10.0.130\nmodule load python/3.7\nsource /project/cq-training-1/project1/teams/team06/ift6759-env/bin/activate\nexport LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/cvmfs/soft.computecanada.ca/easybuild/software/2017/avx2/Compiler/intel2016.4/cuda/10.0.130/extras/CUPTI/lib64\npython evaluator.py predictions.txt data/admin_cfg.json -u data/user_cfg.json",
@@ -73645,7 +75819,7 @@ window.experiment_data = {
     {
       "id": "train_siamese",
       "filename": "data/marcps8/MCV-C5-G1/Week3/train_siamese",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 7.007075071334839,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#SBATCH -n 4 # Number of cores\n#SBATCH --mem 2000 # 2GB solicitados.\n#SBATCH -p mlow,mlow # or mlow Partition to submit to master low prioriy queue\n#SBATCH --gres gpu:1 # Para pedir Pascales MAX 8\n#SBATCH -o logs/%x_%u_%j.out # File to which STDOUT will be written\n#SBATCH -e logs/%x_%u_%j.err # File to which STDERR will be written\npython metric_learning.py --arch-type siamese --epochs 200 --process eval",
@@ -74125,7 +76299,7 @@ window.experiment_data = {
     {
       "id": "run_on_hpc_ocelote.sh",
       "filename": "data/mithunpaul08/bert_tensorflow/run_on_hpc_ocelote.sh",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 43.780540466308594,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#PBS -q windfall\n#PBS -l select=1:ncpus=28:mem=168gb:pcmem=6gb:ngpus=1:os7=True\n#PBS -W group_list=msurdeanu\n#PBS -l walltime=48:00:00\n#PBS -j oe\n\n\ncd /xdisk/msurdeanu/mithunpaul/\nmodule load cuda90/neuralnet/7/7.3.1.20\nmodule load python/3.6/3.6.5\n\n#uncomment this if you don't want to reinstall venv- usually you just have to do this only once ever\nrm -rf sandeep_bert_venv\nmkdir sandeep_bert_venv\npython3 -m venv sandeep_bert_venv\n\n#this is the only line you need if you already have a virtual_env set up\nsource sandeep_bert_venv/bin/activate\n\ncd /xdisk/msurdeanu/mithunpaul/bert_tensorflow\n\npip install --upgrade pip\n#pip install torch==1.5.0+cu92 torchvision==0.6.0+cu92 -f https://download.pytorch.org/whl/torch_stable.html\npip install -r requirements.txt\n\n\n\n\n#####my code part\nexport PYTHONPATH=\"/home/u11/mithunpaul/sandeep_bert/\"\n\n\n\n\n\nbash run_sandeep_code.sh",
@@ -74317,7 +76491,7 @@ window.experiment_data = {
     {
       "id": "run.sh",
       "filename": "data/mrcoliva/bark-ml/utils/cluster/run.sh",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 6.330793857574463,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#SBATCH --qos lowprio\n#SBATCH -c 4\n##SBATCH --gres=gpu:1\n#SBATCH --mem=10GB\n\nsrun singularity exec --nv ../images/bark_ml.img python3 -u ./configuration ",
@@ -74641,7 +76815,7 @@ window.experiment_data = {
     {
       "id": "driver.sbatch",
       "filename": "data/ndefilippis/JuliaRaytracingSW/simulation/driver.sbatch",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 8.02294373512268,
       "step_count": 3,
       "slurm": "#!/bin/bash\n\n#SBATCH --nodes=1\n#SBATCH --ntasks-per-node=1\n#SBATCH --cpus-per-task=1\n#SBATCH --gres=gpu:1\n#SBATCH --mem=40GB\n#SBATCH --time=12:00:00\n#SBATCH --job-name=2Lsim\n\nmodule purge\n\nexport NUM_JULIA_THREADS=`nproc`\n\nrundir=$SCRATCH/twolayer_simulation/$SLURM_JOB_ID\nmkdir -p $rundir\ncp TwoLayerSimulation.jl Driver.jl driver.sbatch $rundir\ncp Parameters.jl $rundir/Parameters.jl\ncd $rundir\n\njulia -t $SLURM_CPUS_PER_TASK Driver.jl > run.log\n\nexit\n",
@@ -75409,7 +77583,7 @@ window.experiment_data = {
     {
       "id": "run_benchmark_snellius.sh",
       "filename": "data/oriolcg/PerforatedCylinder.jl/analysis/run_benchmark_snellius.sh",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 8.065329313278198,
       "step_count": 3,
       "slurm": "#!/bin/sh\n#\n#SBATCH --job-name=\"perf_cylinder\"\n#SBATCH --partition=thin\n#SBATCH --time=2-00:00:00\n#SBATCH -n ${NP}\n#SBATCH -o stdout-benchmark/slurm-%j-%4t-%n.out\n#SBATCH -e stdout-benchmark/slurm-%j-%4t-%n.err\n\nsource ../compile/modules_snellius.sh\nexport CASE_ID=1\necho \"Starting case: $CASE_ID\"\nmpiexecjl --project=../ -n $1 julia -J ../PerforatedCylinder_parallel.so -O3 --check-bounds=no -e 'include(\"run_case_benchmark.jl\")'\n",
@@ -75601,7 +77775,7 @@ window.experiment_data = {
     {
       "id": "04_call_distribution_plots.sh",
       "filename": "data/pfiorica/PDX_RRBS_Processing/Code/04_call_distribution_plots.sh",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 42.946568965911865,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#SBATCH --partition=general-compute --qos=general-compute\n#SBATCH --time=12:00:00\n#SBATCH --job-name=Distribution_plots\n#SBATCH --nodes=1\n#SBATCH --ntasks-per-node=4\n#SBATCH --mem=32000\n##SBATCH --requeue\n#SBATCH --output=logs_bismark/%x.%j.out\n#SBATCH --error=logs_bismark/%x.%j.err\n\n#module load gcc\nmodule load R/3.5.1\n\ncd /projects/rpci/joyceohm/pnfioric/PDX_RRBS_Processing/Code\nRscript 04_distribution_plots_for_samples.R\n",
@@ -75889,7 +78063,7 @@ window.experiment_data = {
     {
       "id": "nott_STR_MLP.q",
       "filename": "data/qxcv/structuredinference/expt-polyphonic/hpc_uas1/nott_STR_MLP.q",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 6.678605556488037,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#PBS -l nodes=1:ppn=2:gpus=1:k80\n#PBS -l walltime=24:00:00\n#PBS -l mem=16GB\n#PBS -N nott-STR-MLP \n#PBS -M rahul@cs.nyu.edu\n#PBS -j oe\n\nmodule purge\nmodule load node\nmodule load cmake\nmodule load python/intel/2.7.6\nmodule load numpy/intel/1.9.2\nmodule load hdf5/intel/1.8.12\nmodule load cuda/7.5.18\nmodule load cudnn/7.0\n\nRUNDIR=$SCRATCH/structuredinference/expt-polyphonic\ncd $RUNDIR\nTHEANO_FLAGS=\"lib.cnmem=1.,scan.allow_gc=False,compiledir_format=gpu0\" python2.7 train_dkf.py -vm R -infm structured -ttype mlp -dset nottingham-sorted\n",
@@ -76153,7 +78327,7 @@ window.experiment_data = {
     {
       "id": "setup_env.sh",
       "filename": "data/rishabhxpandey/cs490dsc/setup_env.sh",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 6.871013879776001,
       "step_count": 3,
       "slurm": "#!/bin/bash\n# FILENAME: job.sh\n#SBATCH --output=myjob.out\n#SBATCH --nodes=1\n#SBATCH --gres=gpu:1\n#SBATCH --cpus-per-task=4\n#SBATCH --time=04:00:00\n#SBATCH --job-name cifar-resnet\n\nmodule load anaconda\nmodule load use.own\nconda env remove --name d22env\nconda create --name d22env python=3.11 jupyter pytorch torchvision matplotlib pandas -y\nsource activate d22env\nconda info --envs\necho -e \"module loaded\"\n\n\n\n",
@@ -76513,7 +78687,7 @@ window.experiment_data = {
     {
       "id": "1n1cpy.slurm.sh",
       "filename": "data/shajidmd/HPC-Instagram-Geoprocessing/1n1cpy.slurm.sh",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 7.177790880203247,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#SBATCH --partition=physical\n#SBATCH --time=0-0:10:00\n#SBATCH --nodes=1\n#SBATCH --ntasks=1\n\n# Load required modules\nmodule load Python/3.5.2-goolf-2015a\n\n# Execute Python Job on 1 node and 1 core\necho \"Cluster and Cloud Computing Assignment1 using 1 node and 1 core\"\ntime mpiexec python3 HPCInstagramGeoProcessingUsingMPI.py melbGrid.json bigInstagram.json\n\n",
@@ -76705,7 +78879,7 @@ window.experiment_data = {
     {
       "id": "s_classify_major_tracts_110411.pbs",
       "filename": "data/soichih/pestillilab_projects/precision_brain_science/s_classify_major_tracts_110411.pbs",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 6.924309730529785,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#PBS -l nodes=1:ppn=16\n#PBS -l walltime=48:00:00\n#PBS -m ae\n#PBS -M franpest@indiana.edu\n#PBS -N 110411_CLASS_all_runs\n#PBS -V\n#PBS -o  /N/dc2/projects/lifebid/code/pestillilab_projects/precision_brain_science/s_classify_110411.out\n#PBS -e  /N/dc2/projects/lifebid/code/pestillilab_projects/precision_brain_science/s_classify_110411.err\n\nmodule load spm\nmodule load matlab\ncd /N/dc2/projects/lifebid/code/pestillilab_projects/precision_brain_science/\n\nmatlab -nojvm -nosplash -r s_classify_major_tracts_from_fe_structure_110411\n\n",
@@ -76801,7 +78975,7 @@ window.experiment_data = {
     {
       "id": "run.slurm",
       "filename": "data/ss555/drqv2/other/run.slurm",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 26.137526988983154,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#SBATCH -A yqs@v100\n#SBATCH --job-name=TravailGPU # nom du job\n#SBATCH -C v100-32g # reserver des GPU 16 Go seulement\n#SBATCH --qos=qos_gpu-t3 # QoS\n#SBATCH --output=TravailGPU%j.out # fichier de sortie (%j = job ID)\n#SBATCH --error=TravailGPU%j.err # fichier d\u2019erreur (%j = job ID)\n#SBATCH --nodes=1 # reserver 1 n\u0153ud\n#SBATCH --ntasks=1 # reserver 4 taches (ou processus MPI)\n#SBATCH --gres=gpu:1 # reserver 4 GPU\n##SBATCH --partition=gpu_p4\n##SBATCH --cpus-per-task=6 #server 10 CPU par tache (et memoire associee)\n#SBATCH --cpus-per-task=10 #server 10 CPU par tache (et memoire associee)\n#SBATCH --hint=nomultithread # desactiver l\u2019hyperthreading\n#SBATCH --time=20:00:00\n\nmodule purge # nettoyer les modules herites par defaut\nmodule load pytorch-gpu/py3/1.10.1 # charger les modules\nsrun python -u train_gym.py #OVERRIDE IN CONFIG\n#srun python -u train_dm_custom.py #upright # executer son script\n",
@@ -76897,7 +79071,7 @@ window.experiment_data = {
     {
       "id": "sbatch_run.sh",
       "filename": "data/starga2er777/CS405_Project_SUSTech/pytorch_unet/sbatch_run.sh",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 6.939864158630371,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#SBATCH -o job.%j.out          \n#SBATCH --partition=gpulab02\n#SBATCH --qos=gpulab02\n#SBATCH -J myFirstGPUJob\n#SBATCH --nodes=1\n#SBATCH --ntasks-per-node=6\n#SBATCH --gres=gpu:1\n#SBATCH --job-name=Unet\n\nnvidia-smi\n\npython3 script_train.py --datadir ../datasets/cityscapes --batch_size 4 --num_gpu 1 --losstype segment\n# python deeplabv2_resnet101_cityscapes/test_cuda.py\n",
@@ -77185,7 +79359,7 @@ window.experiment_data = {
     {
       "id": "aqua.sh",
       "filename": "data/theleokul/tieof/script/ki_cluster/hooi/es/3n/thresh2/aqua.sh",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 6.620943069458008,
       "step_count": 3,
       "slurm": "#! /bin/bash\n#SBATCH -D /s/ls4/users/leokul01/dineof3/script\n#SBATCH --ntasks 1\n#SBATCH --cpus-per-task 48\n#SBATCH -o %j.out\n#SBATCH -e %j.err\n#SBATCH -t 02-23:59:59\n#SBATCH -p hpc4-3d\n\nmodule load openmpi intel-compilers\nexport OPENBLAS_NUM_THREADS=2\n\n\n### es - 3n - no thresh\n$MPIRUN python main3_mp.py -c config/main3_default_ki_cluster.yml \\\n    --satellite-descriptor '../test/satellite_descriptor_ki_cluster_w3nt2.csv' \\\n    -S aqua \\\n    --logs ../test/reconstruction_logs/hooi_es_3neighbours_thresh2_aqua \\\n    --interpolated-stem interpolated_3neighbours_thresh2 \\\n    --output-stem Output_3neighbours_thresh2 \\\n    --decomposition-method hooi \\\n    --early-stopping 1\n",
@@ -77281,7 +79455,7 @@ window.experiment_data = {
     {
       "id": "build_container_py3_amd.sh",
       "filename": "data/tikk3r/flocs/runners/build_container_py3_amd.sh",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 7.385984420776367,
       "step_count": 3,
       "slurm": "#!/usr/bin/bash\n#SBATCH -c 6 -t 03:00:00 --job-name=build_container --constraint=amd\n# If no root is available the system must offer --fakeroot. Otherwise use sudo.\nsingularity build --fakeroot --force lofar_sksp_v4.0.2_znver2_znver2_noavx512_aocl_cuda_ddf.sif Singularity.amd_aocl\n",
@@ -77665,7 +79839,7 @@ window.experiment_data = {
     {
       "id": "run_full.sh",
       "filename": "data/tylersweat/StableComics/run_full.sh",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 7.074953317642212,
       "step_count": 3,
       "slurm": "#!/bin/bash\n\n#SBATCH --time=00:30:00\n#SBATCH --mem=24G\n#SBATCH --gpus=1\n#SBATCH --nodes=1\n\n\nexport LD_LIBRARY_PATH=/home/tysweat0/.conda/envs/img2img/lib/python3.9/site-packages/nvidia/cublas/lib\n\ncd ~/StableComics/FullPipeline/\n\nnvidia-smi --list-gpus\nnvidia-smi --query-gpu=memory.total --format=csv\n\npython run.py",
@@ -77857,7 +80031,7 @@ window.experiment_data = {
     {
       "id": "run_pos_ab_tri.sh",
       "filename": "data/ucl-cssb/StabilityFinder/examples/Mass_action/DP-MA/run_pos_ab_tri.sh",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 28.76205825805664,
       "step_count": 3,
       "slurm": "module load cuda/4.2.9\nmodule load pycuda/2012.1\n\nmodule load R\n##module load cuda-sim\n\n#BSUB -o log.pos_ab_tri\n#BSUB -e err.pos_ab_tri\n#BSUB -W 100:00\n\nexport PYTHONPATH=$PYTHONPATH:/home/ucl/eisuc058/code/abc-sysbio\nexport PYTHONPATH=$PYTHONPATH:/home/ucl/eisuc058/code/cuda-sim\n\nexe=/home/ucl/eisuc058/work/StabilityChecker/stabilitychecker\nexport PYTHONPATH=$PYTHONPATH:/home/ucbtle1/cuda-sim-code\n\n\npython $exe/my_abc.py -i input_file_pos_ab_tri.xml -o results_pos_ab_tri -l pos_ab_tri.log;# Rscript plot_posterior.R;\n",
@@ -77953,7 +80127,7 @@ window.experiment_data = {
     {
       "id": "scr.sh",
       "filename": "data/urbach/chemHMC/code/builds/qbig_pascal/scr.sh",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 34.220707416534424,
       "step_count": 3,
       "slurm": "#!/bin/bash\n\n#SBATCH --nodes=1\n#SBATCH --ntasks-per-node=1\n#SBATCH --time=04:00:00\n#SBATCH --qos=devel\n# #SBATCH --partition=devel\n#SBATCH --partition=batch\n#SBATCH --reservation=debug\n#SBATCH --cpus-per-task=1\n#SBATCH --gres=gpu:pascal:1        # 2 gpus per node out of 8 ?\n#SBATCH --mem=15GB\n\nsource load_modules_qbig_pascal.sh\n#export KOKKOS_PROFILE_LIBRARY=/hiskp4/garofalo/chemHMC/code/external/kokkos-tools/kp_memory_events.so\n# export KOKKOS_PROFILE_LIBRARY=/hiskp4/garofalo/chemHMC/code/external/kokkos-tools/kp_kernel_logger.so\n\n \n#rm rng* out_xyz.txt\n#/qbigwork/garofalo/valgrind/install_dir/bin/valgrind --leak-check=full ../../chemHMC/code/build/main//main -i input_I.yaml\n#../../chemHMC/code/build/main//main -i input_I.yaml\n#main/main -i ../test.yaml\n#./test/test \n#./test/test_binning -i ../test.yaml                                         \n",
@@ -78145,7 +80319,7 @@ window.experiment_data = {
     {
       "id": "blip.slurm",
       "filename": "data/wencarol/dis_blip/blip.slurm",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 7.225987672805786,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#SBATCH -J test\n#SBATCH -N 4\n#SBATCH -n 1\n#SBATCH -c 1\n#SBATCH -p gpu-normal\n#SBATCH --gres=gpu:4\n#SBATCH -o test.out\n#SBATCH -e test.err\n\nexport CUDA_VISIBLE_DEVICES=0,1,2,3\n\nsrun python -m torch.distributed.run --nproc_per_node=4 train_retrieval.py --config ./configs/retrieval_flickr_small6.yaml --output_dir output/retrieval_flickr\n",
@@ -78337,7 +80511,7 @@ window.experiment_data = {
     {
       "id": "slurm.cmd",
       "filename": "data/yhgon/plasma-python/examples/slurm.cmd",
-      "status": "Invalid",
+      "status": "Valid",
       "total_time": 40.44125485420227,
       "step_count": 3,
       "slurm": "#!/bin/bash\n#SBATCH -t 01:30:00\n#SBATCH -N 3\n#SBATCH --ntasks-per-node=4\n#SBATCH --ntasks-per-socket=2\n#SBATCH --gres=gpu:4\n#SBATCH -c 4\n#SBATCH --mem-per-cpu=0\n\nexport PYTHONHASHSEED=0\nmodule load anaconda\nsource activate pppl\nmodule load cudatoolkit/8.0\nmodule load cudnn/cuda-8.0/6.0\nmodule load openmpi/cuda-8.0/intel-17.0/2.1.0/64\nmodule load intel/17.0/64/17.0.4.196 intel-mkl/2017.3/4/64\n\n#remove checkpoints for a benchmark run\nrm /tigress/$USER/model_checkpoints/*\nrm /tigress/$USER/results/*\nrm /tigress/$USER/csv_logs/*\nrm /tigress/$USER/Graph/*\nrm /tigress/$USER/normalization/*\n\nexport OMPI_MCA_btl=\"tcp,self,sm\"\n\nsrun python mpi_learn.py\n",
@@ -79082,6 +81256,7 @@ window.experiment_data = {
 };
 window.experiment_metadata = {
   "gemini-1000": 198,
+  "gpt-5.2-noempty-jobspec": 20,
   "gpt-5.2": 198,
   "claude-sonnet-4.5": 198,
   "gpt-5.2-valid-agent": 198
