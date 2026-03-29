@@ -199,3 +199,10 @@ And to play with fractale.
 ```bash
 fractale prompt --backend openai List flux resources
 ```
+
+Next experiments:
+- need to get sample of cognitive complexity score (these are filtering down to 1000)
+- need to make jobspec sub-agent that runs the transform functions
+- should split directives from script, and then focus on directives.
+- in script, should parse out pieces for agent that need attention
+- tell agent it can put resources in directives or as args, whichever is appropriate.
