@@ -18,8 +18,10 @@ For the experiment, on a node (e.g., Google Cloud node) ensure you have fractale
 Start the server:
 
 ```bash
-mcpserver start --config ./servers/kubernetes-job.yaml
+mcpserver start --config ./servers/kubernetes-job.yaml --port 8089
 ```
+
+### LAMMPS
 
 Ask the agent to build lammps. Don't forget to export `GEMINI_API_KEY`
 
@@ -28,10 +30,32 @@ Ask the agent to build lammps. Don't forget to export `GEMINI_API_KEY`
 
 for i in {1..5}; do
   echo "Iteration number $i"
+  kubectl get pods -o json > .fractale/pods-{i}.json
   kubectl delete miniclusters --all
   fractale run --database json ./plans/deploy-lammps.yaml
 done
+
+# One test with a starting size (suffix with optimize)
+fractale run --database json ./plans/optimize-lammps.yaml
+
+# And save nodes for run
+kubectl get nodes -o json > nodes.json
 ```
+
+### AMG2023
+
+```bash
+for i in {1..5}; do
+  echo "Iteration number $i"
+  kubectl get pods -o json > .fractale/pods-{i}.json
+  kubectl delete miniclusters --all
+  fractale run --database json ./plans/deploy-amg.yaml
+done
+kubectl get nodes -o json > nodes.json
+```
+
+
+Note that for each run, I did them separately and checked files, then moved into a [results](results) directory named by the application.
 
 ## Clean up
 
