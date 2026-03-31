@@ -54,6 +54,61 @@ done
 kubectl get nodes -o json > nodes.json
 ```
 
+### Kripke
+
+```bash
+for i in {1..5}; do
+  echo "Iteration number $i"
+  kubectl get pods -o json > .fractale/pods-{i}.json
+  kubectl delete miniclusters --all
+  fractale run --database json ./plans/deploy-kripke.yaml
+done
+kubectl get nodes -o json > nodes.json
+```
+
+### Laghos
+
+Laghos logs were so long we use a function that shorts by way of unique lines.
+
+```bash
+mcpserver start --config ./servers/kubernetes-job-laghos.yaml --port 8089
+```
+
+```bash
+for i in {1..5}; do
+  echo "Iteration number $i"
+  kubectl get pods -o json > .fractale/pods-{i}.json
+  kubectl delete miniclusters --all
+  fractale run --database json ./plans/deploy-laghos.yaml
+done
+kubectl get nodes -o json > nodes.json
+```
+
+### OSU All Reduce
+
+
+```bash
+for i in {1..5}; do
+  echo "Iteration number $i"
+  kubectl get pods -o json > .fractale/pods-{i}.json
+  kubectl delete miniclusters --all
+  fractale run --database json ./plans/osu-allreduce.yaml
+done
+kubectl get nodes -o json > nodes.json
+```
+
+### OSU Latency
+
+```bash
+for i in {1..5}; do
+  echo "Iteration number $i"
+  kubectl get pods -o json > .fractale/pods-{i}.json
+  kubectl delete miniclusters --all
+  fractale run --database json ./plans/osu-latency.yaml
+done
+kubectl get nodes -o json > nodes.json
+```
+
 
 Note that for each run, I did them separately and checked files, then moved into a [results](results) directory named by the application.
 
