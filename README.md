@@ -1,6 +1,8 @@
 # Fractale Experiments
 
-This will be a home for fractale experiments.
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19476827.svg)](https://doi.org/10.5281/zenodo.19476827)
+
+Home for fractale experiments.
 
 - [jobspec-conversion](jobspec-conversion) using Gemini
 - [optimization-study](optimization-study) also using Gemini
