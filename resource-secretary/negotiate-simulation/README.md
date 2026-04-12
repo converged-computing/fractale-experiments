@@ -80,39 +80,23 @@ mkdir -p negotiate-results/jobs
 # Run the tests
 python3 test-negotiation.py --count 10 --generate-only --save-generation ./negotiate-results/jobs/batch-0.json
 time python3 test-negotiation.py --tests ./negotiate-results/jobs/batch-0.json
-
 python3 test-negotiation.py --count 10 --generate-only --start 10 --save-generation ./negotiate-results/jobs/batch-1.json
 time python3 test-negotiation.py --tests ./negotiate-results/jobs/batch-1.json
-
 python3 test-negotiation.py --count 10 --generate-only --start 20 --save-generation ./negotiate-results/jobs/batch-2.json
 time python3 test-negotiation.py --tests ./negotiate-results/jobs/batch-2.json
-
 python3 test-negotiation.py --count 10 --generate-only --start 30 --save-generation ./negotiate-results/jobs/batch-3.json
-
 time python3 test-negotiation.py --tests ./negotiate-results/jobs/batch-3.json
-
 python3 test-negotiation.py --count 10 --generate-only --start 40 --save-generation ./negotiate-results/jobs/batch-4.json
-
 time python3 test-negotiation.py --tests ./negotiate-results/jobs/batch-4.json
-
 python3 test-negotiation.py --count 10 --generate-only --start 50 --save-generation ./negotiate-results/jobs/batch-5.json
-
 time python3 test-negotiation.py --tests ./negotiate-results/jobs/batch-5.json
-
 python3 test-negotiation.py --count 10 --generate-only --start 60 --save-generation ./negotiate-results/jobs/batch-6.json
-
 time python3 test-negotiation.py --tests ./negotiate-results/jobs/batch-6.json
-
 python3 test-negotiation.py --count 10 --generate-only --start 70 --save-generation ./negotiate-results/jobs/batch-7.json
-
 time python3 test-negotiation.py --tests ./negotiate-results/jobs/batch-7.json
-
 python3 test-negotiation.py --count 10 --generate-only --start 80 --save-generation ./negotiate-results/jobs/batch-8.json
-
 time python3 test-negotiation.py --tests ./negotiate-results/jobs/batch-8.json
-
 python3 test-negotiation.py --count 10 --generate-only --start 90 --save-generation ./negotiate-results/jobs/batch-9.json
-
 time python3 test-negotiation.py --tests ./negotiate-results/jobs/batch-9.json
 ```
 
