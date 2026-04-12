@@ -373,16 +373,13 @@ def plot_confusion_matrix(df, out_path):
 
     print(total_n)
     
-    # if total_n != 10000:
-    #    raise ValueError("This is supposed to be 10K")
-
     plt.figure(figsize=(9, 7))    
     ax = sns.heatmap(
         confusion_pct, 
         annot=annot_labels, 
         fmt="", 
         cmap="YlGnBu", 
-        cbar_kws={'label': f'Recall (Proportion by Row, Total N=10K)'}
+        cbar_kws={'label': f'Recall (Proportion by Row, N={total_n})'}
     )
 
     ax.set_title(f"Actual vs. Agent Verdict\nTotal Accuracy: {total_accuracy:.2%}", fontsize=18, pad=20)
