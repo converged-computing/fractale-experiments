@@ -49,7 +49,8 @@ And then run the experiment.
 # Generate the random sample of N=200 (note we did this for jobspec-conversion and are using the same sample)
 # python3 scripts/generate-sample.py
 flux start
-python3 scripts/run-experiment.py --output ./results
+python3 scripts/run-experiment.py --output ./results/base
+python3 scripts/run-experiment.py --with-detail --output ./results/details
 ```
 
 Then generate data and results.

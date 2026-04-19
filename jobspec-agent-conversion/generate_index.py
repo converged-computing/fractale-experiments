@@ -13,7 +13,7 @@ def parse_issue(issue_str):
 
 
 def index_files(root_dir):
-    results = []
+    results = {}
     root_path = Path(root_dir)
     total_issues = {}
 
@@ -26,6 +26,9 @@ def index_files(root_dir):
             # Extract Path Info
             # Structure: root/experiment/org/repo/rest...
             relative_path = json_file.relative_to(root_path)
+            experiment = relative_path.parts[0]
+            if experiment.startswith('_'):
+                continue
             parts = relative_path.parts
 
             experiment = parts[0]
@@ -59,12 +62,16 @@ def index_files(root_dir):
             # Break into components
             issues = [x.split(":", 1) for x in issues]
 
-            for issue_name, issue in issues:
-                if issue_name not in total_issues:
-                    total_issues[issue_name] = set()
-                total_issues[issue_name].add(issue)
+            if experiment not in results:
+                results[experiment] = []
+                total_issues[experiment] = {}
 
-            results.append(
+            for issue_name, issue in issues:
+                if issue_name not in total_issues[experiment]:
+                    total_issues[experiment][issue_name] = set()
+                total_issues[experiment][issue_name].add(issue)
+
+            results[experiment].append(
                 {
                     "id": str(relative_path),
                     "experiment": experiment,
@@ -86,8 +93,9 @@ def index_files(root_dir):
             IPython.embed()
             print(f"Error parsing {json_file}: {e}")
 
-    for issue_type, items in total_issues.items():
-        total_issues[issue_type] = list(items)
+    for experiment, issues in total_issues.items():
+        for issue_type, items in issues.items():
+            total_issues[experiment][issue_type] = list(items)
 
     outfile = os.path.join(here, "results", "issues.json")
     with open(outfile, "w") as f:
