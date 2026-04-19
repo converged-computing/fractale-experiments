@@ -18,20 +18,24 @@ from fractale.agents.base import init_backend
 
 
 # that uses the jobspec transformer agent.
+detailed_args = """
 
-# 0. this script
-# 1. VS Code env
-# 2. Gemini key
-# 3. write updated script - akin to jobspec here, but just needs to read in jobpsecs and prepare to run fractale run.
-# 4. Test, think about what to add/ what data we will parse, do it.
+You MUST ignore accounts, partitions, projects, mail, banks, queues, and notifications.
+You MUST omit these from issues and the translation if there is no obvious translation.
+You MUST try to minimize issues.
+You MUST ignore commented out directives.
+You MUST not guess and only include directives you are certain about.
+If you need to calculate --ntasks-per-socket, assume the machine has 16 cores per socket and use --tasks-per-core.
+Flux models affinity with broker arguments. E.g, -o cpu-affinity=per-task, -o gpu-affinity=per-task
+"""
 
-def get_instructions():
+def get_instructions(args):
     # Prepare information about submit from the secretary agent.
     providers = discover_providers()
     software_helper = providers['software'][1]
     assert software_helper.name == "software"
     submit_help  = software_helper.get_command_help('/usr/bin/flux', 'submit')
-    return """
+    prompt = """
 Any command line flux submit option can be represented in a batch script:
 
 #FLUX: --<arg>=<val>
@@ -42,6 +46,9 @@ As an example:
 
 Here are the possible arguments from flux submit.
 """ + submit_help['help_content']
+    if args.with_detail:
+        prompt += detailed_args
+    return prompt
 
 def detect_transformer(jobspec):
     """
@@ -143,6 +150,12 @@ def get_parser():
         type=int,
     )
     parser.add_argument(
+        "--with-detail",
+        help="Add more details about conversion",
+        default=False,
+        action="store_true"
+    )
+    parser.add_argument(
         "--output",
         help="Output directory for generated scripts",
         default=os.path.join(root, 'results')
@@ -184,9 +197,7 @@ def main():
     
     # We are going to cheat a little and instantiate this once (here) with a faux plan
     engine = get_engine(AGENTIC_PLAN, max_attempts=5)
-
-    # limit is 2x because we do two conversions per jobspec file
-    limit = args.limit if args.limit is not None else len(files) * 2
+    limit = args.limit if args.limit is not None else len(files)
     print(f"Will process {limit} files")
     time.sleep(2)
 
@@ -194,7 +205,7 @@ def main():
     random.shuffle(files)
 
     # Prepare information about submit from the secretary agent.
-    instructions = get_instructions()
+    instructions = get_instructions(args)
 
     # Keep a count so we can skip of those we've done
     count = 0

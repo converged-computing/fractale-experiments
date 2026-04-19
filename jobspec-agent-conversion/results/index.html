@@ -15,13 +15,22 @@
 
     <!-- Header -->
     <header class="bg-white border-b border-slate-200 px-6 py-3 flex justify-between items-center z-20 shadow-sm">
-        <div class="flex items-center gap-4">
+        <div class="flex items-center gap-6">
             <h1 class="text-xl font-bold tracking-tight text-slate-800 cursor-pointer flex items-center gap-2" @click="reset()">
                 <div class="w-8 h-8 bg-blue-600 rounded flex items-center justify-center text-white text-xs italic">f</div>
                 Flux Transformation Portal
             </h1>
-            <div class="h-6 w-px bg-slate-200"></div>
-            <span class="text-slate-500 text-xs font-mono" x-text="jobs.length + ' jobs loaded'"></span>
+            
+            <!-- DATASET SWITCHER -->
+            <div class="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
+                <template x-for="proj in projects" :key="proj">
+                    <button @click="setProject(proj)"
+                        :class="currentProject === proj ? 'bg-white shadow text-blue-600' : 'text-slate-500 hover:text-slate-700'"
+                        class="px-4 py-1 rounded-md text-xs font-black uppercase tracking-widest transition-all"
+                        x-text="proj">
+                    </button>
+                </template>
+            </div>
         </div>
         
         <div class="flex items-center gap-3">
@@ -38,7 +47,7 @@
         <!-- Left Sidebar: Job Selection -->
         <aside class="w-80 bg-white border-r border-slate-200 flex flex-col h-full shadow-lg z-10">
             <div class="p-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
-                <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Job Inventory</span>
+                <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest" x-text="currentProject + ' Inventory'"></span>
                 <span class="text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded" x-text="filteredJobs.length"></span>
             </div>
             <div class="flex-1 overflow-y-auto p-2 space-y-1">
@@ -50,29 +59,25 @@
                         <div class="text-sm font-bold truncate" x-text="job.filename"></div>
                         <div class="flex justify-between items-center mt-1">
                             <div class="text-[10px] uppercase opacity-70 truncate" x-text="job.org + ' / ' + job.repo"></div>
-                            <span x-show="job.status === 'SUCCESS'" class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                            <span x-show="job.status === 'SUCCESS'" class="w-1.5 h-1.5 rounded-full" :class="selectedJob?.id === job.id ? 'bg-white' : 'bg-emerald-400'"></span>
                         </div>
                     </button>
                 </template>
-                <div x-show="filteredJobs.length === 0" class="p-8 text-center text-slate-400 text-sm italic">
-                    No jobs found...
-                </div>
             </div>
         </aside>
 
         <!-- Main Content Area -->
         <main class="flex-1 overflow-y-auto bg-slate-50 relative">
             
-            <!-- PORTAL VIEW: Summary & All Pattern Listing -->
             <div x-show="view === 'portal'" x-cloak class="p-8 max-w-6xl mx-auto">
                 <div class="mb-10">
                     <h2 class="text-3xl font-black text-slate-800 mb-2">Dataset Overview</h2>
-                    <p class="text-slate-500">Summary of transformation issues detected across the repository.</p>
+                    <p class="text-slate-500">Summary of transformation issues for the selected experiment.</p>
                 </div>
                 
-                <!-- Category Cards -->
+                <!-- Category Summary Cards -->
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-                    <template x-for="(list, type) in issuesData" :key="type">
+                    <template x-for="(list, type) in currentIssuesData" :key="type">
                         <div @click="activeCategory = type" 
                              :class="activeCategory === type ? 'ring-2 ring-blue-500 border-transparent bg-white shadow-xl' : 'bg-white border-slate-200 shadow-sm hover:border-slate-300'"
                              class="p-6 rounded-2xl border cursor-pointer transition-all">
@@ -81,26 +86,21 @@
                                       :class="activeCategory === type ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'" x-text="type"></span>
                                 <span class="text-3xl font-black text-slate-800" x-text="list.length"></span>
                             </div>
-                            <div class="text-sm text-slate-500">Unique patterns identified in this category.</div>
+                            <div class="text-sm text-slate-500">Patterns detected.</div>
                         </div>
                     </template>
                 </div>
 
-                <!-- Deep Dive: All values for selected category -->
+                <!-- Pattern Listing -->
                 <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden min-h-[400px]">
-                    <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+                    <div class="px-6 py-4 bg-slate-50 border-b border-slate-200">
                         <h3 class="font-bold text-slate-700">
-                            Patterns for: <span class="text-blue-600 font-black uppercase ml-1" x-text="activeCategory || 'Select a category above'"></span>
+                            Patterns for: <span class="text-blue-600 font-black uppercase ml-1" x-text="activeCategory || 'Select Category'"></span>
                         </h3>
                     </div>
                     
                     <div class="divide-y divide-slate-100">
-                        <template x-if="!activeCategory">
-                            <div class="p-20 text-center text-slate-400">
-                                Click a summary card above to view all patterns and reasons.
-                            </div>
-                        </template>
-                        <template x-for="(reason, index) in (issuesData[activeCategory] || [])" :key="index">
+                        <template x-for="(reason, index) in (currentIssuesData[activeCategory] || [])" :key="index">
                             <div class="px-6 py-4 flex gap-4 hover:bg-slate-50 transition-colors group">
                                 <div class="text-slate-300 font-mono text-xs pt-1 group-hover:text-blue-400" x-text="(index + 1).toString().padStart(3, '0')"></div>
                                 <div class="text-sm text-slate-700 leading-relaxed font-medium" x-text="reason"></div>
@@ -112,21 +112,17 @@
 
             <!-- JOB DETAIL VIEW -->
             <div x-show="view === 'job'" x-cloak class="p-8">
-                <!-- Detail Header -->
-                <div class="flex justify-between items-start mb-8">
-                    <div>
-                        <button @click="reset()" class="text-blue-600 text-xs font-bold uppercase tracking-widest hover:underline mb-2 block">← Back to Portal</button>
-                        <h2 class="text-3xl font-black text-slate-800" x-text="selectedJob?.filename"></h2>
-                        <div class="flex items-center gap-3 mt-2">
-                            <span :class="selectedJob?.status === 'SUCCESS' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'"
-                                  class="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest"
-                                  x-text="selectedJob?.status"></span>
-                            <span class="text-slate-400 text-xs font-mono" x-text="selectedJob?.id"></span>
-                        </div>
+                <div class="mb-8">
+                    <button @click="reset()" class="text-blue-600 text-xs font-bold uppercase tracking-widest hover:underline mb-2 block">← Back to Portal</button>
+                    <h2 class="text-3xl font-black text-slate-800" x-text="selectedJob?.filename"></h2>
+                    <div class="flex items-center gap-3 mt-2">
+                        <span :class="selectedJob?.status === 'SUCCESS' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'"
+                              class="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest"
+                              x-text="selectedJob?.status"></span>
+                        <span class="text-slate-400 text-xs font-mono" x-text="selectedJob?.id"></span>
                     </div>
                 </div>
 
-                <!-- Summary & Implications -->
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                     <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                         <h3 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Summary</h3>
@@ -138,36 +134,26 @@
                     </div>
                 </div>
 
-                <!-- Comparison View -->
-                <div class="mb-10">
-                    <div class="grid grid-cols-2 gap-px bg-slate-300 border border-slate-300 rounded-2xl overflow-hidden shadow-2xl">
-                        <div class="bg-[#1e1e1e] flex flex-col min-h-[500px]">
-                            <div class="bg-[#2d2d2d] px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest flex justify-between border-b border-white/5">
-                                <span>Original SLURM</span>
-                            </div>
-                            <div class="p-4 overflow-auto flex-1 code-container">
-                                <pre class="text-slate-300" x-text="selectedJob?.original"></pre>
-                            </div>
-                        </div>
-                        <div class="bg-[#1e1e1e] flex flex-col min-h-[500px]">
-                            <div class="bg-[#2d2d2d] px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest flex justify-between border-b border-white/5">
-                                <span>Transformed FLUX</span>
-                            </div>
-                            <div class="p-4 overflow-auto flex-1 code-container">
-                                <pre class="text-emerald-400" x-text="selectedJob?.transformed"></pre>
-                            </div>
-                        </div>
+                <!-- Comparison -->
+                <div class="mb-10 grid grid-cols-2 gap-px bg-slate-300 border border-slate-300 rounded-2xl overflow-hidden shadow-2xl">
+                    <div class="bg-[#1e1e1e] flex flex-col min-h-[500px]">
+                        <div class="bg-[#2d2d2d] px-4 py-2 text-[10px] font-black text-slate-400 uppercase border-b border-white/5">Original SLURM</div>
+                        <div class="p-4 overflow-auto flex-1 code-container"><pre class="text-slate-300" x-text="selectedJob?.original"></pre></div>
+                    </div>
+                    <div class="bg-[#1e1e1e] flex flex-col min-h-[500px]">
+                        <div class="bg-[#2d2d2d] px-4 py-2 text-[10px] font-black text-slate-400 uppercase border-b border-white/5">Transformed FLUX</div>
+                        <div class="p-4 overflow-auto flex-1 code-container"><pre class="text-emerald-400" x-text="selectedJob?.transformed"></pre></div>
                     </div>
                 </div>
 
-                <!-- File-Specific Issues -->
+                <!-- Job Specific Issues -->
                 <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div class="px-6 py-4 border-b border-slate-100 bg-slate-50">
-                        <h3 class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Transformation Issues for this file</h3>
+                    <div class="px-6 py-4 bg-slate-50 border-b border-slate-100">
+                        <h3 class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Transformation Issues</h3>
                     </div>
                     <div class="divide-y divide-slate-100">
-                        <template x-for="issue in selectedJob?.issues" :key="issue[1]">
-                            <div class="px-6 py-4 flex gap-4 items-start hover:bg-slate-50 transition-colors">
+                        <template x-for="issue in selectedJob?.issues">
+                            <div class="px-6 py-4 flex gap-4 items-start hover:bg-slate-50">
                                 <span class="shrink-0 font-mono text-[10px] bg-amber-100 text-amber-800 px-2 py-1 rounded font-bold uppercase" x-text="issue[0]"></span>
                                 <span class="text-sm text-slate-600 leading-relaxed font-medium" x-text="issue[1]"></span>
                             </div>
@@ -181,8 +167,10 @@
     <script>
         function explorer() {
             return {
-                jobs: [],
-                issuesData: {},
+                rawJobs: {},      // { base: [], details: [] }
+                rawIssues: {},    // { base: { CAT: [] }, details: { CAT: [] } }
+                projects: [],
+                currentProject: '',
                 view: 'portal',
                 selectedJob: null,
                 searchQuery: '',
@@ -190,40 +178,51 @@
 
                 async init() {
                     try {
-                        // Loading from data.json as requested
                         const dataRes = await fetch('data.json');
-                        this.jobs = await dataRes.json();
+                        this.rawJobs = await dataRes.json();
                         
-                        // Loading issues.json for pattern analysis
                         const issuesRes = await fetch('issues.json');
-                        this.issuesData = await issuesRes.json();
+                        this.rawIssues = await issuesRes.json();
                         
-                        // Default to first category if exists
-                        const keys = Object.keys(this.issuesData);
-                        if (keys.length > 0) this.activeCategory = keys[0];
-                        
+                        this.projects = Object.keys(this.rawJobs);
+                        if (this.projects.length > 0) {
+                            this.setProject(this.projects[0]);
+                        }
                     } catch (e) {
-                        console.error("Critical Error: Ensure data.json and issues.json are in this folder and you are running a local web server.");
+                        console.error("Error loading JSON. Ensure you use a web server.");
                     }
                 },
 
-                // FIXED SEARCH: Case insensitive filtering of the sidebar
+                setProject(proj) {
+                    this.currentProject = proj;
+                    this.view = 'portal';
+                    this.selectedJob = null;
+                    this.activeCategory = Object.keys(this.currentIssuesData)[0] || null;
+                },
+
+                get currentJobs() {
+                    return this.rawJobs[this.currentProject] || [];
+                },
+
+                get currentIssuesData() {
+                    return this.rawIssues[this.currentProject] || {};
+                },
+
                 get filteredJobs() {
-                    if (!this.searchQuery.trim()) return this.jobs;
+                    const jobs = this.currentJobs;
+                    if (!this.searchQuery.trim()) return jobs;
                     
                     const q = this.searchQuery.toLowerCase();
-                    return this.jobs.filter(j => 
-                        (j.filename && j.filename.toLowerCase().includes(q)) ||
-                        (j.org && j.org.toLowerCase().includes(q)) ||
-                        (j.repo && j.repo.toLowerCase().includes(q)) ||
-                        (j.id && j.id.toLowerCase().includes(q))
+                    return jobs.filter(j => 
+                        (j.filename?.toLowerCase().includes(q)) ||
+                        (j.org?.toLowerCase().includes(q)) ||
+                        (j.repo?.toLowerCase().includes(q))
                     );
                 },
 
                 selectJob(job) {
                     this.selectedJob = job;
                     this.view = 'job';
-                    // Scroll to top of main area
                     document.querySelector('main').scrollTop = 0;
                 },
 
