@@ -5,6 +5,8 @@
 Home for fractale experiments.
 
 - [jobspec-conversion](jobspec-conversion) using Gemini
+- [jobspec-agent-conversion](jobspec-agent-conversion) a second round of the above with Gemini and more controlled definition of results ([transform interface results](https://converged-computing.org/fractale-experiments/jobspec-agent-conversion/results/)).
+- [translation-performance](translation-performance): translating across environments to test performance implications.
 - [optimization-study](optimization-study) also using Gemini
 - [Flask App](flask-app) will reproduce [Flask Copilot](https://github.com/FLASK-LLNL/flask-copilot/)
 
