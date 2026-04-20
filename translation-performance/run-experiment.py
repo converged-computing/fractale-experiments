@@ -4,20 +4,21 @@ import httpx
 import time
 import os
 import json
-import random
 import sys
 import fnmatch
 import hashlib
-import fractale.utils as utils
 from colorama import Fore, Style
 import fractale.core.registry as registry
-from resource_secretary.providers import discover_providers
-
+from fractale.agents import init_backend
 from fractale.engines import get_engine
 from fractale.core.plan import Plan
 from fractale.agents.base import init_backend
 
-instructions = "Please convert this command to run for the Slurm Workload manager on AWS Parallel Compute Service with the Elastic Fabric Adapter, hpc7g.6xlarge."
+instructions = """
+Please convert this command to run for the Slurm Workload manager on AWS Parallel Compute Service.
+The cluster will have the Elastic Fabric Adapter for low latency networking, running on hpc7g.6xlarge.
+These details have no implications for the Slurm directives, they are for your FYI.
+"""
 
 flux_commands = [
     # LAMMPS (lmp) - No Affinity
@@ -165,10 +166,6 @@ def main():
     registry.init_registry()
     init_backend()
     
-    # We are going to cheat a little and instantiate this once (here) with a faux plan
-    engine = get_engine(AGENTIC_PLAN, max_attempts=5)
-    time.sleep(2)
-
     # Keep a count so we can skip of those we've done
     count = 0
 
@@ -197,7 +194,11 @@ def main():
             # Update the engine to have the new plan
             plan = copy.deepcopy(AGENTIC_PLAN)
             plan["steps"][0]["inputs"] = context
-            engine.reset(Plan(plan))
+
+            # Re-init each time.
+            init_backend()
+            engine = get_engine(plan, max_attempts=5)
+            time.sleep(2)
             print(engine.max_attempts)
             engine._max_attempts = 5
 
@@ -232,8 +233,6 @@ def main():
                     + f"  ✅ Success: Saved to {os.path.basename(outfile_path)}"
                     + Style.RESET_ALL
                 )
-                # Reset database for next run
-            engine.database.reset()
             count += 1
 
     # NOTE: here success means the functions worked, NOT that the result was valid.

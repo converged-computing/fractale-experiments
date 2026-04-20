@@ -46,8 +46,8 @@ def index_files(root_dir):
                 summary = ""
                 status = "SSL-ERROR"
             else:
-                impl = output["implications"]
-                issues = output["issues"]
+                impl = output.get("implications") or []
+                issues = output.get("issues") or []
                 if "bash" in output['jobspec']:
                     transformed_script = utils.get_code_block(output["jobspec"], "bash")
                 elif "sh" in output['jobspec']:
@@ -55,7 +55,7 @@ def index_files(root_dir):
                 else:
                     transformed_script = utils.extract_code_block(output['jobspec'])
                 errors = output.get("errors") or []
-                summary = output["summary"]
+                summary = output.get('summary') or "noop"
                 status = "SUCCESS"
 
             original_script = (
