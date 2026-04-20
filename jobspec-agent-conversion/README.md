@@ -51,6 +51,10 @@ And then run the experiment.
 flux start
 python3 scripts/run-experiment.py --output ./results/base
 python3 scripts/run-experiment.py --with-detail --output ./results/details
+
+# Then run for 800 more to get a total of 1k
+cp -R ./results/details ./results/1k
+python3 scripts/run-experiment.py --with-detail --sample ./sample-1k.json --output ./results/1k
 ```
 
 Then generate data and results.

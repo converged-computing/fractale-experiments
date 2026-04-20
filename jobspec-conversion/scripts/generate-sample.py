@@ -99,12 +99,12 @@ def main():
         original_script = utils.read_file(filename)
         if len(original_script) < 1000:
             sample.append(filename)
-            if len(sample) >= 200:
+            if len(sample) >= args.count:
                 break
 
     sample = [os.path.relpath(x, root) for x in sample]
     print(f"⭐️ Sampled {len(sample)} files under 1000 tokens.")
-    write_json(sample, os.path.join(args.output, "sample-200.json"))
+    write_json(sample, os.path.join(args.output, f"sample-{args.count}.json"))
 
 
 if __name__ == "__main__":

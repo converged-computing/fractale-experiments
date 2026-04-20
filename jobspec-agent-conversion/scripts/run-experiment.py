@@ -1,5 +1,6 @@
 import argparse
 import copy
+import httpx
 import time
 import os
 import json
@@ -156,6 +157,11 @@ def get_parser():
         action="store_true"
     )
     parser.add_argument(
+        "--sample",
+        help="Full path to sample file",
+        default=os.path.join(root, "sample-200.json")
+    )
+    parser.add_argument(
         "--output",
         help="Output directory for generated scripts",
         default=os.path.join(root, 'results')
@@ -177,12 +183,11 @@ def main():
         os.makedirs(args.output)
 
     # Read in sample
-    sample_file = os.path.join(root, "sample-200.json")
-    if not os.path.exists(sample_file):
-        sys.exit(f'Sample file {sample_file} does not exist.')
+    if not os.path.exists(args.sample):
+        sys.exit(f'Sample file {args.sample} does not exist.')
 
-    files = utils.read_json(sample_file)
-    print(f"⭐️ Loaded {len(files)} unique job scripts to process.")
+    files = utils.read_json(args.sample)
+    print(f"⭐️ Loaded {len(files)} unique job scripts to process from {args.sample}")
 
     # Structure to keep track of summary results
     # Detailed results will be saved to file (json)
@@ -273,7 +278,11 @@ def main():
             engine._max_attempts = 5
 
             # The core agentic call replaces the old transformer.convert()
-            result = engine.run()
+            try:                
+                result = engine.run()
+            except httpx.ReadError: 
+                continue
+        
             result['plan'] = plan
             result['filename'] = filename
 

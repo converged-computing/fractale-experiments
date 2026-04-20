@@ -88,10 +88,10 @@ def index_files(root_dir):
                 }
             )
         except Exception as e:
+            print(f"Error parsing {json_file}: {e}")
             import IPython
 
             IPython.embed()
-            print(f"Error parsing {json_file}: {e}")
 
     for experiment, issues in total_issues.items():
         for issue_type, items in issues.items():

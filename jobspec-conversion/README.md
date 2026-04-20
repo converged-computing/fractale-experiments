@@ -44,6 +44,10 @@ And then run the experiment with a native State Machine, Flux, and Gemini. The p
 ```bash
 # Generate the random sample of N=200.
 python3 scripts/generate-sample.py
+
+# This is how I generated 800 more (to make file with 1K)
+python3 scripts/generate-sample.py --count 800
+
 python3 scripts/run-experiment.py --output ./results/gemini
 
 # defaults to --input ./data, no limit
