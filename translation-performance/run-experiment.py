@@ -14,11 +14,6 @@ from fractale.engines import get_engine
 from fractale.core.plan import Plan
 from fractale.agents.base import init_backend
 
-instructions = """
-Please convert this command to run for the Slurm Workload manager on AWS Parallel Compute Service.
-The cluster will have the Elastic Fabric Adapter for low latency networking, running on hpc7g.6xlarge.
-These details have no implications for the Slurm directives, they are for your FYI.
-"""
 
 flux_commands = [
     # LAMMPS (lmp) - No Affinity
@@ -27,58 +22,50 @@ flux_commands = [
     "flux submit -N3 -n 192 lmp -v x 20 -v y 20 -v z 20 -in in.reaxff.hns",
     "flux submit -N4 -n 256 lmp -v x 20 -v y 20 -v z 20 -in in.reaxff.hns",
     "flux submit -N5 -n 320 lmp -v x 20 -v y 20 -v z 20 -in in.reaxff.hns",
-
     # LAMMPS (lmp) - With Affinity
     "flux submit -o cpu-affinity=per-task -N1 -n 64 lmp -v x 20 -v y 20 -v z 20 -in in.reaxff.hns",
     "flux submit -o cpu-affinity=per-task -N2 -n 128 lmp -v x 20 -v y 20 -v z 20 -in in.reaxff.hns",
     "flux submit -o cpu-affinity=per-task -N3 -n 192 lmp -v x 20 -v y 20 -v z 20 -in in.reaxff.hns",
     "flux submit -o cpu-affinity=per-task -N4 -n 256 lmp -v x 20 -v y 20 -v z 20 -in in.reaxff.hns",
     "flux submit -o cpu-affinity=per-task -N5 -n 320 lmp -v x 20 -v y 20 -v z 20 -in in.reaxff.hns",
-
     # AMG - No Affinity
     "flux submit -N1 -n 64 -o pmi=pmi2 amg -problem 2 -n 90 90 90 -P 4 4 4",
     "flux submit -N2 -n 128 -o pmi=pmi2 amg -problem 2 -n 90 90 90 -P 4 8 4",
     "flux submit -N3 -n 192 -o pmi=pmi2 amg -problem 2 -n 90 90 90 -P 3 8 8",
     "flux submit -N4 -n 256 -o pmi=pmi2 amg -problem 2 -n 90 90 90 -P 4 8 8",
     "flux submit -N5 -n 320 -o pmi=pmi2 amg -problem 2 -n 90 90 90 -P 4 8 10",
-
     # AMG - With Affinity
     "flux submit -o cpu-affinity=per-task -N1 -n 64 -o pmi=pmi2 amg -problem 2 -n 90 90 90 -P 4 4 4",
     "flux submit -o cpu-affinity=per-task -N2 -n 128 -o pmi=pmi2 amg -problem 2 -n 90 90 90 -P 4 8 4",
     "flux submit -o cpu-affinity=per-task -N3 -n 192 -o pmi=pmi2 amg -problem 2 -n 90 90 90 -P 3 8 8",
     "flux submit -o cpu-affinity=per-task -N4 -n 256 -o pmi=pmi2 amg -problem 2 -n 90 90 90 -P 4 8 8",
     "flux submit -o cpu-affinity=per-task -N5 -n 320 -o pmi=pmi2 amg -problem 2 -n 90 90 90 -P 4 8 10",
-
     # Kripke - No Affinity
     "flux submit -N1 -n 64 kripke --niter 100 --zones 64,64,64 --procs 4,4,4",
     "flux submit -N2 -n 128 kripke --niter 100 --zones 64,64,64 --procs 4,8,4",
     "flux submit -N4 -n 256 kripke --niter 100 --zones 64,64,64 --procs 4,8,8",
-
     # Kripke - With Affinity
     "flux submit -o cpu-affinity=per-task -N1 -n 64 kripke --niter 100 --zones 64,64,64 --procs 4,4,4",
     "flux submit -o cpu-affinity=per-task -N2 -n 128 kripke --niter 100 --zones 64,64,64 --procs 4,8,4",
     "flux submit -o cpu-affinity=per-task -N4 -n 256 kripke --niter 100 --zones 64,64,64 --procs 4,8,8",
-
     # OSU Allreduce - No Affinity
     "flux submit -N1 -n 64 /usr/local/libexec/osu-micro-benchmarks/mpi/collective/osu_allreduce",
     "flux submit -N2 -n 128 /usr/local/libexec/osu-micro-benchmarks/mpi/collective/osu_allreduce",
     "flux submit -N3 -n 192 /usr/local/libexec/osu-micro-benchmarks/mpi/collective/osu_allreduce",
     "flux submit -N4 -n 256 /usr/local/libexec/osu-micro-benchmarks/mpi/collective/osu_allreduce",
     "flux submit -N5 -n 320 /usr/local/libexec/osu-micro-benchmarks/mpi/collective/osu_allreduce",
-
     # OSU Allreduce - With Affinity
     "flux submit -o cpu-affinity=per-task -N1 -n 64 /usr/local/libexec/osu-micro-benchmarks/mpi/collective/osu_allreduce",
     "flux submit -o cpu-affinity=per-task -N2 -n 128 /usr/local/libexec/osu-micro-benchmarks/mpi/collective/osu_allreduce",
     "flux submit -o cpu-affinity=per-task -N3 -n 192 /usr/local/libexec/osu-micro-benchmarks/mpi/collective/osu_allreduce",
     "flux submit -o cpu-affinity=per-task -N4 -n 256 /usr/local/libexec/osu-micro-benchmarks/mpi/collective/osu_allreduce",
     "flux submit -o cpu-affinity=per-task -N5 -n 320 /usr/local/libexec/osu-micro-benchmarks/mpi/collective/osu_allreduce",
-
     # OSU Latency - No Affinity
     "flux submit -N2 -n 2 /usr/local/libexec/osu-micro-benchmarks/mpi/pt2pt/osu_latency",
-
     # OSU Latency - With Affinity
-    "flux submit -o cpu-affinity=per-task -N2 -n 2 /usr/local/libexec/osu-micro-benchmarks/mpi/pt2pt/osu_latency"
+    "flux submit -o cpu-affinity=per-task -N2 -n 2 /usr/local/libexec/osu-micro-benchmarks/mpi/pt2pt/osu_latency",
 ]
+
 
 # Helper functions (from your original script)
 def recursive_find(base, pattern="*"):
@@ -116,24 +103,19 @@ BUF_SIZE = 65536
 
 # The agentic plan template
 AGENTIC_PLAN = {
-  "name": "Jobspec Transform",
-  "agents": [
-    {
-      "path": "fractale_agents.hpc.job.JobTransformAgent"
-    }
-  ],
-  "steps": [
-    {
-      "name": "transform",
-      "type": "agent",
-      "tool": "job-transform",
-      "inputs": {
-        "goal": "Convert the following job command from %s to %s. Make a best effort to include every parameter, explain your choices, and explain when you are unable to do a mapping and the implications."
-      }
-    }
-  ]
+    "name": "Jobspec Transform",
+    "agents": [{"path": "fractale_agents.hpc.job.JobTransformAgent"}],
+    "steps": [
+        {
+            "name": "transform",
+            "type": "agent",
+            "tool": "job-transform",
+            "inputs": {
+                "goal": "Convert the following job command from %s to %s. Make a best effort to include every parameter, explain your choices, and explain when you are unable to do a mapping and the implications."
+            },
+        }
+    ],
 }
-
 
 
 def get_parser():
@@ -141,7 +123,10 @@ def get_parser():
     parser.add_argument(
         "--output",
         help="Output directory for generated scripts",
-        default=os.path.join(root, 'results')
+        default=os.path.join(root, "results"),
+    )
+    parser.add_argument(
+        "--improve", help="Improve upon results", action="store_true", default=False
     )
     return parser
 
@@ -162,12 +147,24 @@ def main():
     success_count = 0
     failure_count = 0
 
-    # Initialize backend 
+    # Initialize backend
     registry.init_registry()
     init_backend()
-    
+
     # Keep a count so we can skip of those we've done
     count = 0
+
+    instructions = """
+Please convert this command to run for the Slurm Workload manager on AWS Parallel Compute Service.
+The cluster will have the Elastic Fabric Adapter for low latency networking, running on hpc7g.6xlarge.
+These details have no implications for the Slurm directives, they are for your FYI.
+"""
+
+    if args.improve:
+        instructions += "\nSince we are converting to Slurm (with more flags and options) you MUST try to write the command to IMPROVE performance."
+        instructions += (
+            "\nPlease add comments to the sbatch script about what you did and why."
+        )
 
     for i, command in enumerate(flux_commands):
         print("-" * 50)
@@ -203,36 +200,36 @@ def main():
             engine._max_attempts = 5
 
             # The core agentic call replaces the old transformer.convert()
-            try:                
+            try:
                 result = engine.run()
-            except httpx.ReadError: 
+            except httpx.ReadError:
                 continue
-        
-            result['plan'] = plan
-            result['command'] = command
+
+            result["plan"] = plan
+            result["command"] = command
 
             # Save the new jobspec to the equivalent place on the filesystem
             outdir = os.path.dirname(outfile_path)
             if not os.path.exists(outdir):
-               os.makedirs(outdir)
+                os.makedirs(outdir)
             write_json(result, outfile_path)
 
             # Log success
             success_count += 1
             results.append(
-                    {
-                        "command": command,
-                        "from": from_manager,
-                        "to": to_manager,
-                        "status": "success",
-                        "output_file": outfile_path,
-                    }
-                )
+                {
+                    "command": command,
+                    "from": from_manager,
+                    "to": to_manager,
+                    "status": "success",
+                    "output_file": outfile_path,
+                }
+            )
             print(
-                    Fore.GREEN
-                    + f"  ✅ Success: Saved to {os.path.basename(outfile_path)}"
-                    + Style.RESET_ALL
-                )
+                Fore.GREEN
+                + f"  ✅ Success: Saved to {os.path.basename(outfile_path)}"
+                + Style.RESET_ALL
+            )
             count += 1
 
     # NOTE: here success means the functions worked, NOT that the result was valid.
