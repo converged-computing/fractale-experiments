@@ -210,6 +210,7 @@ And then run the experiment.
 ```bash
 flux start
 python3 ./run-experiment.py --output ./results/flux-to-slurm
+python3 ./run-experiment.py --improve --output ./results/flux-to-slurm-improve
 ```
 
 Then generate data and results.

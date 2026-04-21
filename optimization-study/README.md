@@ -18,6 +18,7 @@ For the experiment, on a node (e.g., Google Cloud node) ensure you have fractale
 Start the server:
 
 ```bash
+pip install hpc-mcp mcp-serve kubernetes-asyncio fractale-agents
 mcpserver start --config ./servers/kubernetes-job.yaml --port 8089
 ```
 
@@ -59,9 +60,8 @@ kubectl get nodes -o json > nodes.json
 ```bash
 for i in {1..5}; do
   echo "Iteration number $i"
-  kubectl get pods -o json > .fractale/pods-{i}.json
   kubectl delete miniclusters --all
-  fractale run --database json ./plans/deploy-kripke.yaml
+  fractale run --database json ./plans/deploy-kripke-down.yaml
 done
 kubectl get nodes -o json > nodes.json
 ```
@@ -112,8 +112,24 @@ kubectl get nodes -o json > nodes.json
 
 Note that for each run, I did them separately and checked files, then moved into a [results](results) directory named by the application.
 
-## Clean up
+### Clean up
 
 ```bash
 eksctl delete cluster --config-file ./eksctl/nodes-arm.yaml --wait
 ```
+
+## 2. Discovery Agent
+
+Let's use an agent to work with data, and more specifically, to discover what we need for an analysis. Deploy a local server, with your `GEMINI_TOKEN`
+
+```bash
+export GEMINI_TOKEN=xxxxxxxxx
+HPCMCP_FILESYSTEM_RESULT_ROOT=$(pwd)/scaling-study-final
+HPCMCP_FILESYSTEM_SANDBOX=True
+HPCMCP_FILESYSTEM_DATA_ROOT=$(pwd)/scaling-study/
+mcpserver start --config ./servers/discover-agent.yaml --port 8089
+# Different terminal with GEMINI key
+fractale run --database json ./plans/discover-results.yaml
+```
+
+And run fractale targeting the Discovery Agent, with our prompt of interest.
