@@ -219,5 +219,6 @@ Then generate data and results.
 
 ```bash
 python3 generate_index.py
+python3 extract_slurm_jobs.py
 ```
 
