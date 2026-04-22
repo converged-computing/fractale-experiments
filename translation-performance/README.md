@@ -209,8 +209,10 @@ And then run the experiment.
 
 ```bash
 flux start
-python3 ./run-experiment.py --output ./results/flux-to-slurm
-python3 ./run-experiment.py --improve --output ./results/flux-to-slurm-improve
+python3 ./run-experiment.py --output ./results/convert/flux-to-slurm
+python3 ./run-experiment.py --improve --output ./results/convert/flux-to-slurm-improve
+python3 ./run-experiment.py --with-singularity --output ./results/convert/flux-to-slurm-singularity
+python3 ./run-experiment.py --with-singularity --improve --output ./results/convert/flux-to-slurm-singularity-improve
 ```
 
 Then generate data and results.

@@ -11,9 +11,32 @@ from colorama import Fore, Style
 import fractale.core.registry as registry
 from fractale.agents import init_backend
 from fractale.engines import get_engine
-from fractale.core.plan import Plan
 from fractale.agents.base import init_backend
 
+here = os.path.dirname(os.path.abspath(__file__))
+
+singularity_instructions = """
+The Slurm cluster will run the application through Singularity. You must convert the initial command to run with Singularity. This means you should:
+
+You must use mpirun as a prefix to the execution. It needs to specify any resource requirements (e.g., nodes and proc mapping, if requested) before the singularity command.
+Instead of an execution to the <app> You will next need to do /shared/apps/bin/singularity exec --pwd <pwd> <container> <original command>
+Add echo "Start time:" $( date +%s ) before your running command
+Add echo "End time:" $( date +%s ) after your running command
+You must load the module for openmpi and libfabric-aws
+
+The following application containers MUST be used:
+      lammps:  /shared/apps/containers/fractale-agent-experiments_lammps-reax.sif
+     amg2023: /shared/apps/containers/fractale-agent-experiments_amg2023.sif
+     kripke:  /shared/apps/containers/fractale-agent-experiments_kripke.sif
+ all-reduce: /shared/apps/containers/fractale-agent-experiments_osu-allreduce.sif
+all-latency: /shared/apps/containers/fractale-agent-experiments_osu-latency.sif
+
+The following pwd have application data. If a name is not in this list you do not need --pwd
+      lammps:  /opt/lammps-reax
+"""
+
+with open(os.path.join(here, "sbatch.help"), 'r') as fd:
+    sbatch_help = fd.read()
 
 flux_commands = [
     # LAMMPS (lmp) - No Affinity
@@ -128,6 +151,9 @@ def get_parser():
     parser.add_argument(
         "--improve", help="Improve upon results", action="store_true", default=False
     )
+    parser.add_argument(
+        "--with-singularity", help="Add singularity instructions", action="store_true", default=False
+    )
     return parser
 
 
@@ -159,12 +185,17 @@ Please convert this command to run for the Slurm Workload manager on AWS Paralle
 The cluster will have the Elastic Fabric Adapter for low latency networking, running on hpc7g.6xlarge.
 These details have no implications for the Slurm directives, they are for your FYI.
 """
-
+        
     if args.improve:
         instructions += "\nSince we are converting to Slurm (with more flags and options) you MUST try to write the command to IMPROVE performance."
         instructions += (
             "\nPlease add comments to the sbatch script about what you did and why."
         )
+
+    instructions += f"\nHere are directives for Slurm:\n{sbatch_help}"
+
+    if args.with_singularity:
+        instructions += singularity_instructions
 
     for i, command in enumerate(flux_commands):
         print("-" * 50)
