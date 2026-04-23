@@ -1,37 +1,31 @@
 #!/bin/bash
+#SBATCH --job-name=lammps_job
+# This is a descriptive name for your job.
 
-# Slurm Job Options
-#
-# Job Name: A descriptive name for your job
-#SBATCH --job-name=lammps_simulation
-#
-# Output file: Where to save the job's standard output. %j is the job ID.
-#SBATCH --output=lammps_output_%j.log
-#
-# Number of nodes: Matches the -N3 from the flux command.
 #SBATCH --nodes=3
-#
-# Number of tasks per node: Calculated from the total tasks (192) and nodes (3).
-# This ensures an even distribution of 64 tasks on each node.
-#SBATCH --ntasks-per-node=64
-#
-# Exclusive access: Requests exclusive access to the nodes. This prevents other jobs
-# from running on the same nodes, which is crucial for performance-sensitive applications.
+# We are requesting 3 nodes, which is a direct translation from the flux -N3 directive.
+
+#SBATCH --ntasks=192
+# We are requesting 192 total MPI tasks, which is a direct translation from the flux -n 192 directive.
+
 #SBATCH --exclusive
-#
-# CPU Binding: Pins each task to a specific CPU core. This is analogous to flux's
-# '-o cpu-affinity=per-task' and improves performance by enhancing cache efficiency.
+# This flag ensures that your job gets exclusive access to the nodes.
+# This is a performance improvement to prevent other jobs from interfering with your application.
+
 #SBATCH --cpu-bind=cores
-#
-# Task Distribution: Specifies a cyclic distribution of tasks to nodes.
-# For applications with nearest-neighbor communication patterns like LAMMPS,
-# this can improve performance by balancing communication load across the network fabric.
-#SBATCH --distribution=cyclic:cyclic
+# This binds each MPI task to a physical CPU core. It is the Slurm equivalent of flux's `-o cpu-affinity=per-task`
+# and is crucial for obtaining good performance for HPC applications.
+
+#SBATCH --hint=nomultithread
+# This disables hyper-threading. For many scientific computing applications, this improves performance
+# by ensuring each task runs on a dedicated physical core.
+
+# The commands below will be executed on the compute nodes.
 
 echo "Start time:" $( date +%s )
 
-# The srun command is Slurm's parallel job launcher.
-# It automatically uses the resources allocated by the SBATCH directives above.
-srun lmp -v x 20 -v y 20 -v z 20 -in in.reaxff.hns
+# srun is the Slurm command to launch parallel jobs.
+# We add --mpi=pmix as required by the system.
+srun --mpi=pmix lmp -v x 20 -v y 20 -v z 20 -in in.reaxff.hns
 
 echo "End time:" $( date +%s )

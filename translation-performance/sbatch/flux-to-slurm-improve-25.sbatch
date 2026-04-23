@@ -1,30 +1,41 @@
 #!/bin/bash
+#
+# This script was converted from a flux command.
+#
 
-# SBATCH --job-name=kripke_job
-# This sets a descriptive name for the job in the queue.
+# Set the job name
+#SBATCH --job-name=kripke_job
 
-# SBATCH --nodes=4
-# We request 4 nodes, same as the -N4 in the flux command.
+# Specify the number of nodes
+#SBATCH -N 4
 
-# SBATCH --ntasks=256
-# We request 256 total MPI ranks, same as the -n 256 in the flux command.
+# Specify the total number of tasks
+#SBATCH -n 256
 
-# SBATCH --ntasks-per-node=64
-# This is derived (256 tasks / 4 nodes) to ensure even distribution.
-# The hpc7g.6xlarge has 64 physical cores, so this assigns one task per core.
+# Specify the number of tasks per node
+#SBATCH --ntasks-per-node=64
 
-# SBATCH --exclusive
-# This ensures that our job gets exclusive access to the allocated nodes,
-# preventing other jobs from causing performance interference. This is a performance improvement.
+# Request exclusive access to the nodes for performance
+# This ensures that no other jobs will run on these nodes,
+# reducing contention for resources like memory bandwidth and network.
+#SBATCH --exclusive
 
-# SBATCH --cpu-bind=cores
-# This binds each MPI task to a specific physical core. This is the Slurm equivalent of
-# flux's `-o cpu-affinity=per-task` and is critical for performance and reproducibility.
+# Specify output and error files
+#SBATCH -o kripke_job.o%j
+#SBATCH -e kripke_job.e%j
+
 
 echo "Start time:" $( date +%s )
 
-# The srun command is Slurm's way to launch parallel tasks.
-# It automatically picks up the resource allocation from the #SBATCH directives.
-srun kripke --niter 100 --zones 64,64,64 --procs 4,8,8
+# The srun command launches the parallel job.
+# --cpu-bind=cores: This pins each MPI task to a physical core.
+#                   It is the analogous and recommended performance setting for
+#                   the flux '-o cpu-affinity=per-task' option.
+# --distribution=cyclic:cyclic: This tells Slurm to distribute tasks in a round-robin
+#                               fashion across nodes, and then across the cores on each node.
+#                               This can improve performance by balancing the workload and
+#                               improving communication patterns.
+# --mpi=pmix: This is a required flag for the system to use the PMIx MPI library.
+srun --cpu-bind=cores --distribution=cyclic:cyclic --mpi=pmix kripke --niter 100 --zones 64,64,64 --procs 4,8,8
 
 echo "End time:" $( date +%s )

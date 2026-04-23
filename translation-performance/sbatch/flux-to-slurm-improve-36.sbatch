@@ -1,33 +1,36 @@
 #!/bin/bash
 #
-# Slurm batch script for osu_latency benchmark
+# This script is a conversion from a flux command to a Slurm batch job.
+# It includes optimizations for running a point-to-point latency benchmark.
 
-# -- JOB-SPECIFIC DIRECTIVES --
-
+# Set the job name for easier identification in the queue
 #SBATCH --job-name=osu_latency_benchmark
-#SBATCH --nodes=2                    # Request 2 nodes, equivalent to flux -N2
-#SBATCH --ntasks=2                   # Request 2 total MPI tasks, equivalent to flux -n2
-#SBATCH --output=osu_latency_%j.out  # Standard output file, %j is the job ID
-#SBATCH --error=osu_latency_%j.err   # Standard error file
 
-# --- PERFORMANCE DIRECTIVES ---
+# Request 2 nodes, as specified in the original Flux command (-N2)
+#SBATCH -N 2
 
-#SBATCH --ntasks-per-node=1          # Place exactly one task on each node. For a point-to-point latency
-                                     # test, this is critical to ensure communication goes over the network.
+# Request 2 total tasks, as specified in the original Flux command (-n2)
+#SBATCH -n 2
 
-#SBATCH --exclusive                  # Request exclusive access to the nodes. This prevents other jobs from
-                                     # running on the same nodes and creating system "noise" that could
-                                     # affect latency measurements.
+# --- Performance Optimizations ---
 
-#SBATCH --cpus-per-task=1            # Allocate one dedicated CPU core for each task. This can help prevent
-                                     # the OS from moving the process between cores, improving consistency.
+# To accurately measure inter-node latency, we must ensure that only one
+# MPI task runs on each of the two nodes.
+#SBATCH --ntasks-per-node=1
 
-# --- EXECUTABLE SECTION ---
+# Request exclusive access to the nodes. This prevents other jobs from running
+# on the same nodes and creating CPU or network interference (jitter),
+# which is critical for a sensitive latency benchmark.
+#SBATCH --exclusive
 
+# --- Job Execution ---
+
+# Add a timestamp for when the job starts
 echo "Start time:" $( date +%s )
 
-# Use srun to launch the MPI application. Slurm automatically sets up the
-# necessary environment for MPI based on the directives above.
-srun /usr/local/libexec/osu-micro-benchmarks/mpi/pt2pt/osu_latency
+# Execute the benchmark using srun.
+# The --mpi=pmix flag is included as required by the cluster configuration.
+srun --mpi=pmix /usr/local/libexec/osu-micro-benchmarks/mpi/pt2pt/osu_latency
 
+# Add a timestamp for when the job ends
 echo "End time:" $( date +%s )

@@ -1,26 +1,38 @@
 #!/bin/bash
-#SBATCH --job-name=lammps_reaxff_hns
+
+# Set the number of nodes for the job
 #SBATCH --nodes=5
+
+# Set the total number of tasks (MPI ranks)
 #SBATCH --ntasks=320
+
+# Set the number of tasks per node. This is calculated as ntasks/nodes (320/5 = 64)
 #SBATCH --ntasks-per-node=64
 
-# This directive improves performance by distributing tasks evenly (cyclically)
-# across the allocated nodes, which can improve network locality for MPI jobs.
-#SBATCH --distribution=cyclic:cyclic
+# Set a name for the job, which will appear in queue listings
+#SBATCH --job-name=lammps_simulation
 
-# This directive improves performance by binding each MPI task to a specific CPU thread.
-# This prevents the operating system from migrating tasks between CPUs, which can
-# reduce cache misses and improve performance.
-#SBATCH --cpu-bind=thread
+# Specify the file for standard output. %j will be replaced with the job ID.
+#SBATCH --output=lammps_output_%j.log
 
-# Set a descriptive output and error file name
-#SBATCH --output=lammps_reaxff_hns.o%j
-#SBATCH --error=lammps_reaxff_hns.e%j
+# Specify the file for standard error. %j will be replaced with the job ID.
+#SBATCH --error=lammps_error_%j.log
+
+# IMPROVE PERFORMANCE: Request exclusive access to the nodes.
+# This prevents other jobs from running on the same nodes, reducing contention
+# for shared resources like memory bandwidth and network interface.
+#SBATCH --exclusive
+
+# IMPROVE PERFORMANCE: Bind tasks to cores.
+# This tells Slurm to pin each task to a specific CPU core, which can improve
+# performance by increasing cache hits and reducing context switching.
+# This is the analogous translation for flux's '-o cpu-affinity=per-task'.
+#SBATCH --cpu-bind=cores
 
 echo "Start time:" $( date +%s )
 
-# The srun command is the Slurm equivalent of mpirun or flux run
-# It launches the parallel application across the allocated resources.
-srun lmp -v x 20 -v y 20 -v z 20 -in in.reaxff.hns
+# Use srun to launch the parallel application.
+# The --mpi=pmix flag is specified as required for the MPI implementation.
+srun --mpi=pmix lmp -v x 20 -v y 20 -v z 20 -in in.reaxff.hns
 
 echo "End time:" $( date +%s )

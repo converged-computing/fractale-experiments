@@ -1,38 +1,28 @@
 #!/bin/bash
 
-# Set a descriptive job name
-#SBATCH --job-name=osu_allreduce_benchmark
+# SBATCH --job-name=osu_allreduce_benchmark
+# This provides a descriptive name for the job in the queue.
 
-# Specify the number of nodes and tasks, directly translated from flux '-N1 -n64'
-#SBATCH --nodes=1
-#SBATCH --ntasks=64
+# SBATCH --nodes=1
+# We are requesting one node, which directly translates from the 'flux -N1' directive.
 
-# Direct Slurm's output and error files to include the job ID for easier tracking
-#SBATCH --output=osu_allreduce_%j.out
-#SBATCH --error=osu_allreduce_%j.err
+# SBATCH --ntasks=64
+# We are requesting 64 total MPI tasks, which directly translates from the 'flux -n64' directive.
 
-# -- Performance-related options added during conversion from Flux --
+# SBATCH --ntasks-per-node=64
+# To ensure all tasks land on the same node.
 
-# --exclusive: Ensures the job has sole access to the node's resources,
-#              preventing interference from other jobs and providing more
-#              consistent performance measurements.
-#SBATCH --exclusive
+# SBATCH --exclusive
+# This flag is a performance enhancement. It grants the job exclusive access to the node,
+# preventing other jobs from running concurrently and interfering with benchmark performance.
 
-# --distribution=cyclic:cyclic: Distributes tasks in a round-robin fashion
-#                       first across nodes, and then across sockets within a node.
-#                       For single-node collective operations, this can help balance
-#                       the load across the node's NUMA domains.
-#SBATCH --distribution=cyclic:cyclic
-
-# --cpu-bind=cores: Binds each task to a specific CPU core. This prevents
-#                   the operating system from migrating tasks between cores,
-#                   improving cache efficiency and reducing performance jitter.
-#SBATCH --cpu-bind=cores
 
 echo "Start time:" $( date +%s )
 
-# Use 'srun' to launch the parallel application within the Slurm allocation.
-# This is the standard way to run MPI applications under Slurm.
-srun /usr/local/libexec/osu-micro-benchmarks/mpi/collective/osu_allreduce
+# The srun command is Slurm's equivalent of mpirun.
+# --cpu-bind=cores: This is a performance enhancement that pins each MPI task to a specific CPU core.
+#                   This prevents the operating system from migrating tasks, which improves cache performance and reduces execution time variance.
+# --mpi=pmix: This specifies the MPI implementation to be used, as required.
+srun --cpu-bind=cores --mpi=pmix /usr/local/libexec/osu-micro-benchmarks/mpi/collective/osu_allreduce
 
 echo "End time:" $( date +%s )
