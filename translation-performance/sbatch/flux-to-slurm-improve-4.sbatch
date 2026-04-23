@@ -1,43 +1,43 @@
 #!/bin/bash
 
-# SBATCH Directives
-#-------------------------------------------------------------------------------
-# Request 5 nodes for the job. This is a direct translation from the 'flux -N5' command.
+# Set the job name
+#SBATCH --job-name=lammps_hns
+
+# Set the number of nodes
 #SBATCH --nodes=5
 
-# Request a total of 320 tasks. This is a direct translation from the 'flux -n 320' command.
+# Set the total number of tasks (MPI processes)
 #SBATCH --ntasks=320
 
-# Specify that each of the 5 nodes should run 64 tasks (320 tasks / 5 nodes).
-# This ensures an even distribution of work and can improve performance by preventing
-# task migration and ensuring resource allocation is predictable.
+# Set the number of tasks per node. This is calculated from total tasks / nodes (320/5=64).
+# Explicitly setting this helps the scheduler allocate resources efficiently.
 #SBATCH --ntasks-per-node=64
 
-# Give the job a descriptive name for easier tracking in the queue.
-#SBATCH --job-name=lammps_reaxff
-
-# Request exclusive access to the nodes. This prevents other jobs from running on the
-# same nodes, which can significantly improve performance and reproducibility by
-# eliminating resource contention (CPU, memory, network bandwidth).
+# Request exclusive access to the nodes.
+# This is a key performance optimization that prevents other jobs from running on the same nodes,
+# eliminating contention for CPU, memory, or network resources.
 #SBATCH --exclusive
 
-# Request that the allocated nodes be contiguous. For tightly-coupled MPI applications
-# like LAMMPS, this can reduce network latency between tasks, especially when using
-# high-performance interconnects like AWS EFA.
-#SBATCH --contiguous
+# Specify the distribution of tasks to nodes and CPUs.
+# 'cyclic:cyclic' distributes tasks in a round-robin fashion across nodes, and then across CPUs within each node.
+# This can improve performance for communication-bound applications by spreading MPI ranks and balancing network load.
+#SBATCH --distribution=cyclic:cyclic
 
-# Bind tasks to specific CPU cores. This prevents the operating system from migrating
-# tasks between cores, which improves cache utilization and overall performance.
+# Bind tasks to cores.
+# This locks each MPI task to a specific CPU core, preventing the OS from migrating it.
+# This improves cache performance and is critical for application stability and speed.
 #SBATCH --cpu-bind=cores
-#-------------------------------------------------------------------------------
 
-# Echo the start time for benchmarking purposes.
+# Specify the output and error files. %j will be replaced with the job ID.
+#SBATCH --output=lmp_output_%j.out
+#SBATCH --error=lmp_error_%j.err
+
+# Start timing
 echo "Start time:" $( date +%s )
 
-# Run the LAMMPS simulation using srun.
-# srun is Slurm's tool for launching parallel tasks. It will automatically use the
-# resources allocated by the #SBATCH directives above.
-srun lmp -v x 20 -v y 20 -v z 20 -in in.reaxff.hns
+# Run the parallel application using srun.
+# The --mpi=pmix flag is explicitly requested for this cluster's MPI implementation.
+srun --mpi=pmix lmp -v x 20 -v y 20 -v z 20 -in in.reaxff.hns
 
-# Echo the end time for benchmarking purposes.
+# End timing
 echo "End time:" $( date +%s )

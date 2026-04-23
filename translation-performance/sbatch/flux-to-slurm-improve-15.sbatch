@@ -1,32 +1,30 @@
 #!/bin/bash
+#
+# Auto-generated Slurm batch script from Flux command
 
-# SBATCH directives are Slurm's way of specifying job requirements.
+# Set the job name
+#SBATCH --job-name=amg_job
 
-# Request 1 node.
+# Specify the number of nodes
 #SBATCH --nodes=1
 
-# Request 64 tasks (processes).
+# Specify the total number of tasks
 #SBATCH --ntasks=64
 
-# Request exclusive access to the node. This is a performance optimization
-# to prevent other jobs from interfering with this one, ensuring consistent
-# performance benchmarks.
-#SBATCH --exclusive
+# Set the names for standard output and error files
+#SBATCH --output=amg_job.out
+#SBATCH --error=amg_job.err
 
-# Bind tasks to specific CPU cores. This improves performance by reducing
-# CPU context switching and improving cache efficiency. This is the Slurm
-# equivalent of Flux's '-o cpu-affinity=per-task'.
+# IMPROVE PERFORMANCE: Bind tasks directly to CPU cores.
+# This is the Slurm equivalent of Flux's `-o cpu-affinity=per-task` option.
+# It prevents the OS from migrating tasks between cores, which improves
+# cache performance and reduces context-switching overhead for HPC jobs.
 #SBATCH --cpu-bind=cores
-
-# Specify the PMI2 MPI process management interface, matching the original Flux command.
-#SBATCH --mpi=pmi2
-
-# --- Job Execution ---
 
 echo "Start time:" $( date +%s )
 
-# srun is the command to launch parallel tasks under Slurm.
-# It inherits the settings from the #SBATCH directives above.
-srun amg -problem 2 -n 90 90 90 -P 4 4 4
+# Run the application using srun. The --mpi=pmix flag is required.
+# The application and its arguments are passed directly.
+srun --mpi=pmix amg -problem 2 -n 90 90 90 -P 4 4 4
 
 echo "End time:" $( date +%s )

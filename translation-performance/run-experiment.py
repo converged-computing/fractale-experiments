@@ -38,6 +38,7 @@ The following pwd have application data. If a name is not in this list you do no
 
 slurm_instructions = """
 You must NOT load any modules, as all software is active.
+You MUSt add --mpi=pmix to all Slurm (e.g., srun) commands as we require it.
 The user will not be able to edit your generated script - it MUST be in final form.
 
 All applications are on the path except for:
