@@ -213,6 +213,10 @@ python3 ./run-experiment.py --output ./results/convert/flux-to-slurm
 python3 ./run-experiment.py --improve --output ./results/convert/flux-to-slurm-improve
 python3 ./run-experiment.py --with-singularity --output ./results/convert/flux-to-slurm-singularity
 python3 ./run-experiment.py --with-singularity --improve --output ./results/convert/flux-to-slurm-singularity-improve
+
+# These are ultimately those used for experiment
+python3 ./run-experiment.py --slurm-operator --output ./results/convert/flux-to-slurm
+python3 ./run-experiment.py --slurm-operator --improve --output ./results/convert/flux-to-slurm-improve
 ```
 
 Then generate data and results.
@@ -239,8 +243,13 @@ kubectl apply -f crd/slurm-operator-arm.yaml
 # What can we customize?
 kubectl explain slurm
 ```
-In the cluster, shell into the -s node, which is the login. No, I don't remember why I chose s.
+
+### Experiments
+
+Create each experiment, shell into the -s node, which is the login. We will need to clone the sbatch submission scripts.
 
 ```bash
+kubectl apply -f crd/lammps-reax-slurm.yaml
 
+git clone -b translation-experiments --depth 1 https://github.com/converged-computing/fractale-experiments
 ```
