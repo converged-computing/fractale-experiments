@@ -1,37 +1,32 @@
 #!/bin/bash
 #
-# Slurm Batch Script for osu_allreduce benchmark
+# Slurm batch script for osu_allreduce benchmark
 
-# -- CORE RESOURCE ALLOCATION --
-# These directives map directly from the original flux command
-#SBATCH --nodes=3                # flux -N3
-#SBATCH --ntasks=192             # flux -n192
-#SBATCH --job-name=osu_allreduce # It is good practice to name your job
+# -- Directives --
+#SBATCH --job-name=osu_allreduce_benchmark
+#SBATCH --nodes=3
+#SBATCH --ntasks-per-node=64
 
-# -- PERFORMANCE TUNING DIRECTIVES --
-# The following directives were added to improve performance based on the context
-# of running an MPI benchmark on a dedicated HPC cluster.
+# --- Performance Tuning Directives ---
 
-# Request exclusive access to the nodes. This is critical for benchmarking
-# as it prevents other jobs from contending for CPU, memory, or network resources.
+# Request exclusive access to the nodes. This is crucial for benchmarking
+# to prevent other jobs from interfering with performance.
 #SBATCH --exclusive
 
-# Specify how tasks are distributed. For a collective operation like allreduce,
-# cyclic distribution can help balance communication load across the network fabric
-# by spreading ranks out, rather than packing them onto nodes sequentially.
-#SBATCH --distribution=cyclic:cyclic
+# Distribute tasks in a block fashion across nodes. This can improve
+# performance for tightly-coupled MPI applications by ensuring that
+# ranks are packed onto nodes, potentially improving locality.
+#SBATCH --distribution=block:block
 
-# Disable hyper-threading. Many HPC applications perform better when tasks
-# are bound to physical cores, as it avoids cache contention between threads.
-#SBATCH --hint=nomultithread
+# --- Script Body ---
 
-# -- EXECUTION --
-
-# Per user request, echo start and end times to measure total runtime.
 echo "Start time:" $( date +%s )
 
-# Use srun to launch the parallel application. srun automatically inherits the
-# resource allocations (nodes, tasks, etc.) from the SBATCH directives above.
-srun /usr/local/libexec/osu-micro-benchmarks/mpi/collective/osu_allreduce
+# Execute the benchmark using srun.
+# --cpu-bind=cores: Binds each MPI task to a specific CPU core. This prevents
+# task migration and improves cache performance, which is critical for
+# communication-intensive benchmarks.
+# --mpi=pmix: Use the PMI-Ex MPI support as required.
+srun --cpu-bind=cores --mpi=pmix /usr/local/libexec/osu-micro-benchmarks/mpi/collective/osu_allreduce
 
 echo "End time:" $( date +%s )

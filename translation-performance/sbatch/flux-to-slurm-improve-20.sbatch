@@ -1,33 +1,32 @@
 #!/bin/bash
 
-# Set the job name
-#SBATCH --job-name=kripke
+#SBATCH -N 1
+# This requests one full node for the job.
 
-# Number of nodes and tasks
-#SBATCH --nodes=1
-#SBATCH --ntasks=64
+#SBATCH -n 64
+# This requests 64 tasks (MPI ranks) in total.
 
-# Request exclusive access to the node for performance consistency.
-# This prevents other jobs from running on the same node and causing contention.
 #SBATCH --exclusive
+# This ensures the job has exclusive access to the node, preventing
+# other jobs from running on it and potentially causing performance interference.
+# This is a key optimization for tightly-coupled MPI applications.
 
-# Distribute tasks cyclically. For some applications, this can balance load
-# across the node's sockets and NUMA domains, improving memory bandwidth usage.
-#SBATCH --distribution=cyclic:cyclic
+#SBATCH --job-name=kripke_job
+# Sets a descriptive name for the job in the queue.
 
-# Bind tasks to physical cores and disable hyper-threading. This is a common
-# best practice for HPC jobs to improve cache performance.
-#SBATCH --hint=nomultithread
-#SBATCH --cpu-bind=cores
+#SBATCH --output=kripke_job.o%j
+# Specifies the file for standard output, with the job ID (%j) appended.
 
-# Standard output and error files, using the job ID (%j) for uniqueness.
-#SBATCH --output=kripke_%j.out
-#SBATCH --error=kripke_%j.err
+#SBATCH --error=kripke_job.e%j
+# Specifies the file for standard error, with the job ID (%j) appended.
 
 echo "Start time:" $( date +%s )
 
-# Launch the parallel job using srun.
-# The application and its arguments are passed directly.
-srun kripke --niter 100 --zones 64,64,64 --procs 4,4,4
+# srun is used to launch the parallel application.
+# --mpi=pmix: Specifies the PMIx MPI type, as required.
+# --cpu-bind=cores: This is a performance optimization that pins each MPI task
+# to a specific CPU core, which can improve performance by preventing process
+# migration and improving cache utilization.
+srun --mpi=pmix --cpu-bind=cores kripke --niter 100 --zones 64,64,64 --procs 4,4,4
 
 echo "End time:" $( date +%s )

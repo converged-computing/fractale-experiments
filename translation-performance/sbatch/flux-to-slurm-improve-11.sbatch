@@ -2,21 +2,19 @@
 #SBATCH --nodes=2
 #SBATCH --ntasks=128
 #SBATCH --ntasks-per-node=64
-#SBATCH --job-name=amg_job
-#SBATCH --exclusive
+#SBATCH --job-name=amg_benchmark
+#SBATCH --output=amg_benchmark.out
+#SBATCH --error=amg_benchmark.err
 
-# These sbatch options are added to improve performance.
-# --exclusive: Ensures that the job has exclusive access to the nodes, 
-#              preventing other jobs from causing interference.
-# --ntasks-per-node: Helps the scheduler make better placement decisions.
+# Request exclusive access to the nodes for performance consistency
+#SBATCH --exclusive
 
 echo "Start time:" $( date +%s )
 
-# srun is the Slurm command to launch parallel jobs.
-# --cpu-bind=cores: This is a performance optimization that binds each task
-#                   (MPI rank) to a specific CPU core. This can improve
-#                   performance by preventing tasks from migrating between
-#                   cores and improving cache utilization.
-srun --cpu-bind=cores amg -problem 2 -n 90 90 90 -P 4 8 4
+# srun is the Slurm equivalent of mpirun/flux run
+# --cpu-bind=cores pins tasks to specific CPU cores, which often improves performance
+# by reducing cache misses and context switching.
+# --mpi=pmix uses the PMIx library for MPI support, as requested.
+srun --cpu-bind=cores --mpi=pmix amg -problem 2 -n 90 90 90 -P 4 8 4
 
 echo "End time:" $( date +%s )

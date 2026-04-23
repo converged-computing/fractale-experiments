@@ -1,28 +1,27 @@
 #!/bin/bash
+
+#SBATCH --job-name=lammps_job
 #SBATCH --nodes=4
 #SBATCH --ntasks=256
 #SBATCH --ntasks-per-node=64
-#SBATCH --job-name=lammps_reaxff
 
-# Performance Tuning: Request exclusive access to the nodes to prevent interference
-# from other jobs, which can cause performance variability.
+# Performance Tuning Directives
+# Request exclusive access to the nodes for performance consistency.
 #SBATCH --exclusive
 
-# Performance Tuning: Distribute tasks cyclically across nodes and cores.
-# This can improve load balance for certain communication patterns.
+# Distribute tasks cyclically across nodes and sockets. This can improve
+# performance for applications sensitive to memory bandwidth by spreading ranks.
 #SBATCH --distribution=cyclic:cyclic
 
-# Performance Tuning: Bind tasks to physical cores, avoiding hyperthreads.
-# This is often beneficial for compute-bound HPC workloads like this one.
-#SBATCH --hint=nomultithread
+# Standard output and error log files
+#SBATCH --output=lmp_output_%j.log
+#SBATCH --error=lmp_error_%j.log
 
-# Standard output and error files, with the job ID (`%j`) in the name
-#SBATCH --output=lammps_output_%j.log
-#SBATCH --error=lammps_error_%j.log
+# Begin execution
+echo "Start time:" $( date +%s )
 
-echo "Start time:" $(date +%s)
+# Launch the parallel job using srun with the required PMIx MPI type.
+srun --mpi=pmix lmp -v x 20 -v y 20 -v z 20 -in in.reaxff.hns
 
-# Use srun to launch the parallel application
-srun lmp -v x 20 -v y 20 -v z 20 -in in.reaxff.hns
-
-echo "End time:" $(date +%s)
+# End execution
+echo "End time:" $( date +%s )

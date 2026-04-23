@@ -1,39 +1,38 @@
 #!/bin/bash
+#
+# Slurm Batch Script for Kripke
 
-# Set the job name for easier identification in the queue
-#SBATCH --job-name=kripke
+# -- Directives from flux submit --
+# SBATCH --nodes=4                # Corresponds to flux -N4
+# SBATCH --ntasks=256             # Corresponds to flux -n256
 
-# Request 4 compute nodes
-#SBATCH --nodes=4
+# -- Job Meta-directives --
+# SBATCH --job-name=kripke_job    # A descriptive name for the job
+# SBATCH --output=kripke_job.out  # Standard output file
+# SBATCH --error=kripke_job.err   # Standard error file
 
-# Request a total of 256 MPI tasks for the job
-#SBATCH --ntasks=256
+# --- Performance Tuning Directives ---
 
-# Explicitly set the number of tasks per node. This is calculated from the
-# total nodes and tasks (256 tasks / 4 nodes = 64 tasks/node) and helps
-# the scheduler with placement.
-#SBATCH --ntasks-per-node=64
-
-# Request exclusive access to the nodes. This is a key performance optimization.
-# It ensures that no other jobs will run on the allocated nodes, preventing
-# resource contention for CPU, memory bandwidth, and the network fabric (EFA).
+# --exclusive: This flag ensures that the job gets exclusive access to the allocated nodes.
+# This is crucial for performance-sensitive applications as it prevents other jobs
+# from contending for resources like CPU, memory, and network bandwidth.
 #SBATCH --exclusive
 
-# Specify how tasks are distributed across the allocated nodes and sockets.
-# 'cyclic' distributes tasks in a round-robin fashion over the available sockets,
-# which can improve performance by balancing memory bandwidth usage.
-#SBATCH --distribution=cyclic
+# --distribution=block:block: This directive controls the distribution of tasks to nodes.
+# 'block:block' distributes tasks to nodes in blocks, and within each node, tasks are also
+# assigned in blocks. This can improve performance for applications with nearest-neighbor
+# communication patterns by placing communicating processes close to each other.
+#SBATCH --distribution=block:block
 
-# Define the files for standard output and error. Using the job ID (%j)
-# ensures unique filenames for each run.
-#SBATCH --output=kripke.%j.out
-#SBATCH --error=kripke.%j.err
-
+# -- Start timing
 echo "Start time:" $( date +%s )
 
-# Use srun to launch the parallel application. srun is Slurm's native
-# job launcher and correctly propagates the resource allocation settings.
-# The application command and its arguments are passed directly.
-srun kripke --niter 100 --zones 64,64,64 --procs 4,8,8
+# The srun command is used to launch the parallel application.
+# --mpi=pmix: As requested, this specifies the use of the PMIx MPI implementation.
+# --cpu-bind=cores: This option binds each task to a specific CPU core.
+# This prevents the operating system from migrating tasks between cores, which can
+# improve cache performance and overall application stability.
+srun --cpu-bind=cores --mpi=pmix kripke --niter 100 --zones 64,64,64 --procs 4,8,8
 
+# -- End timing
 echo "End time:" $( date +%s )
