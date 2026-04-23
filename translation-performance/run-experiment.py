@@ -15,6 +15,7 @@ from fractale.agents.base import init_backend
 
 here = os.path.dirname(os.path.abspath(__file__))
 
+# Note that we do not need these! The Slurm Operator (ours) works and we can run in containers akin to the Flux Operator
 singularity_instructions = """
 The Slurm cluster will run the application through Singularity. You must convert the initial command to run with Singularity. This means you should:
 
@@ -33,6 +34,19 @@ all-latency: /shared/apps/containers/fractale-agent-experiments_osu-latency.sif
 
 The following pwd have application data. If a name is not in this list you do not need --pwd
       lammps:  /opt/lammps-reax
+"""
+
+slurm_instructions = """
+You must NOT load any modules, as all software is active.
+The user will not be able to edit your generated script - it MUST be in final form.
+
+All applications are on the path except for:
+
+ osu-all-reduce: /usr/local/libexec/osu-micro-benchmarks/mpi/collective/osu_allreduce
+osu-latency: /usr/local/libexec/osu-micro-benchmarks/mpi/pt2pt/osu_latency
+
+Add echo "Start time:" $( date +%s ) before your running command
+Add echo "End time:" $( date +%s ) after your running command
 """
 
 with open(os.path.join(here, "sbatch.help"), 'r') as fd:
@@ -154,6 +168,9 @@ def get_parser():
     parser.add_argument(
         "--with-singularity", help="Add singularity instructions", action="store_true", default=False
     )
+    parser.add_argument(
+        "--slurm-operator", help="Add slurm operator instructions", action="store_true", default=False
+    )
     return parser
 
 
@@ -181,7 +198,7 @@ def main():
     count = 0
 
     instructions = """
-Please convert this command to run for the Slurm Workload manager on AWS Parallel Compute Service.
+Please convert this command to run for the Slurm Workload manager.
 The cluster will have the Elastic Fabric Adapter for low latency networking, running on hpc7g.6xlarge.
 These details have no implications for the Slurm directives, they are for your FYI.
 """
@@ -193,6 +210,9 @@ These details have no implications for the Slurm directives, they are for your F
         )
 
     instructions += f"\nHere are directives for Slurm:\n{sbatch_help}"
+
+    if args.slurm_operator:
+        instructions += slurm_instructions
 
     if args.with_singularity:
         instructions += singularity_instructions

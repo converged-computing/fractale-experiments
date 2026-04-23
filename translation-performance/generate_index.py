@@ -20,6 +20,8 @@ def index_files(root_dir):
 
     # Find all result.json files
     for json_file in root_path.rglob("*-result.json"):
+        if "/v1/" in str(json_file):
+            continue
         try:
             with open(json_file, "r") as f:
                 data = json.load(f)
