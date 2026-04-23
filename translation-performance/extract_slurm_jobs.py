@@ -33,8 +33,8 @@ def extract(root_dir):
         parts = relative_path.parts
 
         experiment = parts[0]
-        # This resets model each time
-        if experiment not in ["flux-to-slurm-singularity", "flux-to-slurm-singularity-improve"]:
+        # We don't need singularity anymore!
+        if "singularity" in experiment or "v1" in experiment:
             continue
         filename = json_file.name.replace("-result.json", "")
         output = data["events"][-1]["data"]["outputs"]
