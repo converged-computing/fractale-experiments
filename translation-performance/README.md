@@ -222,3 +222,25 @@ python3 generate_index.py
 python3 extract_slurm_jobs.py
 ```
 
+## Slurm Jobs
+
+Deploying Slurm on AWS PCS or PC was terrible, so I updated our slurm operator to do it. Create the cluster, install the operator.
+
+```bash
+eksctl create cluster --config-file ./nodes-arm.yaml 
+aws eks update-kubeconfig --region us-east-1 --name fractale-arm-cluster
+
+# Install jobset
+kubectl apply --server-side -f https://github.com/kubernetes-sigs/jobset/releases/download/v0.11.1/manifests.yaml
+
+# Slurm Operator
+kubectl apply -f crd/slurm-operator-arm.yaml
+
+# What can we customize?
+kubectl explain slurm
+```
+In the cluster, shell into the -s node, which is the login. No, I don't remember why I chose s.
+
+```bash
+
+```
