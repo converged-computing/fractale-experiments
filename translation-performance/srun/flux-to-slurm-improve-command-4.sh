@@ -1,0 +1,2 @@
+#!/bin/bash
+srun --mpi=pmix -N5 -n320 --exclusive --distribution=cyclic --cpu-bind=cores lmp -v x 20 -v y 20 -v z 20 -in in.reaxff.hns
