@@ -188,16 +188,55 @@ eksctl delete cluster --config-file ./nodes-arm.yaml --wait
 
 ## Slurm Experiments
 
-
 ### LAMMPS
 
-```console
+```bash
 mkdir -p ./manual
 for i in $(seq 2 10); do
-  echo "Running iteration $i" # (smallest size is 3m 9s)
+  echo "Running iteration $i"
   srun --mpi=pmix --nodes=5 --ntasks=320 --ntasks-per-node=64 --cpus-per-task=1 lmp -v x 20 -v y 20 -v z 20 -in in.reaxff.hns 2>&1 | tee ./manual/lammps-5-nodes-${i}.out
   srun --mpi=pmix --nodes=5 --ntasks=320 --ntasks-per-node=64 --cpus-per-task=1 --cpu-bind=cores lmp -v x 20 -v y 20 -v z 20 -in in.reaxff.hns 2>&1 | tee ./manual/lammps-5-nodes-affinity-${i}.out
 done
+
+for n in {1..4}; do
+  tasks=$((n * 64))
+  for mode in "standard" "affinity"; do
+    # Configure flags based on mode
+    bind_flag=""
+    suffix=""
+    if [ "$mode" == "affinity" ]; then
+      bind_flag="--cpu-bind=cores"
+      suffix="-affinity"
+    fi
+
+    for i in {1..10}; do
+      log_file="./manual/lammps-${n}-nodes${suffix}-${i}.out"
+      echo "Starting: ${n} nodes, ${mode} mode, iteration ${i}"      
+      # 1. Print Start Timestamp to log and screen
+      echo "START_TIMESTAMP: $(date '+%Y-%m-%d %H:%M:%S')" | tee "$log_file"      
+      srun --mpi=pmix --nodes=${n} --ntasks=${tasks} --ntasks-per-node=64 --cpus-per-task=1 ${bind_flag} lmp -v x 20 -v y 20 -v z 20 -in in.reaxff.hns 2>&1 | tee -a "$log_file"
+      # 3. Print End Timestamp to log and screen
+      echo "END_TIMESTAMP: $(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$log_file"      
+      echo "Finished iteration ${i}. Log saved to ${log_file}"
+      echo "------------------------------------------------"
+    done
+  done
+done
+```
+
+For other sizes, use the script to generate batch files.
+
+```bash
+
+bash ./script/generate_lammps.sh
+mkdir -p ./results
+echo "job_id,script_path" > ./results/lammps_submission_log.csv
+for f in ./scripts/*.sbatch; do 
+    jid=$(sbatch --parsable "$f")
+    echo "$jid,$f" >> ./results/lammps_submission_log.csv
+    echo "Submitted $f as Job $jid"
+done
+```
 
 for i in $(seq 1 10); do
   echo "Running iteration $i" # (smallest size is 3m 9s)
