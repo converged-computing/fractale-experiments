@@ -34,7 +34,7 @@ def extract(root_dir):
 
         experiment = parts[0]
         # We don't need singularity anymore!
-        if "singularity" in experiment or "v1" in experiment:
+        if "command" not in experiment:
             continue
         filename = json_file.name.replace("-result.json", "")
         output = data["events"][-1]["data"]["outputs"]
@@ -49,8 +49,9 @@ def extract(root_dir):
             transformed_script = utils.extract_code_block(output["jobspec"])
 
         filename = filename.replace('flux-to-slurm-', '')
-        outfile = os.path.join(here, "sbatch", f"{experiment}-{filename}.sbatch")
+        outfile = os.path.join(here, "srun", f"{experiment}-{filename}.sh")
         with open(outfile, "w") as f:
+            f.write("#!/bin/bash\n")
             f.write(transformed_script)
         print(f"Wrote {outfile} to file.")
 

@@ -39,15 +39,14 @@ The following pwd have application data. If a name is not in this list you do no
 slurm_instructions = """
 You must NOT load any modules, as all software is active.
 You MUSt add --mpi=pmix to all Slurm (e.g., srun) commands as we require it.
-The user will not be able to edit your generated script - it MUST be in final form.
+The user will not be able to edit your generated command - it MUST be in final form.
 
 All applications are on the path except for:
 
- osu-all-reduce: /usr/local/libexec/osu-micro-benchmarks/mpi/collective/osu_allreduce
+osu-all-reduce: /usr/local/libexec/osu-micro-benchmarks/mpi/collective/osu_allreduce
 osu-latency: /usr/local/libexec/osu-micro-benchmarks/mpi/pt2pt/osu_latency
 
-Add echo "Start time:" $( date +%s ) before your running command
-Add echo "End time:" $( date +%s ) after your running command
+You MUST generate just an srun command and not an SBATCH script.
 """
 
 with open(os.path.join(here, "sbatch.help"), 'r') as fd:
