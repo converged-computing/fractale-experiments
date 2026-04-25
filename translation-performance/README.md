@@ -188,6 +188,7 @@ eksctl delete cluster --config-file ./nodes-arm.yaml --wait
 
 ## Slurm Experiments
 
+
 ### LAMMPS
 
 ```bash
@@ -198,18 +199,16 @@ for i in $(seq 2 10); do
   srun --mpi=pmix --nodes=5 --ntasks=320 --ntasks-per-node=64 --cpus-per-task=1 --cpu-bind=cores lmp -v x 20 -v y 20 -v z 20 -in in.reaxff.hns 2>&1 | tee ./manual/lammps-5-nodes-affinity-${i}.out
 done
 
-for n in {1..4}; do
+for n in {2..4}; do
   tasks=$((n * 64))
   for mode in "standard" "affinity"; do
-    # Configure flags based on mode
     bind_flag=""
     suffix=""
     if [ "$mode" == "affinity" ]; then
       bind_flag="--cpu-bind=cores"
       suffix="-affinity"
     fi
-
-    for i in {1..10}; do
+    for i in {1..5}; do
       log_file="./manual/lammps-${n}-nodes${suffix}-${i}.out"
       echo "Starting: ${n} nodes, ${mode} mode, iteration ${i}"      
       # 1. Print Start Timestamp to log and screen
@@ -224,94 +223,53 @@ for n in {1..4}; do
 done
 ```
 
-For other sizes, use the script to generate batch files.
+For other sizes, use the script.
 
 ```bash
-
 bash ./script/generate_lammps.sh
-mkdir -p ./results
-echo "job_id,script_path" > ./results/lammps_submission_log.csv
-for f in ./scripts/*.sbatch; do 
-    jid=$(sbatch --parsable "$f")
-    echo "$jid,$f" >> ./results/lammps_submission_log.csv
-    echo "Submitted $f as Job $jid"
-done
 ```
-
-for i in $(seq 1 10); do
-  echo "Running iteration $i" # (smallest size is 3m 9s)
-  flux submit --setattr=user.study_id=$app-2-iter-$i -N2 -n 128 lmp -v x 20 -v y 20 -v z 20 -in in.reaxff.hns
-  flux submit --setattr=user.study_id=$app-3-iter-$i -N3 -n 192 lmp -v x 20 -v y 20 -v z 20 -in in.reaxff.hns
-  # affinity (slows down)?
-  flux submit --setattr=user.study_id=$app-2-affinity-iter-$i -o cpu-affinity=per-task -N2 -n 128 lmp -v x 20 -v y 20 -v z 20 -in in.reaxff.hns
-  flux submit --setattr=user.study_id=$app-3-affinity-iter-$i -o cpu-affinity=per-task -N3 -n 192 lmp -v x 20 -v y 20 -v z 20 -in in.reaxff.hns
-done
-
-for i in $(seq 1 10); do
-  echo "Running iteration $i" # (smallest size is 3m 9s)
-  flux submit --setattr=user.study_id=$app-4-iter-$i -N4 -n 256 lmp -v x 20 -v y 20 -v z 20 -in in.reaxff.hns
-  flux submit --setattr=user.study_id=$app-5-iter-$i -N5 -n 320 lmp -v x 20 -v y 20 -v z 20 -in in.reaxff.hns
-  # affinity (slows down)?
-  flux submit --setattr=user.study_id=$app-4-affinity-iter-$i -o cpu-affinity=per-task -N4 -n 256 lmp -v x 20 -v y 20 -v z 20 -in in.reaxff.hns
-  flux submit --setattr=user.study_id=$app-5-affinity-iter-$i -o cpu-affinity=per-task -N5 -n 320 lmp -v x 20 -v y 20 -v z 20 -in in.reaxff.hns
-done
-
-for jobid in $(flux jobs -a --json | jq -r .jobs[].id)
-  do
-    # Get the job study id
-    study_id=$(flux job info $jobid jobspec | jq -r ".attributes.user.study_id")
-    echo "Parsing jobid ${jobid} and study id ${study_id}"
-    flux job attach $jobid &> $output/${study_id}-${jobid}.out 
-    echo "START OF JOBSPEC" >> $output/${study_id}-${jobid}.out 
-    flux job info $jobid jobspec >> $output/${study_id}-${jobid}.out 
-    echo "START OF EVENTLOG" >> $output/${study_id}-${jobid}.out 
-    flux job info $jobid guest.exec.eventlog >> $output/${study_id}-${jobid}.out
-done
-```
-On the local machine (here):
-
 ```bash
-kubectl delete -f ./crd/lammps-reax.yaml
+kubectl delete -f ./crd/lammps-reax-slurm.yaml
 ```
 
 ### AMG2023
 
-```console
-kubectl apply -f ./crd/amg2023.yaml
+```bash
+kubectl apply -f ./crd/amg2023-slurm.yaml
 time kubectl wait --for=condition=ready pod -l job-name=flux-sample --timeout=600s
 ```
 
-```
-export app=amg2023
-output=./results/$app
-mkdir -p $output
-
-export OMP_NUM_THREADS=1 
-export OMPI_MCA_btl_vader_single_copy_mechanism=cma
-for i in $(seq 1 10); do
+```bash
+mkdir -p ./manual
+for i in $(seq 1 5); do
   echo "Running iteration $i"
-  flux submit --setattr=user.study_id=$app-1-iter-$i -N1 -n 64 -o pmi=pmi2 amg -problem 2 -n 90 90 90 -P 4 4 4
-  flux submit --setattr=user.study_id=$app-1-affinity-iter-$i -o cpu-affinity=per-task -N1 -n 64 -o pmi=pmi2 amg -problem 2 -n 90 90 90 -P 4 4 4
-  flux submit --setattr=user.study_id=$app-2-iter-$i -N2 -n 128 -o pmi=pmi2 amg -problem 2 -n 90 90 90 -P 4 8 4
-  flux submit --setattr=user.study_id=$app-3-iter-$i -N3 -n 192 -o pmi=pmi2 amg -problem 2 -n 90 90 90 -P 3 8 8
-  flux submit --setattr=user.study_id=$app-2-affinity-iter-$i -o cpu-affinity=per-task -N2 -n 128 -o pmi=pmi2 amg -problem 2 -n 90 90 90 -P 4 8 4
-  flux submit --setattr=user.study_id=$app-3-affinity-iter-$i -o cpu-affinity=per-task -N3 -n 192 -o pmi=pmi2 amg -problem 2 -n 90 90 90 -P 3 8 8
-  flux submit --setattr=user.study_id=$app-4-iter-$i -N4 -n 256 -o pmi=pmi2 amg -problem 2 -n 90 90 90 -P 4 8 8
-  flux submit --setattr=user.study_id=$app-5-iter-$i -N5 -n 320 -o pmi=pmi2 amg -problem 2 -n 90 90 90 -P 4 8 10
-  flux submit --setattr=user.study_id=$app-4-affinity-iter-$i -o cpu-affinity=per-task -N4 -n 256 -o pmi=pmi2 amg -problem 2 -n 90 90 90 -P 4 8 8
-  flux submit --setattr=user.study_id=$app-5-affinity-iter-$i -o cpu-affinity=per-task -N5 -n 320 -o pmi=pmi2 amg -problem 2 -n 90 90 90 -P 4 8 10
+  srun --mpi=pmix --nodes=5 --ntasks=320 --ntasks-per-node=64 --cpus-per-task=1 amg -problem 2 -n 90 90 90 -P 4 8 10 2>&1 | tee ./manual/amg2023-5-nodes-${i}.out
+  srun --mpi=pmix --nodes=5 --ntasks=320 --ntasks-per-node=64 --cpus-per-task=1 --cpu-bind=cores amg -problem 2 -n 90 90 90 -P 4 8 10 2>&1 | tee ./manual/amg2023-5-nodes-affinity-${i}.out
 done
 
-for jobid in $(flux jobs -a --json | jq -r .jobs[].id)
-  do
-    # Get the job study id
-    study_id=$(flux job info $jobid jobspec | jq -r ".attributes.user.study_id")
-    echo "Parsing jobid ${jobid} and study id ${study_id}"
-    flux job attach $jobid &> $output/${study_id}-${jobid}.out 
-    echo "START OF JOBSPEC" >> $output/${study_id}-${jobid}.out 
-    flux job info $jobid jobspec >> $output/${study_id}-${jobid}.out 
-    echo "START OF EVENTLOG" >> $output/${study_id}-${jobid}.out 
-    flux job info $jobid guest.exec.eventlog >> $output/${study_id}-${jobid}.out
+for i in $(seq 1 5); do
+  echo "Running iteration $i"
+  srun --mpi=pmix --nodes=4 --ntasks=256 --ntasks-per-node=64 --cpus-per-task=1 amg -problem 2 -n 90 90 90 -P 4 8 8 2>&1 | tee ./manual/amg2023-4-nodes-${i}.out
+  srun --mpi=pmix --nodes=4 --ntasks=256 --ntasks-per-node=64 --cpus-per-task=1 --cpu-bind=cores amg -problem 2 -n 90 90 90 -P 4 8 8 2>&1 | tee ./manual/amg2023-4-nodes-affinity-${i}.out
+done
+
+
+for i in $(seq 1 5); do
+  echo "Running iteration $i"
+  srun --mpi=pmix --nodes=3 --ntasks=192 --ntasks-per-node=64 --cpus-per-task=1 amg -problem 2 -n 90 90 90 -P 3 8 8  2>&1 | tee ./manual/amg2023-3-nodes-${i}.out
+  srun --mpi=pmix --nodes=3 --ntasks=192 --ntasks-per-node=64 --cpus-per-task=1 --cpu-bind=cores amg -problem 2 -n 90 90 90 -P 3 8 8 2>&1 | tee ./manual/amg2023-3-nodes-affinity-${i}.out
+done
+
+for i in $(seq 1 5); do
+  echo "Running iteration $i"
+  srun --mpi=pmix --nodes=2 --ntasks=128 --ntasks-per-node=64 --cpus-per-task=1 amg -problem 2 -n 90 90 90 -P 4 8 4  2>&1 | tee ./manual/amg2023-2-nodes-${i}.out
+  srun --mpi=pmix --nodes=2 --ntasks=128 --ntasks-per-node=64 --cpus-per-task=1 --cpu-bind=cores amg -problem 2 -n 90 90 90 -P 4 8 4 2>&1 | tee ./manual/amg2023-2-nodes-affinity-${i}.out
+done
+
+for i in $(seq 1 5); do
+  echo "Running iteration $i"
+  srun --mpi=pmix --nodes=1 --ntasks=64 --ntasks-per-node=64 --cpus-per-task=1 amg -problem 2 -n 90 90 90 -P 4 4 4 2>&1 | tee ./manual/amg2023-1-nodes-${i}.out
+  srun --mpi=pmix --nodes=1 --ntasks=64 --ntasks-per-node=64 --cpus-per-task=1 --cpu-bind=cores amg -problem 2 -n 90 90 90 -P 4 4 4 2>&1 | tee ./manual/amg2023-1-nodes-affinity-${i}.out
 done
 ```
 
@@ -320,23 +278,30 @@ On the local machine (here):
 ```bash
 kubectl delete -f ./crd/amg2023.yaml
 ```
+
 ### Kripke
 
+
 ```bash
-export app=kripke
-output=./results/$app
-mkdir -p $output
+for i in $(seq 1 5); do
+  echo "Running iteration $i"
+  srun --mpi=pmix --nodes=4 --ntasks=256 --ntasks-per-node=64 --cpus-per-task=1 kripke --niter 100 --zones 64,64,64 --procs 4,8,8 >&1 | tee ./manual/kripke-4-nodes-${i}.out
+  srun --mpi=pmix --nodes=4 --ntasks=256 --ntasks-per-node=64 --cpus-per-task=1 --cpu-bind=cores kripke --niter 100 --zones 64,64,64 --procs 4,8,8 >&1 | tee ./manual/kripke-4-nodes-affinity-${i}.out
+done
 
-for i in $(seq 1 10); do
-  flux submit -N 1 --setattr=user.study_id=$app-1-iter-$i -N1 -n 64 kripke --niter 100 --zones 64,64,64 --procs 4,4,4
-  flux submit -N 2 --setattr=user.study_id=$app-2-iter-$i -N2 -n 128 kripke --niter 100 --zones 64,64,64 --procs 4,8,4
-  flux submit -N 4 --setattr=user.study_id=$app-4-iter-$i -N4 -n 256 kripke --niter 100 --zones 64,64,64 --procs 4,8,8
+for i in $(seq 1 5); do
+  echo "Running iteration $i"
+  srun --mpi=pmix --nodes=2 --ntasks=128 --ntasks-per-node=64 --cpus-per-task=1 kripke --niter 100 --zones 64,64,64 --procs 4,8,4  2>&1 | tee ./manual/kripke-2-nodes-${i}.out
+  srun --mpi=pmix --nodes=2 --ntasks=128 --ntasks-per-node=64 --cpus-per-task=1 --cpu-bind=cores kripke --niter 100 --zones 64,64,64 --procs 4,8,4 >&1 | tee ./manual/kripke-2-nodes-affinity-${i}.out
+done
 
-  flux submit -N 1 --setattr=user.study_id=$app-1-affinity-iter-$i -o cpu-affinity=per-task  -N1 -n 64 kripke --niter 100 --zones 64,64,64 --procs 4,4,4
-  flux submit -N 2 --setattr=user.study_id=$app-2-affinity-iter-$i -o cpu-affinity=per-task  -N2 -n 128 kripke --niter 100 --zones 64,64,64 --procs 4,8,4
-  flux submit -N 4 --setattr=user.study_id=$app-4-affinity-iter-$i -o cpu-affinity=per-task  -N4 -n 256 kripke --niter 100 --zones 64,64,64 --procs 4,8,8
+for i in $(seq 1 5); do
+  echo "Running iteration $i"
+  srun --mpi=pmix --nodes=1 --ntasks=64 --ntasks-per-node=64 --cpus-per-task=1 kripke --niter 100 --zones 64,64,64 --procs 4,4,4 >&1 | tee ./manual/kripke-1-nodes-${i}.out
+  srun --mpi=pmix --nodes=1 --ntasks=64 --ntasks-per-node=64 --cpus-per-task=1 --cpu-bind=cores kripke --niter 100 --zones 64,64,64 --procs 4,4,4  2>&1 | tee ./manual/kripke-1-nodes-affinity-${i}.out
 done
 ```
+
 
 ### OSU AllReduce
 
@@ -408,6 +373,10 @@ python3 ./run-experiment.py --with-singularity --improve --output ./results/conv
 
 # These are ultimately those used for experiment
 python3 ./run-experiment.py --slurm-operator --output ./results/convert/flux-to-slurm
+python3 ./run-experiment.py --slurm-operator --improve --output ./results/convert/flux-to-slurm-improve
+
+# These are ultimately those used for experiment
+python3 ./run-experiment.py --slurm-operator --output ./results/convert/flux-to-slurm-command
 python3 ./run-experiment.py --slurm-operator --improve --output ./results/convert/flux-to-slurm-improve
 ```
 
