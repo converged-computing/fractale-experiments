@@ -18,7 +18,7 @@ def index_files(root_dir):
     total_issues = {}
 
     # Find all result.json files
-    for json_file in root_path.rglob("*-result.json"):
+    for i, json_file in enumerate(root_path.rglob("*-result.json")):
         try:
             with open(json_file, "r") as f:
                 data = json.load(f)
@@ -58,6 +58,7 @@ def index_files(root_dir):
                 .get("inputs", {})
                 .get("script", "N/A")
             )
+
             # metrics = data['metrics'][1]['data']
             # Break into components
             issues = [x.split(":", 1) for x in issues]
