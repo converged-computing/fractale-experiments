@@ -30,7 +30,7 @@ flux proxy local:///mnt/flux/config/run/flux/local bash
 
 Note that these were chosen to fit on one node without OOM. How to orchestrate:
 
-```console
+```bash
 flux proxy local:///mnt/flux/config/run/flux/local bash
 export app=lammps-reax
 output=./results/$app
@@ -86,7 +86,7 @@ kubectl apply -f ./crd/amg2023.yaml
 time kubectl wait --for=condition=ready pod -l job-name=flux-sample --timeout=600s
 ```
 
-```
+```bash
 export app=amg2023
 output=./results/$app
 mkdir -p $output
@@ -305,41 +305,61 @@ done
 
 ### OSU AllReduce
 
-```bash
-export app=osu-allreduce
-output=./results/$app
-mkdir -p $output
 
-for i in $(seq 1 10); do
+```bash
+kubectl apply -f ./crd/osu-slurm.yaml
+time kubectl wait --for=condition=ready pod -l job-name=flux-sample --timeout=600s
+```
+
+```bash
+mkdir -p ./manual
+for i in $(seq 1 5); do
   echo "Running iteration $i"
-  flux submit --setattr=user.study_id=$app-1-iter-$i -N1 -n 64 /usr/local/libexec/osu-micro-benchmarks/mpi/collective/osu_allreduce
-  flux submit --setattr=user.study_id=$app-1-affinity-iter-$i -o cpu-affinity=per-task -N1 -n 64 /usr/local/libexec/osu-micro-benchmarks/mpi/collective/osu_allreduce
-  flux submit --setattr=user.study_id=$app-2-iter-$i -N2 -n 128 /usr/local/libexec/osu-micro-benchmarks/mpi/collective/osu_allreduce
-  flux submit --setattr=user.study_id=$app-3-iter-$i -N3 -n 192 /usr/local/libexec/osu-micro-benchmarks/mpi/collective/osu_allreduce
-  flux submit --setattr=user.study_id=$app-2-affinity-iter-$i -o cpu-affinity=per-task -N2 -n 128 /usr/local/libexec/osu-micro-benchmarks/mpi/collective/osu_allreduce
-  flux submit --setattr=user.study_id=$app-3-affinity-iter-$i -o cpu-affinity=per-task -N3 -n 192 /usr/local/libexec/osu-micro-benchmarks/mpi/collective/osu_allreduce
-  flux submit --setattr=user.study_id=$app-4-iter-$i -N4 -n 256 /usr/local/libexec/osu-micro-benchmarks/mpi/collective/osu_allreduce
-  flux submit --setattr=user.study_id=$app-5-iter-$i -N5 -n 320 /usr/local/libexec/osu-micro-benchmarks/mpi/collective/osu_allreduce
-  flux submit --setattr=user.study_id=$app-4-affinity-iter-$i -o cpu-affinity=per-task -N4 -n 256 /usr/local/libexec/osu-micro-benchmarks/mpi/collective/osu_allreduce
-  flux submit --setattr=user.study_id=$app-5-affinity-iter-$i -o cpu-affinity=per-task -N5 -n 320 /usr/local/libexec/osu-micro-benchmarks/mpi/collective/osu_allreduce
+  srun --mpi=pmix --nodes=5 --ntasks=320 --ntasks-per-node=64 --cpus-per-task=1 /usr/local/libexec/osu-micro-benchmarks/mpi/collective/osu_allreduce 2>&1 | tee ./manual/osu-allreduce-5-nodes-${i}.out
+  srun --mpi=pmix --nodes=5 --ntasks=320 --ntasks-per-node=64 --cpus-per-task=1 --cpu-bind=cores /usr/local/libexec/osu-micro-benchmarks/mpi/collective/osu_allreduce 2>&1 | tee ./manual/osu-allreduce-5-nodes-affinity-${i}.out
+done
+
+for i in $(seq 1 5); do
+  echo "Running iteration $i"
+  srun --mpi=pmix --nodes=4 --ntasks=256 --ntasks-per-node=64 --cpus-per-task=1 /usr/local/libexec/osu-micro-benchmarks/mpi/collective/osu_allreduce 2>&1 | tee ./manual/osu-allreduce-4-nodes-${i}.out
+  srun --mpi=pmix --nodes=4 --ntasks=256 --ntasks-per-node=64 --cpus-per-task=1 --cpu-bind=cores /usr/local/libexec/osu-micro-benchmarks/mpi/collective/osu_allreduce 2>&1 | tee ./manual/osu-allreduce-4-nodes-affinity-${i}.out
+done
+
+
+for i in $(seq 1 5); do
+  echo "Running iteration $i"
+  srun --mpi=pmix --nodes=3 --ntasks=192 --ntasks-per-node=64 --cpus-per-task=1 /usr/local/libexec/osu-micro-benchmarks/mpi/collective/osu_allreduce  2>&1 | tee ./manual/osu-allreduce-3-nodes-${i}.out
+  srun --mpi=pmix --nodes=3 --ntasks=192 --ntasks-per-node=64 --cpus-per-task=1 --cpu-bind=cores /usr/local/libexec/osu-micro-benchmarks/mpi/collective/osu_allreduce 2>&1 | tee ./manual/osu-allreduce-3-nodes-affinity-${i}.out
+done
+
+for i in $(seq 1 5); do
+  echo "Running iteration $i"
+  srun --mpi=pmix --nodes=2 --ntasks=128 --ntasks-per-node=64 --cpus-per-task=1 /usr/local/libexec/osu-micro-benchmarks/mpi/collective/osu_allreduce  2>&1 | tee ./manual/osu-allreduce-2-nodes-${i}.out
+  srun --mpi=pmix --nodes=2 --ntasks=128 --ntasks-per-node=64 --cpus-per-task=1 --cpu-bind=cores /usr/local/libexec/osu-micro-benchmarks/mpi/collective/osu_allreduce 2>&1 | tee ./manual/osu-allreduce-2-nodes-affinity-${i}.out
+done
+
+for i in $(seq 1 5); do
+  echo "Running iteration $i"
+  srun --mpi=pmix --nodes=1 --ntasks=64 --ntasks-per-node=64 --cpus-per-task=1 /usr/local/libexec/osu-micro-benchmarks/mpi/collective/osu_allreduce 2>&1 | tee ./manual/osu-allreduce-1-nodes-${i}.out
+  srun --mpi=pmix --nodes=1 --ntasks=64 --ntasks-per-node=64 --cpus-per-task=1 --cpu-bind=cores /usr/local/libexec/osu-micro-benchmarks/mpi/collective/osu_allreduce 2>&1 | tee ./manual/osu-allreduce-1-nodes-affinity-${i}.out
 done
 ```
 
-And OSU Latency
+And OSU latency (one size)
 
 ```bash
-export app=osu-latency
-output=./results/$app
-mkdir -p $output
-
 for i in $(seq 1 10); do
   echo "Running iteration $i"
-  flux run --setattr=user.study_id=$app-1-run-iter-$i -N2 -n 2 /usr/local/libexec/osu-micro-benchmarks/mpi/pt2pt/osu_latency
-  flux run --setattr=user.study_id=$app-1-run-affinity-iter-$i -o cpu-affinity=per-task -N2 -n 2 /usr/local/libexec/osu-micro-benchmarks/mpi/pt2pt/osu_latency
+  srun --mpi=pmix --nodes=2 --ntasks=2 --ntasks-per-node=64 --cpus-per-task=1 /usr/local/libexec/osu-micro-benchmarks/mpi/pt2pt/osu_latency 2>&1 | tee ./manual/osu-latency-2-nodes-${i}.out
+  srun --mpi=pmix --nodes=2 --ntasks=2 --ntasks-per-node=64 --cpus-per-task=1 --cpu-bind=cores /usr/local/libexec/osu-micro-benchmarks/mpi/pt2pt/osu_latency 2>&1 | tee ./manual/osu-latency-2-nodes-affinity-${i}.out
 done
 ```
 
+On the local machine (here):
 
+```bash
+kubectl delete -f ./crd/osu-slurm.yaml
+```
 
 
 ## Translation for Slurm
