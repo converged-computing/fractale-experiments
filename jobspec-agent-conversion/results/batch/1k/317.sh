@@ -1,0 +1,33 @@
+#!/bin/bash
+#FLUX: --job-name=NN_03-01
+#FLUX: --output=output/NN_03-01.out
+#FLUX: --nodes=1
+#FLUX: --ntasks=5
+#FLUX: --gpus-per-node=1
+#FLUX: --time-limit=20h
+
+
+module purge
+#module load tensorflow/1.5-cpu-python-3.6.2
+module load tensorflow/1.5-gpu-python-3.6.2
+
+
+for drop in 0.2 0.25 0.3 0.4
+do
+	for N in 250 350 400 450 550
+	do
+		for nhidden in 6
+		do
+			for act in sigmoid
+			do
+				for folder in 03-01-2019\ 11.04 09-01-2019\ 12.57 11-10-2018\ 11.36
+				do
+					for func in group_period_x_group_period group_period_2x2 atomic_number
+					do
+						python3 NN/NN_script.py $drop $N sigmoid 6 "$folder" $func
+					done
+				done
+			done
+		done
+	done
+done

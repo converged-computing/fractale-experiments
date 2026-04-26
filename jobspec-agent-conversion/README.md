@@ -62,3 +62,11 @@ Then generate data and results.
 ```bash
 python3 generate_index.py
 ```
+
+And then calculate accuracy with the Flux validation with submit and dry run (requires Flux instance running):
+
+```bash
+python3 process_metrics.py
+```
+```console
+```

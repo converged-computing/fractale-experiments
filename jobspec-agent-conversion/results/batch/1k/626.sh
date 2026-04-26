@@ -1,0 +1,16 @@
+#!/bin/bash
+#FLUX: --nodes=1
+#FLUX: --ntasks=1
+#FLUX: --job-name=check_phenolics
+#FLUX: --time-limit=30m
+#FLUX: --dependency=afterany:5697559
+
+exec="burner_heatCoup_unified.v1a.py"
+
+last_rstfile=$(ls -ltr restart_data/* | tail -n 1 | awk '{print $NF}')
+echo $last_rstfile
+
+source ~/mirgecom_phenolics/emirge/config/activate_env.sh
+source ~/mirgecom_phenolics/emirge/mirgecom/scripts/mirge-testing-env.sh
+# $MIRGE_MPI_EXEC -n 1 $MIRGE_PARALLEL_SPAWNER python -m mpi4py $exec --lazy
+$MIRGE_MPI_EXEC -n 1 $MIRGE_PARALLEL_SPAWNER python -m mpi4py $exec --lazy -r $last_rstfile -i input.yaml
