@@ -39,149 +39,186 @@
     <svg id="viz"></svg>
 
     <script>
-        const width = window.innerWidth;
-        const height = window.innerHeight;
-        const tooltip = d3.select("#tooltip");
+const width = window.innerWidth;
+const height = window.innerHeight;
+const tooltip = d3.select("#tooltip");
 
-        const svg = d3.select("#viz")
-            .attr("width", width)
-            .attr("height", height)
-            .call(d3.zoom().scaleExtent([0.1, 8]).on("zoom", (event) => g.attr("transform", event.transform)));
+const svg = d3.select("#viz")
+    .attr("width", width)
+    .attr("height", height)
+    .call(d3.zoom().scaleExtent([0.1, 8]).on("zoom", (event) => g.attr("transform", event.transform)));
 
-        const g = svg.append("g");
+const g = svg.append("g");
+
+d3.json("graph_data.json").then(data => {
+    const nodes = data.nodes;
+    const links = data.links;
+
+    const simulation = d3.forceSimulation(nodes)
+        .force("link", d3.forceLink(links).id(d => d.id).distance(150))
+        .force("charge", d3.forceManyBody().strength(-300))
+        .force("center", d3.forceCenter(width / 2, height / 2))
+        .force("collision", d3.forceCollide().radius(20));
+
+    // Setup Markers
+    const defs = svg.append("defs");
+    const createMarker = (id, color) => {
+        defs.append("marker")
+            .attr("id", id)
+            .attr("viewBox", "0 -5 10 10")
+            .attr("refX", 20)
+            .attr("refY", 0)
+            .attr("orient", "auto")
+            .attr("markerWidth", 20)
+            .attr("markerHeight", 20)
+            .attr("markerUnits", "userSpaceOnUse")
+            .append("path")
+            .attr("d", "M0,-5L10,0L0,5")
+            .attr("fill", color);
+    };
+    createMarker("arrow-default", "#555");
+    createMarker("arrow-out", "#ff4444");
+    createMarker("arrow-in", "#44ff44");
+
+    const link = g.append("g")
+        .selectAll("line")
+        .data(links)
+        .join("line")
+        .attr("stroke", "#444")
+        .attr("stroke-opacity", 0.4)
+        .attr("stroke-width", d => (d.weight || 1))
+        .attr("marker-end", "url(#arrow-default)");
+
+    const colorScale = d3.scaleOrdinal(d3.schemeTableau10);
+
+    const node = g.append("g")
+        .selectAll("circle")
+        .data(nodes)
+        .join("circle")
+        .attr("r", 10)
+        .attr("fill", d => colorScale(d.category || d.group))
+        .attr("stroke", "#fff")
+        .attr("stroke-width", 1.5)
+        .style("cursor", "crosshair")
+        .call(drag(simulation));
+
+    const label = g.append("g")
+        .selectAll("text")
+        .data(nodes)
+        .join("text")
+        .text(d => d.name || d.id.split('/').pop())
+        .attr("font-size", "11px")
+        .attr("dx", 15)
+        .attr("dy", 4)
+        .attr("fill", "#999")
+        .style("pointer-events", "none");
+
+    const getID = (v) => v.id || v;
+
+    // --- SEARCH LOGIC ---
+    d3.select("#search").on("input", function() {
+        const term = this.value.toLowerCase();
         
-        d3.json("graph_data.json").then(data => {
-            const nodes = data.nodes;
-            const links = data.links;
+        if (term === "") {
+            // Reset to default
+            node.transition().duration(200).attr("opacity", 1).attr("r", 10).attr("stroke", "#fff");
+            label.transition().duration(200).attr("opacity", 1).attr("fill", "#999");
+            link.transition().duration(200).attr("stroke-opacity", 0.4).attr("stroke", "#444");
+            return;
+        }
 
-            const simulation = d3.forceSimulation(nodes)
-                .force("link", d3.forceLink(links).id(d => d.id).distance(150))
-                .force("charge", d3.forceManyBody().strength(-300))
-                .force("center", d3.forceCenter(width / 2, height / 2))
-                .force("collision", d3.forceCollide().radius(20));
+        // Highlight nodes
+        node.transition().duration(100)
+            .attr("opacity", d => (d.id.toLowerCase().includes(term) || (d.name && d.name.toLowerCase().includes(term))) ? 1 : 0.1)
+            .attr("r", d => (d.id.toLowerCase().includes(term)) ? 15 : 10)
+            .attr("stroke", d => (d.id.toLowerCase().includes(term)) ? "#039475" : "#fff");
 
-            // Setup Markers for Red and Green flows
-            const defs = svg.append("defs");
-            const createMarker = (id, color) => {
-              defs.append("marker")
-                  .attr("id", id)
-                  .attr("viewBox", "0 -5 10 10")
-                  .attr("refX", 20) 
-                  .attr("refY", 0)
-                  .attr("orient", "auto")
-                  .attr("markerWidth", 20) 
-                  .attr("markerHeight", 20)
-                  .attr("markerUnits", "userSpaceOnUse") 
-                  .append("path")
-                  .attr("d", "M0,-5L10,0L0,5")
-                  .attr("fill", color);
-            };
-            createMarker("arrow-default", "#555");
-            createMarker("arrow-out", "#ff4444");
-            createMarker("arrow-in", "#44ff44");
+        label.transition().duration(100)
+            .attr("opacity", d => (d.id.toLowerCase().includes(term) || (d.name && d.name.toLowerCase().includes(term))) ? 1 : 0.1)
+            .attr("fill", d => (d.id.toLowerCase().includes(term)) ? "#fff" : "#999");
 
-            const link = g.append("g")
-                .selectAll("line")
-                .data(links)
-                .join("line")
-                .attr("stroke", "#444")
-                .attr("stroke-opacity", 0.4)
-                .attr("stroke-width", d => (d.weight || 1))
+        // Dim links that aren't connected to a match
+        link.transition().duration(100)
+            .attr("stroke-opacity", l => {
+                const sourceMatch = getID(l.source).toLowerCase().includes(term);
+                const targetMatch = getID(l.target).toLowerCase().includes(term);
+                return (sourceMatch || targetMatch) ? 0.8 : 0.05;
+            })
+            .attr("stroke", l => {
+                const sourceMatch = getID(l.source).toLowerCase().includes(term);
+                const targetMatch = getID(l.target).toLowerCase().includes(term);
+                return (sourceMatch || targetMatch) ? "#039475" : "#222";
+            });
+    });
+
+    // --- HOVER LOGIC ---
+    node.on("mouseover", function(event, d) {
+        // If search is active, we don't want hover to completely override search
+        const isOut = (l) => getID(l.source) === d.id;
+        const isIn = (l) => getID(l.target) === d.id;
+
+        link.transition().duration(150)
+            .attr("stroke-opacity", l => (isOut(l) || isIn(l)) ? 1 : 0.05)
+            .attr("stroke-width", l => (isOut(l) || isIn(l)) ? 4 : 1)
+            .attr("stroke", l => {
+                if (isOut(l)) return "#ff4444";
+                if (isIn(l)) return "#44ff44";
+                return "#222";
+            })
+            .attr("marker-end", l => {
+                if (isOut(l)) return "url(#arrow-out)";
+                if (isIn(l)) return "url(#arrow-in)";
+                return "url(#arrow-default)";
+            });
+
+        const neighborIds = new Set(links.filter(l => isOut(l) || isIn(l)).map(l => isOut(l) ? getID(l.target) : getID(l.source)));
+        neighborIds.add(d.id);
+
+        node.transition().duration(150)
+            .attr("opacity", n => neighborIds.has(n.id) ? 1 : 0.1)
+            .attr("stroke", n => n.id === d.id ? "#fff" : "none");
+
+        label.transition().duration(150)
+            .attr("opacity", n => neighborIds.has(n.id) ? 1 : 0.1)
+            .attr("fill", n => n.id === d.id ? "#fff" : "#999");
+
+        tooltip.style("display", "block")
+            .html(`<b>${d.id}</b>`)
+            .style("left", (event.pageX + 20) + "px")
+            .style("top", (event.pageY - 20) + "px");
+    })
+    .on("mousemove", (event) => {
+        tooltip.style("left", (event.pageX + 20) + "px").style("top", (event.pageY - 20) + "px");
+    })
+    .on("mouseout", function() {
+        // IMPORTANT: Trigger the search handler again to restore search view instead of default view
+        const searchVal = d3.select("#search").property("value");
+        if (searchVal !== "") {
+            d3.select("#search").dispatch("input");
+        } else {
+            link.transition().duration(200)
+                .attr("stroke-opacity", 0.4).attr("stroke", "#444").attr("stroke-width", d => (d.weight || 1))
                 .attr("marker-end", "url(#arrow-default)");
+            node.transition().duration(200).attr("opacity", 1).attr("stroke", "#fff").attr("stroke-width", 1.5).attr("r", 10);
+            label.transition().duration(200).attr("opacity", 1).attr("fill", "#999");
+        }
+        tooltip.style("display", "none");
+    });
 
-            const colorScale = d3.scaleOrdinal(d3.schemeTableau10);
+    simulation.on("tick", () => {
+        link.attr("x1", d => d.source.x).attr("y1", d => d.source.y)
+            .attr("x2", d => d.target.x).attr("y2", d => d.target.y);
+        node.attr("cx", d => d.x).attr("cy", d => d.y);
+        label.attr("x", d => d.x).attr("y", d => d.y);
+    });
 
-            const node = g.append("g")
-                .selectAll("circle")
-                .data(nodes)
-                .join("circle")
-                .attr("r", 10)
-                .attr("fill", d => colorScale(d.category || d.group))
-                .attr("stroke", "#fff")
-                .attr("stroke-width", 1.5)
-                .style("cursor", "crosshair")
-                .call(drag(simulation));
-
-            const label = g.append("g")
-                .selectAll("text")
-                .data(nodes)
-                .join("text")
-                .text(d => d.name || d.id.split('/').pop())
-                .attr("font-size", "11px")
-                .attr("dx", 15)
-                .attr("dy", 4)
-                .attr("fill", "#999")
-                .style("pointer-events", "none");
-
-            const getID = (v) => v.id || v;
-
-            node.on("mouseover", function(event, d) {
-                const isOut = (l) => getID(l.source) === d.id;
-                const isIn = (l) => getID(l.target) === d.id;
-
-                link.transition().duration(150)
-                    .attr("stroke-opacity", l => (isOut(l) || isIn(l)) ? 1 : 0.05)
-                    .attr("stroke-width", l => (isOut(l) || isIn(l)) ? 4 : 1)
-                    .attr("stroke", l => {
-                        if (isOut(l)) return "#ff4444"; // File leaving hovered node
-                        if (isIn(l)) return "#44ff44";  // File entering hovered node
-                        return "#222";
-                    })
-                    .attr("marker-end", l => {
-                        if (isOut(l)) return "url(#arrow-out)";
-                        if (isIn(l)) return "url(#arrow-in)";
-                        return "url(#arrow-default)";
-                    });
-
-                const neighborIds = new Set(links.filter(l => isOut(l) || isIn(l)).map(l => isOut(l) ? getID(l.target) : getID(l.source)));
-                neighborIds.add(d.id);
-
-                node.transition().duration(150)
-                    .attr("opacity", n => neighborIds.has(n.id) ? 1 : 0.1)
-                    .attr("stroke", n => n.id === d.id ? "#fff" : "none")
-                    .attr("stroke-width", 3);
-
-                label.transition().duration(150)
-                    .attr("opacity", n => neighborIds.has(n.id) ? 1 : 0.1)
-                    .attr("fill", n => n.id === d.id ? "#fff" : "#999");
-
-                tooltip.style("display", "block")
-                    .html(`<b>${d.id}</b>`)
-                    .style("left", (event.pageX + 20) + "px")
-                    .style("top", (event.pageY - 20) + "px");
-            })
-            .on("mousemove", (event) => {
-                tooltip.style("left", (event.pageX + 20) + "px").style("top", (event.pageY - 20) + "px");
-            })
-            .on("mouseout", function() {
-                link.transition().duration(200)
-                    .attr("stroke-opacity", 0.4).attr("stroke", "#444").attr("stroke-width", d => (d.weight || 1) + 1)
-                    .attr("marker-end", "url(#arrow-default)");
-                node.transition().duration(200).attr("opacity", 1).attr("stroke", "#fff").attr("stroke-width", 1.5);
-                label.transition().duration(200).attr("opacity", 1).attr("fill", "#999");
-                tooltip.style("display", "none");
-            });
-
-            d3.select("#search").on("input", function() {
-                const term = this.value.toLowerCase();
-                node.attr("opacity", d => d.id.toLowerCase().includes(term) || term === "" ? 1 : 0.1);
-                label.attr("opacity", d => d.id.toLowerCase().includes(term) || term === "" ? 1 : 0.1);
-            });
-
-            simulation.on("tick", () => {
-                link.attr("x1", d => d.source.x).attr("y1", d => d.source.y)
-                    .attr("x2", d => d.target.x).attr("y2", d => d.target.y);
-                node.attr("cx", d => d.x).attr("cy", d => d.y);
-                label.attr("x", d => d.x).attr("y", d => d.y);
-            });
-
-            function drag(sim) {
-                return d3.drag()
-                    .on("start", (e) => { if (!e.active) sim.alphaTarget(0.3).restart(); e.subject.fx = e.subject.x; e.subject.fy = e.subject.y; })
-                    .on("drag", (e) => { e.subject.fx = e.x; e.subject.fy = e.y; })
-                    .on("end", (e) => { if (!e.active) sim.alphaTarget(0); e.subject.fx = null; e.subject.fy = null; });
-            }
-        });
-    </script>
+    function drag(sim) {
+        return d3.drag()
+            .on("start", (e) => { if (!e.active) sim.alphaTarget(0.3).restart(); e.subject.fx = e.subject.x; e.subject.fy = e.subject.y; })
+            .on("drag", (e) => { e.subject.fx = e.x; e.subject.fy = e.y; })
+            .on("end", (e) => { if (!e.active) sim.alphaTarget(0); e.subject.fx = null; e.subject.fy = null; });
+    }
+});
+</script>
 </body>
 </html>
