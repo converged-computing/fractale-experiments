@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Workflow Software Map</title>
+    <script src="https://d3js.org/d3.v6.min.js"></script>
+    <style>
+        body { margin: 0; font-family: 'Segoe UI', Roboto, sans-serif; background: #fafafa; overflow: hidden; }
+        #sidebar {
+            position: absolute; top: 10px; left: 10px; width: 260px; max-height: 95vh;
+            background: white; border: 1px solid #ccc; border-radius: 8px;
+            display: flex; flex-direction: column; z-index: 100; box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        .sidebar-header { padding: 12px; border-bottom: 1px solid #eee; }
+        #reset-btn { background: #2c3e50; color: white; border: none; padding: 8px; width: 100%; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px; }
+        .list-section { padding: 12px; overflow-y: auto; border-bottom: 1px solid #eee; }
+        h3 { margin: 0 0 8px 0; font-size: 10px; text-transform: uppercase; color: #999; letter-spacing: 1px; }
+        .search-list { list-style: none; padding: 0; margin: 0; max-height: 200px; }
+        .search-list li { padding: 6px 10px; margin-bottom: 2px; cursor: pointer; font-size: 13px; border-radius: 4px; background: #f9f9f9; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; transition: 0.2s; }
+        .search-list li:hover { background: #eee; transform: translateX(3px); }
+        .sw-item { color: #e74c3c; border-left: 3px solid #e74c3c; }
+        .rule-item { color: #2c3e50; border-left: 3px solid #2c3e50; }
+        .sim-item { font-size: 12px; display: flex; justify-content: space-between; padding: 8px; margin-bottom: 4px; background: #fff; border: 1px solid #eee; border-radius: 4px; cursor: pointer; }
+        .sim-score { font-weight: bold; color: #27ae60; }
+        .links line { stroke: #bbb; stroke-opacity: 0.3; }
+        .nodes circle { stroke: #fff; stroke-width: 1.5px; cursor: pointer; }
+        .label { font-size: 11px; fill: #444; pointer-events: none; }
+        svg { cursor: grab; background: #fff; }
+        .dimmed { opacity: 0.05 !important; }
+        .focused-link { stroke: #333 !important; stroke-opacity: 1 !important; stroke-width: 2px !important; }
+        .highlight-active { stroke: #000 !important; stroke-width: 3px !important; }
+    </style>
+</head>
+<body>
+    <div id="sidebar">
+        <div class="sidebar-header"><button id="reset-btn">RESET VIEW</button></div>
+        <div class="list-section"><h3>Software</h3><ul id="sw-list" class="search-list"></ul></div>
+        <div class="list-section"><h3>Steps</h3><ul id="rule-list" class="search-list"></ul></div>
+        <div class="list-section" id="similarity-section" style="display:none;"><h3>Similar Steps</h3><div id="sim-list"></div></div>
+    </div>
+    <svg width="100vw" height="100vh"></svg>
+    <script src="resource_data.js"></script>
+    <script>
+        const svg = d3.select("svg"), width = window.innerWidth, height = window.innerHeight, g = svg.append("g");
+        const zoom = d3.zoom().scaleExtent([0.05, 10]).on("zoom", (e) => g.attr("transform", e.transform));
+        svg.call(zoom);
+
+        const nodes = vizData.nodes.sort((a,b) => a.label.localeCompare(b.label));
+        nodes.forEach(n => {
+            const list = n.type === "software" ? d3.select("#sw-list") : d3.select("#rule-list");
+            list.append("li").attr("class", n.type === "software" ? "sw-item" : "rule-item")
+                .text(n.label).on("click", (e) => { e.stopPropagation(); jump(n); });
+        });
+
+        const sim = d3.forceSimulation(vizData.nodes).force("link", d3.forceLink(vizData.links).id(d => d.id).distance(100)).force("charge", d3.forceManyBody().strength(-600)).force("center", d3.forceCenter(width/2, height/2));
+        const link = g.append("g").attr("class", "links").selectAll("line").data(vizData.links).enter().append("line");
+        const node = g.append("g").attr("class", "nodes").selectAll("g").data(vizData.nodes).enter().append("g").on("click", (e, d) => { e.stopPropagation(); jump(d); });
+        node.append("circle").attr("r", d => d.type === "rule" ? 11 : 7).attr("fill", d => d.type === "rule" ? "#2c3e50" : "#e74c3c");
+        node.append("text").attr("class", "label").attr("dx", 16).attr("dy", ".35em").text(d => d.label);
+
+        sim.on("tick", () => {
+            link.attr("x1", d => d.source.x).attr("y1", d => d.source.y).attr("x2", d => d.target.x).attr("y2", d => d.target.y);
+            node.attr("transform", d => `translate(${d.x},${d.y})`);
+        });
+
+        d3.select("#reset-btn").on("click", () => { reset(); svg.transition().duration(800).call(zoom.transform, d3.zoomIdentity); });
+        svg.on("click", reset);
+
+        function jump(d) {
+            const scale = 2.0;
+            svg.transition().duration(800).call(zoom.transform, d3.zoomIdentity.translate(width/2 - d.x*scale, height/2 - d.y*scale).scale(scale));
+            highlight(d.id);
+            if(d.type==='rule') showSims(d.label);
+        }
+
+        function highlight(id) {
+            const set = new Set([id]);
+            link.each(d => { if(d.source.id===id) set.add(d.target.id); if(d.target.id===id) set.add(d.source.id); });
+            node.classed("dimmed", d => !set.has(d.id));
+            link.classed("dimmed", d => d.source.id !== id && d.target.id !== id).classed("focused-link", d => d.source.id === id || d.target.id === id);
+            node.select("circle").classed("highlight-active", d => d.id === id);
+        }
+
+        function showSims(name) {
+            const sec = d3.select("#similarity-section"), list = d3.select("#sim-list");
+            const row = vizData.similarity.find(s => s.rule === name);
+            if(!row) { sec.style("display", "none"); return; }
+            const scores = Object.entries(row).filter(([k, v]) => k !== 'rule' && k !== name && v > 0).sort((a,b) => b[1]-a[1]).slice(0,5);
+            if(!scores.length) { sec.style("display", "none"); return; }
+            sec.style("display", "block"); list.html("");
+            scores.forEach(([n, v]) => {
+                const item = list.append("div").attr("class", "sim-item").html(`<span>${n}</span><span class="sim-score">${Math.round(v*100)}%</span>`);
+                item.on("click", (e) => { e.stopPropagation(); jump(vizData.nodes.find(node => node.id === n)); });
+            });
+        }
+
+        function reset() {
+            node.classed("dimmed", false); link.classed("dimmed", false).classed("focused-link", false);
+            node.select("circle").classed("highlight-active", false); d3.select("#similarity-section").style("display", "none");
+        }
+
+        function dragstarted(event, d) { if (!event.active) sim.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; }
+        function dragged(event, d) { d.fx = event.x; d.fy = event.y; }
+        function dragended(event, d) { if (!event.active) sim.alphaTarget(0); d.fx = null; d.fy = null; }
+    </script>
+</body>
+</html>

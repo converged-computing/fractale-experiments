@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Snakemake Workflow Phenotype Topology</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #020617;
+            --panel-bg: #0f172a;
+            --border-color: #1e293b;
+            --accent: #38bdf8;
+            --text-main: #f8fafc;
+            --text-dim: #94a3b8;
+        }
+
+        body {
+            margin: 0;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: -apple-system, system-ui, sans-serif;
+            overflow-x: hidden;
+            overflow-y: auto; 
+        }
+
+        /* Graph Header and Visualization Area */
+        #viz-wrapper {
+            width: 100vw;
+            height: 85vh;
+            position: relative;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        #header {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        h1 { margin: 0; font-size: 1.4rem; color: var(--accent); text-transform: uppercase; letter-spacing: 2px; }
+        #viz { width: 100%; height: 100%; display: block; }
+
+        .node { stroke: #1e293b; stroke-width: 2px; cursor: grab; }
+        .node:active { cursor: grabbing; }
+        .link { fill: none; stroke: #475569; stroke-opacity: 0.4; }
+        .label { font-size: 11px; fill: #cbd5e1; pointer-events: none; text-shadow: 1px 1px 2px #000; }
+
+        /* Tooltip */
+        .tooltip {
+            position: absolute;
+            padding: 12px;
+            background: rgba(15, 23, 42, 0.95);
+            border: 1px solid var(--accent);
+            border-radius: 8px;
+            pointer-events: none;
+            font-size: 12px;
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.5);
+            max-width: 300px;
+            backdrop-filter: blur(4px);
+            color: white;
+            line-height: 1.4;
+            z-index: 4000;
+        }
+
+        .tag {
+            display: inline-block;
+            background: #1e293b;
+            color: #7dd3fc;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin: 2px;
+            font-size: 10px;
+            border: 1px solid #334155;
+        }
+
+        /* Methodology Panel & Button */
+        #info-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 100;
+            background: rgba(56, 189, 248, 0.2);
+            border: 1px solid var(--accent);
+            color: var(--accent);
+            padding: 8px 18px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+            pointer-events: auto;
+        }
+        #info-btn:hover { background: rgba(56, 189, 248, 0.4); }
+
+        #methodology-panel {
+            position: fixed;
+            top: 0;
+            right: -450px;
+            width: 400px;
+            height: 100%;
+            background: rgba(15, 23, 42, 0.98);
+            border-left: 1px solid var(--border-color);
+            box-shadow: -10px 0 30px rgba(0,0,0,0.5);
+            z-index: 5000;
+            transition: 0.4s cubic-bezier(0.075, 0.82, 0.165, 1);
+            padding: 30px;
+            overflow-y: auto;
+            backdrop-filter: blur(10px);
+        }
+
+        #methodology-panel.open { right: 0; }
+        .close-btn { cursor: pointer; float: right; font-size: 28px; color: var(--text-dim); line-height: 1; }
+
+        .method-section { margin-bottom: 25px; }
+        .method-section h3 { color: var(--accent); font-size: 16px; margin-bottom: 10px; border-bottom: 1px solid var(--border-color); padding-bottom: 5px; }
+        .method-section p { font-size: 13px; line-height: 1.6; color: #cbd5e1; }
+        .algo { font-family: monospace; color: #7dd3fc; background: #1e293b; padding: 2px 4px; border-radius: 3px; }
+
+        /* Table Registry Section */
+        #table-container {
+            background: var(--panel-bg);
+            padding: 60px 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        #table-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        #table-search {
+            background: #1e293b;
+            border: 1px solid #334155;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 6px;
+            width: 350px;
+        }
+
+        #phenotype-table {
+            width: 100%;
+            border-collapse: collapse;
+            color: #cbd5e1;
+            font-size: 14px;
+        }
+
+        #phenotype-table th {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 2px solid #334155;
+            color: var(--accent);
+            text-transform: uppercase;
+            font-size: 12px;
+        }
+
+        #phenotype-table td {
+            padding: 12px;
+            border-bottom: 1px solid var(--border-color);
+            vertical-align: top;
+        }
+
+        #phenotype-table tr:hover { background: rgba(56, 189, 248, 0.05); }
+
+        .table-tag {
+            background: #1e293b;
+            color: #7dd3fc;
+            padding: 2px 8px;
+            border-radius: 4px;
+            margin: 2px;
+            font-family: monospace;
+            font-size: 11px;
+            border: 1px solid #334155;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body>
+
+<div id="viz-wrapper">
+    <div id="header">
+        <h1>Workflow Motifs</h1>
+        <p>Nodes: Rule Phenotypes | Edges: Transitions between steps</p>
+    </div>
+
+    <button id="info-btn">Methodology & Interpretation</button>
+
+    <div id="methodology-panel">
+        <span class="close-btn">&times;</span>
+        <h2 style="color: #f8fafc; font-weight: 300;">Scientific Topology</h2>
+        
+        <div class="method-section">
+            <h3>1. Hybrid Tokenization</h3>
+            <p>Each workflow step is treated as a "document." We extract software packages (<span class="algo">conda</span>), but also semantic tokens from the entire rule block, and we filter out common Snakemake or command terms (e.g., <span class="algo">sort</span> or <span class="algo">script</span>). This captures scientific intent beyond tool name.</p>
+        </div>
+
+        <div class="method-section">
+            <h3>2. Latent Semantic Discovery</h3>
+            <p>We use <span class="algo">TF-IDF</span> to identify high-signal tokens and <span class="algo">Truncated SVD</span> to compress thousands of terms into 50 core "Scientific Concepts." This allows us to see different rules doing similar work that belong together (e.g., If <span class="algo">bwa</span> and <span class="algo">bowtie2</span> are both associated with <span class="algo">samtools</span>, we can conclude that <span class="algo">bwa</span> and <span class="algo">bowtie2</span> are conceptually similar).</p>
+        </div>
+
+        <div class="method-section">
+            <h3>3. Archetype Clustering</h3>
+            <p>Using <span class="algo">K-Means</span>, we group steps into Archetypes (Phenotypes). A label like <i>"bwa | mem | fastq"</i> represents the statistical center of a cluster of similar scientific actions discovered across 5,000+ workflows.</p>
+        </div>
+
+        <div class="method-section">
+            <h3>4. Motif Reconstruction & Scale</h3>
+            <p>We leverage two different scales of data.<br><br>
+            <b>Global Archetypes (5,000+ Workflows):</b> We used the full Snakemake catalog to define the phenotypes. This ensures our categories are representative of the entire scientific community.<br><br>
+            <b>Structural Motifs (128 Ground-Truth DAGs):</b> We parsed 128 DAG files to observe how these archetypes connect. This sub-sample provided over 6,700 total transitions and 316 unique motifs, allowing us to see a sample of common patterns in scientific pipelines.</p>
+        </div>
+
+        <div class="method-section">
+            <h3>Graph Legend</h3>
+            <p><b>Circle Size:</b> Frequency of the archetype in the catalog.<br>
+               <b>Arrow Thickness:</b> Strength/Reliability of the transition.<br>
+               <b>Self-Loop Arcs:</b> Iterative motifs (repetitive processing steps).<br>
+        </div>
+
+        <div class="method-section">
+            <h3>Next Steps</h3>
+            <p>I think we want to determine if the phenotypes are meaningful. For each, we can look at wrapper prefixes to determine domains (e.g., bio) and then color the nodes by the domain. We can then add in another dimension that is more granular for what the workflow does - the GitHub tags. I think we will primarily want to look manually at these nodes, at the grouped software / elements within each, and understand if it makes sense. Note that "noise" is not necessarily noise, it just represents tokens in the space that are not associated with an actual step we have. This makes sense give there are over 5K that derived the motifs but we only have around 100 actual DAGs to map to it. If we can figure out another way to generate the DAGs this will not all be noise</p>
+        </div>
+    </div>
+
+    <div id="tooltip" class="tooltip" style="opacity: 0;"></div>
+    <svg id="viz"></svg>
+</div>
+
+<div id="table-container">
+    <div id="table-header">
+        <h2 style="font-weight: 300;">Archetype Registry</h2>
+        <input type="text" id="table-search" placeholder="Search tokens (e.g. bwa, nc, elec)...">
+    </div>
+    <table id="phenotype-table">
+        <thead>
+            <tr>
+                <th style="width: 80px;">ID</th>
+                <th>Scientific Signature (Top Tokens)</th>
+                <th style="width: 150px;">Global Step Count</th>
+            </tr>
+        </thead>
+        <tbody id="table-body"></tbody>
+    </table>
+</div>
+
+<script>
+const width = window.innerWidth;
+const height = window.innerHeight * 0.85;
+
+const svg = d3.select("#viz");
+const g = svg.append("g"); 
+
+// Zooming Behavior
+const zoom = d3.zoom()
+    .scaleExtent([0.1, 5])
+    .on("zoom", (event) => g.attr("transform", event.transform));
+svg.call(zoom);
+
+// Arrowheads for directed motifs
+svg.append("defs").append("marker")
+    .attr("id", "arrow").attr("viewBox", "0 -5 10 10").attr("refX", 25).attr("refY", 0)
+    .attr("markerWidth", 5).attr("markerHeight", 5).attr("orient", "auto")
+    .append("path").attr("d", "M0,-5L10,0L0,5").attr("fill", "#475569");
+
+// UI Toggle Logic
+const infoBtn = document.getElementById('info-btn');
+const panel = document.getElementById('methodology-panel');
+const closeBtn = document.querySelector('.close-btn');
+
+infoBtn.addEventListener('click', () => panel.classList.add('open'));
+closeBtn.addEventListener('click', () => panel.classList.remove('open'));
+svg.on("click", () => panel.classList.remove('open'));
+
+d3.json("workflow_data.json").then(data => {
+
+    const filteredLinks = data.links.filter(d => d.source !== -1 && d.target !== -1);
+
+    const simulation = d3.forceSimulation(data.nodes)
+        .force("link", d3.forceLink(filteredLinks).id(d => d.id).distance(250))
+        .force("charge", d3.forceManyBody().strength(-900))
+        .force("center", d3.forceCenter(width / 2, height / 2))
+        .force("collision", d3.forceCollide().radius(60));
+
+    const colorPalette = d3.scaleOrdinal(d3.schemeTableau10);
+
+    // DRAW LINKS
+    const linkSelection = g.append("g")
+        .selectAll("path")
+        .data(data.links)
+        .join("path")
+        .attr("class", "link")
+        .attr("stroke-width", d => Math.log(d.weight + 1) * 2 + 1)
+        .attr("marker-end", d => d.source === d.target ? "" : "url(#arrow)");
+
+    // DRAW NODES
+    const nodeSelection = g.append("g")
+        .selectAll("circle")
+        .data(data.nodes)
+        .join("circle")
+        .attr("class", "node")
+        .attr("r", d => d.id === -1 ? 15 : Math.sqrt(d.size) * 1.5 + 8)
+        .attr("fill", d => d.id === -1 ? "#475569" : colorPalette(d.id))
+        .call(d3.drag()
+            .on("start", (e, d) => { if (!e.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+            .on("drag", (e, d) => { d.fx = e.x; d.fy = e.y; })
+            .on("end", (e, d) => { if (!e.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; }))
+        .on("mouseover", (event, d) => {
+            const tooltip = d3.select("#tooltip");
+            tooltip.transition().duration(100).style("opacity", 1);
+            tooltip.html(`
+                <div style="font-weight: bold; margin-bottom: 5px; color: ${colorPalette(d.id)}">${d.label}</div>
+                <div style="font-size: 11px; margin-bottom: 8px;">Observed in <b>${d.size.toLocaleString()}</b> global steps.</div>
+                <div>${d.tokens.map(t => `<span class="tag">${t}</span>`).join("")}</div>
+            `)
+            .style("left", (event.pageX + 20) + "px")
+            .style("top", (event.pageY - 20) + "px");
+        })
+        .on("mouseout", () => d3.select("#tooltip").style("opacity", 0));
+
+    // DRAW LABELS
+    const labelSelection = g.append("g")
+        .selectAll("text")
+        .data(data.nodes)
+        .join("text")
+        .attr("class", "label")
+        .text(d => d.label);
+
+    // TICK FUNCTION (Animation Loop)
+    simulation.on("tick", () => {
+        linkSelection.attr("d", d => {
+            if (d.source.id === d.target.id) {
+                // Arcs for self-loops (Repetitive tasks)
+                const x = d.source.x, y = d.source.y;
+                const dr = 25;
+                return `M${x},${y} A${dr},${dr} 0 1,1 ${x + 1},${y + 1}`;
+            }
+            // Standard lines for transitions
+            return `M${d.source.x},${d.source.y} L${d.target.x},${d.target.y}`;
+        });
+
+        nodeSelection.attr("cx", d => d.x).attr("cy", d => d.y);
+        labelSelection.attr("x", d => d.x + 15).attr("y", d => d.y + 5);
+    });
+
+    const tableBody = d3.select("#table-body");
+    
+    function renderTable(nodes) {
+        tableBody.selectAll("tr").remove();
+        // Sort by size descending
+        const sorted = [...nodes].sort((a, b) => b.size - a.size);
+
+        sorted.forEach(n => {
+            const row = tableBody.append("tr");
+            row.append("td").html(`<span style="color:${colorPalette(n.id)}; font-weight:bold">${n.id === -1 ? 'Noise' : n.id}</span>`);
+            const tokenCell = row.append("td");
+            n.tokens.forEach(t => tokenCell.append("span").attr("class", "table-tag").text(t));
+            row.append("td").text(n.size.toLocaleString());
+        });
+    }
+
+    renderTable(data.nodes);
+
+    // Table Search filtering
+    d3.select("#table-search").on("input", (e) => {
+        const term = e.target.value.toLowerCase();
+        const filtered = data.nodes.filter(n => 
+            n.tokens.some(t => t.toLowerCase().includes(term)) || 
+            n.label.toLowerCase().includes(term)
+        );
+        renderTable(filtered);
+    });
+
+}).catch(err => {
+    console.error(err);
+    d3.select("body").append("div").style("padding","50px").html(`<h1>Data Load Error</h1><p>${err.message}</p>`);
+});
+</script>
+</body>
+</html>
