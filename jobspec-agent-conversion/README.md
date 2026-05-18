@@ -123,5 +123,5 @@ And then calculate accuracy with the Flux validation with submit and dry run (re
 
 ```bash
 python3 process_metrics.py
-python scripts/plot_issues.py data.json --experiment 1k --out img/issues_1k.svg
+python scripts/plot_issues.py ./results/data.json --experiment 1k --out img/issues_1k.svg
 ```
