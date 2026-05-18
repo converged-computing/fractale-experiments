@@ -20,6 +20,7 @@ import csv
 here = os.path.abspath(os.path.dirname(__file__))
 root = os.path.dirname(here)
 
+
 def remove_upper_outliers(data):
     """
     Remove upper outliers
@@ -120,7 +121,7 @@ def main():
             "Please install shellmetrics from: https://github.com/shellspec/shellmetrics"
         )
 
-    with open(args.input, 'r') as fd:
+    with open(args.input, "r") as fd:
         files = json.loads(fd.read())
 
     # These are in jobspec-conversion
@@ -135,7 +136,9 @@ def main():
             continue
         sha256, sha1 = calculate_digests(filename)
         ccn = calculate_complexity(filename)
-        inserts.append({"filename": filename, "sha256": sha256, "sha1": sha1, "ccn": ccn})
+        inserts.append(
+            {"filename": filename, "sha256": sha256, "sha1": sha1, "ccn": ccn}
+        )
 
     # Make some plots!
     values = [x["ccn"] for x in inserts]
@@ -147,8 +150,7 @@ def main():
     plt.savefig(os.path.join(args.outdir, "cyclomatic-complexity.png"))
     plt.clf()
 
-
-    print(np.mean(values)
+    print(np.mean(values))
     # Out[15]: np.float64(1.16)
 
     print(np.std(values))

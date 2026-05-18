@@ -17,7 +17,6 @@ from fractale.engines import get_engine
 from fractale.core.plan import Plan
 from fractale.agents.base import init_backend
 
-
 # that uses the jobspec transformer agent.
 detailed_args = """
 
@@ -30,12 +29,13 @@ If you need to calculate --ntasks-per-socket, assume the machine has 16 cores pe
 Flux models affinity with broker arguments. E.g, -o cpu-affinity=per-task, -o gpu-affinity=per-task
 """
 
+
 def get_instructions(args):
     # Prepare information about submit from the secretary agent.
     providers = discover_providers()
-    software_helper = providers['software'][1]
+    software_helper = providers["software"][1]
     assert software_helper.name == "software"
-    submit_help  = software_helper.get_command_help('/usr/bin/flux', 'submit')
+    submit_help = software_helper.get_command_help("/usr/bin/flux", "submit")
     prompt = """
 Any command line flux submit option can be represented in a batch script:
 
@@ -46,10 +46,11 @@ As an example:
 #FLUX: --cores=N
 
 Here are the possible arguments from flux submit.
-""" + submit_help['help_content']
+""" + submit_help["help_content"]
     if args.with_detail:
         prompt += detailed_args
     return prompt
+
 
 def detect_transformer(jobspec):
     """
@@ -114,22 +115,18 @@ BUF_SIZE = 65536
 
 # The agentic plan template
 AGENTIC_PLAN = {
-  "name": "Jobspec Transform",
-  "agents": [
-    {
-      "path": "fractale_agents.hpc.job.JobTransformAgent"
-    }
-  ],
-  "steps": [
-    {
-      "name": "transform",
-      "type": "agent",
-      "tool": "job-transform",
-      "inputs": {
-        "goal": "Convert the following job specification from %s to %s. Make a best effort to include every parameter, explain your choices, and explain when you are unable to do a mapping and the implications."
-      }
-    }
-  ]
+    "name": "Jobspec Transform",
+    "agents": [{"path": "fractale_agents.hpc.job.JobTransformAgent"}],
+    "steps": [
+        {
+            "name": "transform",
+            "type": "agent",
+            "tool": "job-transform",
+            "inputs": {
+                "goal": "Convert the following job specification from %s to %s. Make a best effort to include every parameter, explain your choices, and explain when you are unable to do a mapping and the implications."
+            },
+        }
+    ],
 }
 
 
@@ -154,17 +151,17 @@ def get_parser():
         "--with-detail",
         help="Add more details about conversion",
         default=False,
-        action="store_true"
+        action="store_true",
     )
     parser.add_argument(
         "--sample",
         help="Full path to sample file",
-        default=os.path.join(root, "sample-200.json")
+        default=os.path.join(root, "sample-200.json"),
     )
     parser.add_argument(
         "--output",
         help="Output directory for generated scripts",
-        default=os.path.join(root, 'results')
+        default=os.path.join(root, "results"),
     )
     return parser
 
@@ -184,7 +181,7 @@ def main():
 
     # Read in sample
     if not os.path.exists(args.sample):
-        sys.exit(f'Sample file {args.sample} does not exist.')
+        sys.exit(f"Sample file {args.sample} does not exist.")
 
     files = utils.read_json(args.sample)
     print(f"⭐️ Loaded {len(files)} unique job scripts to process from {args.sample}")
@@ -195,11 +192,11 @@ def main():
     success_count = 0
     failure_count = 0
 
-    # Initialize backend 
+    # Initialize backend
     registry.init_registry()
 
     init_backend()
-    
+
     # We are going to cheat a little and instantiate this once (here) with a faux plan
     engine = get_engine(AGENTIC_PLAN, max_attempts=5)
     limit = args.limit if args.limit is not None else len(files)
@@ -220,7 +217,7 @@ def main():
             break
         print("-" * 50)
         print(f"Processing file {count+1}/{limit}: {os.path.basename(filename)}")
-        filename =  os.path.join(data_root.replace('data', ''), filename)
+        filename = os.path.join(data_root.replace("data", ""), filename)
         original_script = utils.read_file(filename)
 
         try:
@@ -278,37 +275,37 @@ def main():
             engine._max_attempts = 5
 
             # The core agentic call replaces the old transformer.convert()
-            try:                
+            try:
                 result = engine.run()
-            except httpx.ReadError: 
+            except httpx.ReadError:
                 continue
-        
-            result['plan'] = plan
-            result['filename'] = filename
+
+            result["plan"] = plan
+            result["filename"] = filename
 
             # Save the new jobspec to the equivalent place on the filesystem
             outdir = os.path.dirname(outfile_path)
             if not os.path.exists(outdir):
-               os.makedirs(outdir)
+                os.makedirs(outdir)
             write_json(result, outfile_path)
 
             # Log success
             success_count += 1
             results.append(
-                    {
-                        "source_file": filename,
-                        "from": from_manager,
-                        "to": to_manager,
-                        "status": "success",
-                        "output_file": outfile_path,
-                    }
-                )
+                {
+                    "source_file": filename,
+                    "from": from_manager,
+                    "to": to_manager,
+                    "status": "success",
+                    "output_file": outfile_path,
+                }
+            )
             print(
-                    Fore.GREEN
-                    + f"  ✅ Success: Saved to {os.path.basename(outfile_path)}"
-                    + Style.RESET_ALL
-                )
-                # Reset database for next run
+                Fore.GREEN
+                + f"  ✅ Success: Saved to {os.path.basename(outfile_path)}"
+                + Style.RESET_ALL
+            )
+            # Reset database for next run
             engine.database.reset()
 
             count += 1
