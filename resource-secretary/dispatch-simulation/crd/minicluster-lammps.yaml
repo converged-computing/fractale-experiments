@@ -1,0 +1,53 @@
+apiVersion: flux-framework.org/v1alpha2
+kind: MiniCluster
+metadata:
+  name: lammps
+spec:
+  # This was changed to 1 for testing runs.
+  size: 5
+  flux:
+    container:
+      image: ghcr.io/converged-computing/flux-view-ubuntu:arm-jammy 
+  containers:
+      # TODO could use pytorch for this experiment too!
+      #- image: vanessa/hpsf-flux:2026-flux-operator-pytorch-11
+    - image: ghcr.io/converged-computing/fractale-agent-experiments:lammps-reax
+      launcher: true
+      # Here we are starting a hub, but it is also acting as a worker (dual mode)
+      command: sleep infinity
+      # Note that we need verbose to return calls for tools
+      # command: mcpserver start --port 8089 --host 0.0.0.0 -t http --dual --config /code/mcpserver.yaml --verbose
+      environment:
+        FI_PROVIDER: "efa"
+        FI_EFA_FORK_SAFE: "1"
+
+      commands:
+        pre: | 
+          pip install fractale[all] hpc-mcp[all] IPython
+          git clone -b dispatch https://github.com/converged-computing/resource-secretary /code/resource-secretary && python3 -m pip install -e /code/resource-secretary[all]    
+          git clone -b dual-mode https://github.com/converged-computing/mcp-server /code/mcp-server && python3 -m pip install -e /code/mcp-server[all]         
+          git clone -b add-events https://github.com/converged-computing/flux-mcp /code/flux-mcp && python3 -m pip install -e /code/flux-mcp[all]
+          pip install google-genai[aiohttp]
+          echo "tools:" >> /code/mcpserver.yaml
+          echo "  - path: flux_mcp.validate.flux_validate_batch_jobspec" >> /code/mcpserver.yaml
+          echo "  - path: hpc_mcp.timer.sleep_timer" >> /code/mcpserver.yaml
+          echo "  - path: hpc_mcp.filesystem.filesystem_read_file" >> /code/mcpserver.yaml
+          echo "  - path: hpc_mcp.filesystem.filesystem_list_directory" >> /code/mcpserver.yaml
+          echo "  - path: hpc_mcp.filesystem.filesystem_find_directory" >> /code/mcpserver.yaml
+          echo "  - path: hpc_mcp.filesystem.filesystem_find_file" >> /code/mcpserver.yaml
+          echo "  - path: flux_mcp.resource.flux_resource_list" >> /code/mcpserver.yaml
+          echo "  - path: flux_mcp.validate.flux_validate_jobspec" >> /code/mcpserver.yaml
+          echo "  - path: flux_mcp.job.flux_submit_job" >> /code/mcpserver.yaml
+          echo "  - path: flux_mcp.job.flux_cancel_job" >> /code/mcpserver.yaml
+          echo "  - path: flux_mcp.job.flux_get_job_info" >> /code/mcpserver.yaml
+          echo "  - path: flux_mcp.job.flux_get_job_logs" >> /code/mcpserver.yaml
+
+      volumes:
+        shared-memory:
+          emptyDir: true
+          emptyDirMedium: "memory"
+      resources:
+        limits:
+          vpc.amazonaws.com/efa: 1
+        requests:
+          vpc.amazonaws.com/efa: 1
