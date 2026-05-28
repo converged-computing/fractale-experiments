@@ -26,7 +26,7 @@ Further analysis, we want to take our data and count extensions, along with addi
 python get_wrappers.py
 ```
 
-# McpServer Catalogs
+## McpServer Catalogs
 
 This is re-generation of the mcp-server catalog example. We will run this for Snakemake workflows.
 The idea of a catalog is a user-specified set of tools that are typically run alongside a job to serve an application. A catalog is a provider that needs to be explicitly added, and then will expose multiple different functions for an agent. Let's first prepare some snakemake data:
@@ -62,4 +62,14 @@ And now run fractale (and export needed tokens):
 
 ```bash
 fractale run --database json ./plans/variant-calling.yaml
+```
+
+## Ground Truth
+
+For each of the above we need to run a human generated workflow with wrappers.
+
+```bash
+pip install snakemake-wrapper-utils
+# In each directory for ground-truth/<experiment>/<iteration>
+snakemake -s Snakefile --cores 1 --use-conda
 ```
