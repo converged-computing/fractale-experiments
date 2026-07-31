@@ -329,39 +329,36 @@ def plot_confusion_matrix(df, out_path):
     """
     In [1]: df.actual_verdict.unique()
     Out[1]: array(['INCOMPATIBLE', 'COMPATIBLE', 'READY'], dtype=object)
-
     In [2]: df.agent_verdict.unique()
     Out[2]: array(['INCOMPATIBLE', 'BUSY', 'UNKNOWN', 'READY'], dtype=object)
-
     We need to combine BUSY and READY into COMPATIBLE, because we did not well
     define what "BUSY" means. We are confident BUSY and READY == compatible.
     """
     merge_df = df.copy()
-    
+
     # Map BUSY/READY/COMPATIBLE to a single label: COMPATIBLE
     # Map everything else (except UNKNOWN) to INCOMPATIBLE
     target_map = {"BUSY": "COMPATIBLE", "READY": "COMPATIBLE", "COMPATIBLE": "COMPATIBLE"}
-    
+
     merge_df['actual_verdict'] = merge_df['actual_verdict'].replace(target_map)
     merge_df['agent_verdict'] = merge_df['agent_verdict'].replace(target_map)
-
-    # Define the labels for the axes. 
+    # Define the labels for the axes. These must stay as the full strings --
+    # they are the keys used for the crosstab and reindex below. The left axis
+    # tick labels are shortened after the heatmap is drawn.
     row_labels = ["COMPATIBLE", "INCOMPATIBLE"]
-    col_labels = ["COMPATIBLE", "INCOMPATIBLE"]    
+    col_labels = ["COMPATIBLE", "INCOMPATIBLE"]
     if "UNKNOWN" in merge_df['agent_verdict'].unique():
         col_labels.append("UNKNOWN")
-
     # 2. Calculate Raw Counts First
     confusion_counts = pd.crosstab(
-        merge_df['actual_verdict'], 
+        merge_df['actual_verdict'],
         merge_df['agent_verdict']
     ).reindex(index=row_labels, columns=col_labels, fill_value=0)
-    
+
     total_n = confusion_counts.values.sum()
-    
+
     # Normalizing by ROW (Actual Verdict)
     confusion_pct = confusion_counts.div(confusion_counts.sum(axis=1), axis=0)
-
     # total accuracy - sum of the diagonal where labels match / Total N)
     # we only sum the labels that exist in both actual and agent
     correct_matches = (merge_df['actual_verdict'] == merge_df['agent_verdict']).sum()
@@ -370,21 +367,28 @@ def plot_confusion_matrix(df, out_path):
         [f"{pct:.2f}\n(N={count})" for pct, count in zip(row_pct, row_count)]
         for row_pct, row_count in zip(confusion_pct.values, confusion_counts.values)
     ]
-
     print(total_n)
-    
-    plt.figure(figsize=(9, 7))    
-    ax = sns.heatmap(
-        confusion_pct, 
-        annot=annot_labels, 
-        fmt="", 
-        cmap="YlGnBu", 
-        cbar_kws={'label': f'Recall (Proportion by Row, N={total_n})'}
-    )
 
+    plt.figure(figsize=(9, 4))
+    ax = sns.heatmap(
+        confusion_pct,
+        annot=annot_labels,
+        fmt="",
+        cmap="YlGnBu",
+        cbar_kws={'label': 'Recall'}
+    )
     ax.set_title(f"Actual vs. Agent Verdict\nTotal Accuracy: {total_accuracy:.2%}", fontsize=18, pad=20)
     ax.set_xlabel("Agent Verdict", fontsize=14, labelpad=10)
-    ax.set_ylabel("Actual Verdict", fontsize=14, labelpad=10)    
+    ax.set_ylabel("Actual Verdict", fontsize=14, labelpad=10)
+
+    # Shorten the left axis tick labels only. Derived from the plotted index so
+    # the labels follow the row order rather than assuming it.
+    SHORT_LABELS = {"COMPATIBLE": "COMPAT", "INCOMPATIBLE": "INCOMPAT"}
+    ax.set_yticklabels(
+        [SHORT_LABELS.get(str(lbl), str(lbl)) for lbl in confusion_pct.index],
+        rotation=0,
+    )
+
     plt.tight_layout()
     plt.savefig(out_path / "verdict_confusion_matrix.png")
     plt.savefig(out_path / "verdict_confusion_matrix.svg")

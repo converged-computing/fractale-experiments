@@ -210,13 +210,13 @@ def plot_agreement_matrix(df, output_path):
                     )
                     agreement_matrix.loc[s1, s2] = matches.mean()
 
-        plt.figure(figsize=(12, 10))
+        plt.figure(figsize=(12, 5))
         sns.heatmap(agreement_matrix, annot=True, cmap="YlGnBu", fmt=".2f")
-        plt.title("Agreement: Probability of picking the same worker")
+        # plt.title("Agreement: Probability of picking the same worker")
         plt.ylabel("")
         plt.xlabel("")
         plt.tight_layout()
-        plt.savefig(os.path.join(output_path, "agreement.svg"))
+        plt.savefig(os.path.join(output_path, "agreement.pdf"))
     except Exception as e:
         print(f"Could not generate agreement matrix: {e}")
 
@@ -232,14 +232,14 @@ def plot_archetype_performance(df, output_path):
     success_df["normalized_depth"] = success_df["q_depth"] / depth_means
 
     # Normalized Cost
-    plt.figure(figsize=(9, 7))
+    plt.figure(figsize=(9, 4))
     sns.barplot(data=success_df, x="archetype", y="normalized_cost", hue="strategy")
     plt.axhline(1.0, ls="--", color="red", alpha=0.5, label="Archetype Avg")
     plt.title("Cost Efficiency (Relative to Archetype Average)")
     plt.ylabel("Relative Cost (1.0 = Average)")
     plt.legend()
     plt.tight_layout()
-    plt.savefig(os.path.join(output_path, "normalized-archetype.svg"))
+    plt.savefig(os.path.join(output_path, "normalized-archetype.pdf"))
     plt.close()
 
     # Normalized Depth
@@ -272,7 +272,7 @@ def plot_fleet_pressure(df, output_path):
     Calculates: (Total Successful Placements) / (Total Unique Slots in Fleet)
     This creates a smooth, linearly increasing line showing system saturation.
     """
-    plt.figure(figsize=(12, 6))
+    plt.figure(figsize=(12, 5))
     df = df.sort_values(["archetype", "strategy", "prompt_id_int"])
     df = df[df.archetype == "hpc"]
 
@@ -299,7 +299,7 @@ def plot_fleet_pressure(df, output_path):
     plt.xlabel("Prompt Sequence (Time)")
     plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
     plt.tight_layout()
-    plt.savefig(os.path.join(output_path, "pressure.svg"))
+    plt.savefig(os.path.join(output_path, "pressure.pdf"))
     print("Fleet Pressure plot saved.")
 
 
