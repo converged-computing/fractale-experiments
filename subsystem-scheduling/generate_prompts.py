@@ -57,14 +57,21 @@ def load_by_repo(manifests_dir):
             continue
         repo = repo_of(ref)
         art = arts[0]
-        apps.setdefault(repo, {"subtree": None, "variants": []})
+        apps.setdefault(repo, {"subtree": None, "variants": [], "_counts": {}})
         apps[repo]["variants"].append({
             "reference": ref, "tag": tag_of(ref), "arch": art.get("arch", ""),
             "application": art.get("application", ""), "capability": art.get("capability", {}),
         })
-        # the repo's manifest subtree (parent of the tag dir) scopes a select run
+        # The repo's manifest subtree (parent of the tag dir) scopes a select run:
         # .../<repo>/<tag>/manifest.json -> .../<repo>
-        apps[repo]["subtree"] = str(path.parent.parent)
+        # A repo can appear under more than one root (e.g. a stray duplicated
+        # ghcr.io/ghcr.io tree). Count per subtree and keep the richest one, so the
+        # agent always sees the full variant set rather than whichever was walked last.
+        sub = str(path.parent.parent)
+        apps[repo]["_counts"][sub] = apps[repo]["_counts"].get(sub, 0) + 1
+    for app in apps.values():
+        app["subtree"] = max(app["_counts"], key=app["_counts"].get)
+        del app["_counts"]
     return apps
 
 
@@ -131,7 +138,6 @@ def main(argv=None):
         run = {
             "manifests_dir": apps[repo]["subtree"],
             "vocabulary": args.vocabulary,
-            "clusters": args.clusters,
             "goal": goal,
             "out_dir": f"jobspecs/{repo}",
             "duration_s": 3600,
