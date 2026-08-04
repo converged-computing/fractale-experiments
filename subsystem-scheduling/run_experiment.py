@@ -153,6 +153,73 @@ def save_broker_log(cluster, name, path):
     return len(text.strip())
 
 
+# Container failures Kubernetes retries forever, so the object never reaches a
+# terminal state and fluxq keeps reporting RUNNING. Waiting the full timeout for
+# these costs the whole fleet's hourly rate for nothing, and the diagnosis is
+# already certain the first time the container dies.
+WEDGED = {
+    "CrashLoopBackOff": "the container keeps dying on start",
+    "ImagePullBackOff": "the image cannot be pulled",
+    "ErrImagePull": "the image cannot be pulled",
+    "CreateContainerConfigError": "the pod config is wrong (missing secret?)",
+    "InvalidImageName": "the image reference is malformed",
+}
+
+
+def pod_wedged(cluster, name):
+    """Why a job's pods cannot start, or "" if they look fine.
+
+    `exec format error` is the one worth catching fastest: an amd64 image on
+    arm64 dies instantly and is retried forever, so the base arm of every
+    cross-architecture job burns its entire timeout at full fleet cost. The
+    verdict is available from the first restart.
+    """
+    if not cluster or not name:
+        return ""
+    out = subprocess.run(
+        ["kubectl", "--context", cluster, "get", "pods",
+         "-l", f"job-name={name}", "-o", "json", "--request-timeout=20s"],
+        capture_output=True, text=True)
+    if out.returncode != 0 or not out.stdout.strip():
+        return ""
+    try:
+        pods = json.loads(out.stdout).get("items", [])
+    except json.JSONDecodeError:
+        return ""
+
+    # An arch mismatch is the most specific verdict available, so look for it
+    # first: CrashLoopBackOff would otherwise mask it with a generic message.
+    for pod in pods:
+        st = pod.get("status") or {}
+        for cs in (st.get("containerStatuses") or []) + (st.get("initContainerStatuses") or []):
+            term = (cs.get("lastState") or {}).get("terminated") or {}
+            if "exec format error" in (term.get("message") or ""):
+                return "exec format error: the image is built for another architecture"
+
+    for pod in pods:
+        st = pod.get("status") or {}
+        for cs in (st.get("containerStatuses") or []) + (st.get("initContainerStatuses") or []):
+            waiting = (cs.get("state") or {}).get("waiting") or {}
+            reason = waiting.get("reason", "")
+            if reason in WEDGED:
+                # only give up once it has actually retried: a single restart can
+                # be a transient image pull
+                if reason != "CrashLoopBackOff" or (cs.get("restartCount") or 0) >= 2:
+                    detail = (waiting.get("message") or "").strip()[:120]
+                    return f"{reason}: {WEDGED[reason]}" + (f" ({detail})" if detail else "")
+    # the message often only appears in the log, not the status
+    if pods:
+        first = pods[0].get("metadata", {}).get("name", "")
+        if first:
+            lg = subprocess.run(
+                ["kubectl", "--context", cluster, "logs", first,
+                 "--all-containers", "--tail=20", "--request-timeout=20s"],
+                capture_output=True, text=True)
+            if "exec format error" in (lg.stdout + lg.stderr):
+                return "exec format error: the image is built for another architecture"
+    return ""
+
+
 def secretary_result(path):
     """The workload's own outcome, read from the broker log.
 
@@ -247,7 +314,7 @@ def run(fluxq, js, outdir, cond, timeout, poll):
         return {"outcome": "submit_error", "ran": False, "seconds": 0,
                 "error": f"no id in {resp!r}"}
 
-    rec, state, seen = {}, "UNKNOWN", None
+    rec, state, seen, wedged = {}, "UNKNOWN", None, ""
     while time.time() - started < timeout:
         try:
             rec = _req(f"{fluxq}/v1/jobs/{jid}") or {}
@@ -264,6 +331,21 @@ def run(fluxq, js, outdir, cond, timeout, poll):
             seen = state
         if state in DONE:
             break
+
+        # A pod that cannot start is retried forever, so the object never becomes
+        # terminal. Stop as soon as the reason is certain rather than paying for
+        # the rest of the timeout.
+        if secs >= 30 and secs % 30 < poll:
+            handle = str(field(rec, "RemoteHandle", default="") or "")
+            if "/" in handle:
+                handle = handle.rsplit("/", 1)[-1]
+            if not handle:
+                handle = (js.get("attributes", {}).get("system", {})
+                            .get("job", {}).get("name", ""))
+            why = pod_wedged(field(rec, "ClusterID"), handle)
+            if why:
+                wedged = why
+                break
         time.sleep(poll)
     _tick("")
     sys.stdout.write("\r")
@@ -272,6 +354,9 @@ def run(fluxq, js, outdir, cond, timeout, poll):
     timed_out = state not in DONE
     if not timed_out:
         outcome = "completed" if state == "COMPLETED" else "failed"
+    elif wedged:
+        # a certain diagnosis, reached in seconds instead of the full timeout
+        outcome = "pod_wedged"
     elif state == "SUBMITTED":
         outcome = "unmatched"      # never matched a cluster at all
     else:
@@ -318,6 +403,7 @@ def run(fluxq, js, outdir, cond, timeout, poll):
     return {"outcome": outcome, "ran": inner == "ok", "id": jid,
             # the workload's own view, which is the one to report
             "app_status": inner, "runtime_s": runtime_s,
+            "wedged": wedged,
             "attempts": attempts, "app_reason": reason,
             "cleaned": gone,
             "state": state, "seconds": elapsed, "timed_out": timed_out,
@@ -392,7 +478,26 @@ def main(argv=None):
             d.update({"base_outcome": br["outcome"], "subsystem_outcome": sr["outcome"],
                       "base_ran": br["ran"], "subsystem_ran": sr["ran"],
                       "base_seconds": br.get("seconds"),
-                      "subsystem_seconds": sr.get("seconds")})
+                      "subsystem_seconds": sr.get("seconds"),
+                      # in-container runtime from the job eventlog, not our poll
+                      "base_runtime_s": br.get("runtime_s"),
+                      "subsystem_runtime_s": sr.get("runtime_s")})
+            # WHERE IT RAN beats where satisfy predicted it would. The prediction
+            # is made before dispatch and free capacity moves in between, so the
+            # two disagree; comparing predictions would count prediction
+            # disagreement as a placement difference. Both are kept so the
+            # divergence stays visible.
+            d["predicted_base_cluster"] = d["base_cluster"]
+            d["predicted_subsystem_cluster"] = d["subsystem_cluster"]
+            if br.get("cluster"):
+                d["base_cluster"] = br["cluster"]
+            if sr.get("cluster"):
+                d["subsystem_cluster"] = sr["cluster"]
+            d["same_cluster"] = d["base_cluster"] == d["subsystem_cluster"]
+            d["prediction_held"] = (
+                d["predicted_base_cluster"] == d["base_cluster"]
+                and d["predicted_subsystem_cluster"] == d["subsystem_cluster"]
+            )
             if br["ran"] and sr["ran"]:
                 d["seconds_delta"] = round(br["seconds"] - sr["seconds"], 1)
         rec["diff"] = d
