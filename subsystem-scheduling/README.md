@@ -237,7 +237,7 @@ The agent reconciles each manifest against the vocabulary: it chooses a containe
 ### The actual experiment
 
 ```bash
-PARALLEL=1 bash ./clusters/create-all.sh          # expect "all 8 contexts present"
+PARALLEL=1 bash ./clusters/create-all.sh
 
 # Ensure flux operator installed
 for c in $(kubectl config get-contexts -o name | grep '^sched-'); do
@@ -245,9 +245,35 @@ for c in $(kubectl config get-contexts -o name | grep '^sched-'); do
   kubectl --context $c get crd miniclusters.flux-framework.org -o name 2>/dev/null || echo MISSING
 done
 
+kubectl --context sched-gke-arm apply -f https://raw.githubusercontent.com/flux-framework/flux-operator/refs/heads/main/examples/dist/flux-operator-arm.yaml
+kubectl --context sched-gke-arm taint nodes --all kubernetes.io/arch=arm64:NoSchedule-
+kubectl --context sched-gke-arm -n operator-system rollout status deploy/operator-controller-manager --timeout=5m
+bash ./clusters/validate-fleet.sh
+
 bash ./clusters/make-portable-kubeconfig.sh
-bash ./clusters/create-secret.sh    
-bash ./clusters/fluxq-container/run.sh
+bash ./clusters/create-secret.sh
+bash ./fluxq-container/run.sh
+export FLUXQ=http://localhost:8080
 SECRETARY_SECRET=flux-secretary-token ./clusters/register-all.sh
-curl -s $FLUXQ/v1/clusters | python3 -m json.tool | grep -c '"id"'
+curl -s $FLUXQ/v1/clusters | python3 -m json.tool | grep -c '"name"'  # 7
+
+# Run one at a time...
+python3 run_experiment.py --submit --timeout 900 --only metric-kripke-cpu
+```
+
+Clean up between runs
+
+```bash
+for ctx in sched-gke-cpu sched-gke-arm sched-gke-bigmem sched-gke-gpu-nvidia \
+           sched-eks-arm-small sched-eks-gpu-nvidia sched-eks-cpu-efa-bigmem; do
+  echo "== $ctx"
+  kubectl --context "$ctx" delete minicluster --all --wait=false 2>/dev/null
+done
+```
+
+If can't make a cluster:
+
+```bash
+MACHINES="n2d-highmem-32" ZONES="us-central1-b" ./create-gke-bigmem.sh &
+PARTS="n1-standard-8:nvidia-tesla-t4" ZONES="us-central1-c" ./create-gke-gpu.sh
 ```

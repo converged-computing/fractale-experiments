@@ -1,0 +1,20 @@
+{
+  "alternatives": [
+    "ghcr.io/converged-computing/metric-minife:cpu",
+    "ghcr.io/converged-computing/metric-minife:azure-hpc",
+    "ghcr.io/converged-computing/metric-minife:c2d",
+    "ghcr.io/converged-computing/metric-minife:cpu-zen4",
+    "ghcr.io/converged-computing/metric-minife:latest",
+    "ghcr.io/converged-computing/metric-minife:rocky-8",
+    "ghcr.io/converged-computing/metric-minife:hpc7g",
+    "ghcr.io/converged-computing/metric-minife:libfabric",
+    "ghcr.io/converged-computing/metric-minife:libfabric-cpu-zen4",
+    "ghcr.io/converged-computing/metric-minife:azure-hpc-gpu-ubuntu2204",
+    "ghcr.io/converged-computing/metric-minife:google-gpu",
+    "ghcr.io/converged-computing/metric-minife:c4",
+    "ghcr.io/converged-computing/metric-minife:vtune"
+  ],
+  "application": "metric-minife",
+  "chosen_reference": "ghcr.io/converged-computing/metric-minife:libfabric-cpu",
+  "reasoning": "miniFE (Mantevo) is a genuine HPC proxy app: MPI+OpenMP CG solve on an implicit FE box mesh. Variant choice: every profiled build is CPU-only (accelerator none, no gpu_libs) even where the tag says 'gpu'/'cuda' \u2014 the CUDA-tagged images (latest, libfabric, azure-hpc-gpu-ubuntu2204, google-gpu) show no libcudart/libcuda linkage, so requesting a GPU would gain nothing. Among CPU builds I picked libfabric-cpu: amd64, the hybrid openmp/src MPI build (-O3 -fopenmp -DHAVE_MPI -DMINIFE_CSR_MATRIX, double precision), Open MPI 4.1.2 with mca_mtl_ofi.so over a recent libfabric 1.24.0 \u2014 that gives the best multi-node message path on an EFA fabric while still falling back to TCP/vader, unlike rocky-8 (no libfabric/UCX components at all) or the vtune/c2d/c4/zen4 images which are the same generic x86-64 code without the newer OFI stack. hpc7g is arm64-only, so not preferred for a general amd64 fleet. Network: listed efa first since the OFI MTL is built in and the CG solve is latency/halo-exchange bound, with ethernet as an acceptable fallback so the job can still match a plain cluster. needs_gpu=false to match the CPU-only build. Sizing: 3 whole nodes with a 256^3 global mesh (~16.8M rows, ~27 nnz/row CSR at double) is roughly 6-8 GB of matrix+vector state spread across the 3 ranks/nodes, i.e. a few GB per node, so 16-64GB is a safe range \u2014 it would risk OOM on a 0-16GB node once OpenMP scratch and MPI buffers are added, but does not need a 192GB+ fat node. No cores/ranks specified; nodes are exclusive and the transform derives the decomposition."
+}
