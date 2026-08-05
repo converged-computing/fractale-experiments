@@ -47,12 +47,33 @@ FLEET_CONTEXTS=(
   "$C_GKE_CPU"
   "$C_GKE_ARM"
   "$C_GKE_BIGMEM"
-  "$C_GKE_GPU"
+  # "$C_GKE_GPU"   # removed: flux cannot enumerate the device
   "$C_EKS_ARM_SMALL"
-  "$C_EKS_GPU1"
+  # "$C_EKS_GPU1"  # removed: flux cannot enumerate the device
   "$C_EKS_BIGMEM"
 )
 export FLEET_CONTEXTS
+
+# Fallbacks for the clusters that would not create. GCE capacity and quota are
+# per zone AND per machine family, so the same request can fail all afternoon
+# while a neighbouring zone or an AMD equivalent succeeds. These are what
+# create-gke-bigmem.sh and create-gke-gpu.sh walk; override either to go straight
+# to something you know has headroom.
+#
+#   GKE_BIGMEM_MACHINES="n2d-highmem-32" GKE_BIGMEM_ZONES="us-central1-b" \
+#     PARALLEL=1 ./create-all.sh
+#
+# All 192GB+ and amd64, so the memory bucket does not change. n2d is AMD EPYC and
+# draws on a different quota pool than n2, which is usually why one works.
+export GKE_BIGMEM_MACHINES="${GKE_BIGMEM_MACHINES:-n2-highmem-32 n2d-highmem-32 n1-highmem-32 m1-megamem-96}"
+export GKE_BIGMEM_ZONES="${GKE_BIGMEM_ZONES:-$GCP_ZONE us-central1-b us-central1-c us-central1-f}"
+
+# machine:accelerator pairs, each landing in 16-64GB with one NVIDIA device. The
+# experiment needs a node with an nvidia gpu in that bucket, not specifically an
+# L4, and L4 is where the shortage usually is. T4 attaches to n1 and is the most
+# widely available.
+export GKE_GPU_PARTS="${GKE_GPU_PARTS:-g2-standard-8:nvidia-l4 n1-standard-8:nvidia-tesla-t4 n1-standard-8:nvidia-tesla-p4 n1-highmem-4:nvidia-tesla-t4 n1-standard-8:nvidia-tesla-v100}"
+export GKE_GPU_ZONES="${GKE_GPU_ZONES:-$GCP_ZONE us-central1-b us-central1-c us-central1-f}"
 
 FLUX_OPERATOR_X86=https://raw.githubusercontent.com/flux-framework/flux-operator/main/examples/dist/flux-operator.yaml
 FLUX_OPERATOR_ARM=https://raw.githubusercontent.com/flux-framework/flux-operator/main/examples/dist/flux-operator-arm.yaml

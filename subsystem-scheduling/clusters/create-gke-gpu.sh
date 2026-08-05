@@ -16,8 +16,8 @@ source "$(dirname "$0")/env.sh"
 #   g2-standard-8   32 GiB, L4
 #   n1-standard-8   30 GiB, T4 or P4 or V100
 #   n1-highmem-4    26 GiB, T4
-PARTS="${PARTS:-g2-standard-8:nvidia-l4 n1-standard-8:nvidia-tesla-t4 n1-standard-8:nvidia-tesla-p4 n1-highmem-4:nvidia-tesla-t4 n1-standard-8:nvidia-tesla-v100}"
-ZONES="${ZONES:-$GCP_ZONE us-central1-b us-central1-c us-central1-f}"
+PARTS="${PARTS:-$GKE_GPU_PARTS}"
+ZONES="${ZONES:-$GKE_GPU_ZONES}"
 NODES="${NODES:-3}"
 
 made=""

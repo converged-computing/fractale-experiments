@@ -12,8 +12,8 @@ source "$(dirname "$0")/env.sh"
 
 # All 192GB+ and amd64. n2d is AMD EPYC and draws on a different quota pool than
 # n2, which is usually the reason one works when the other does not.
-MACHINES="${MACHINES:-n2-highmem-32 n2d-highmem-32 n1-highmem-32 m1-megamem-96}"
-ZONES="${ZONES:-$GCP_ZONE us-central1-b us-central1-c us-central1-f}"
+MACHINES="${MACHINES:-$GKE_BIGMEM_MACHINES}"
+ZONES="${ZONES:-$GKE_BIGMEM_ZONES}"
 NODES="${NODES:-2}"
 
 made=""

@@ -21,7 +21,7 @@ SA="${SA:-fluxq}"
 
 CONTEXTS=("$@")
 if [ ${#CONTEXTS[@]} -eq 0 ]; then
-  CONTEXTS=("$C_GKE_CPU" "$C_GKE_ARM" "$C_GKE_BIGMEM" "$C_GKE_GPU" "$C_EKS_ARM_SMALL" "$C_EKS_GPU1" "$C_EKS_BIGMEM")
+  CONTEXTS=("$C_GKE_CPU" "$C_GKE_ARM" "$C_GKE_BIGMEM" "$C_EKS_ARM_SMALL" "$C_EKS_BIGMEM")
 fi
 
 TMP="$(mktemp)"; : > "$TMP"
