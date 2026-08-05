@@ -76,6 +76,16 @@ fi
 
 [ "$failed" -eq 0 ] || echo "$failed script(s) returned non-zero" >&2
 
+# The arm clusters need their arch taint gone and the arm operator image before
+# anything can be dispatched to them. create-gke-arm.sh does this at creation; this
+# repairs a cluster that came up without it, and is a no-op when there is nothing
+# to fix.
+if [ -x ./fix-arm-operator.sh ]; then
+  echo
+  echo "== arm clusters"
+  ./fix-arm-operator.sh || echo "arm operator not ready; see above" >&2
+fi
+
 # Nothing downstream should read a kubeconfig that lost an entry: a cluster that
 # exists but has no context is silently skipped by make-portable-kubeconfig.sh,
 # and the experiment then runs against a smaller fleet than intended.

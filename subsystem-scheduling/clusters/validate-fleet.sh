@@ -20,7 +20,7 @@ source ./env.sh
 declare -A SPEC=(
   ["$C_GKE_CPU"]="gke|$GCP_ZONE|5|-|0"
   ["$C_GKE_ARM"]="gke|$GCP_ZONE|3|-|0"
-  ["$C_GKE_BIGMEM"]="gke|us-central1-b|2|-|0"
+  ["$C_GKE_BIGMEM"]="gke|$GCP_ZONE|2|-|0"
   ["$C_GKE_GPU"]="gke|us-central1-c|3|nvidia.com/gpu|1"
   ["$C_GKE_GPU4"]="gke|$GCP_ZONE|2|nvidia.com/gpu|4"
   ["$C_EKS_ARM_SMALL"]="eks|us-east-1|3|-|0"

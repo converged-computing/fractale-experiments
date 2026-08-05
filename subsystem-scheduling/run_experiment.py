@@ -119,6 +119,23 @@ def save_log(fluxq, jid, path):
     return len((text or "").strip())
 
 
+def _kubectl(*args, timeout=40):
+    """kubectl, or an empty result when it cannot be run.
+
+    A missing binary, an unreachable context or a slow API server must not end the
+    run: the log is evidence ABOUT the job, and losing it is not a reason to lose
+    the job's own result as well.
+    """
+    try:
+        return subprocess.run(["kubectl", *args], capture_output=True,
+                              text=True, timeout=timeout)
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as e:
+        class Unavailable:
+            returncode, stdout = 1, ""
+            stderr = f"kubectl unavailable: {e}"
+        return Unavailable()
+
+
 def save_broker_log(cluster, name, path):
     """Persist the lead broker's terminal output: pod index 0 of the MiniCluster.
 
@@ -129,19 +146,16 @@ def save_broker_log(cluster, name, path):
     """
     text = ""
     if cluster and name:
-        pods = subprocess.run(
-            ["kubectl", "--context", cluster, "get", "pods",
-             "-l", f"job-name={name}", "-o",
-             "jsonpath={range .items[*]}{.metadata.name}{\"\\n\"}{end}"],
-            capture_output=True, text=True)
+        pods = _kubectl(
+            "--context", cluster, "get", "pods",
+            "-l", f"job-name={name}", "-o",
+            "jsonpath={range .items[*]}{.metadata.name}{\"\\n\"}{end}")
         # <minicluster>-<index>-<hash>: index 0 is the broker
         rank0 = next(
             (p for p in pods.stdout.split() if p.startswith(f"{name}-0-")), "")
         if rank0:
-            r = subprocess.run(
-                ["kubectl", "--context", cluster, "logs", rank0,
-                 "--all-containers", "--tail=-1"],
-                capture_output=True, text=True)
+            r = _kubectl("--context", cluster, "logs", rank0,
+                 "--all-containers", "--tail=-1")
             text = r.stdout or f"(no output: {r.stderr.strip()})"
         else:
             text = f"(no pod {name}-0-* in {cluster}; it may already be gone)"
@@ -176,10 +190,8 @@ def pod_wedged(cluster, name):
     """
     if not cluster or not name:
         return ""
-    out = subprocess.run(
-        ["kubectl", "--context", cluster, "get", "pods",
-         "-l", f"job-name={name}", "-o", "json", "--request-timeout=20s"],
-        capture_output=True, text=True)
+    out = _kubectl("--context", cluster, "get", "pods",
+         "-l", f"job-name={name}", "-o", "json", "--request-timeout=20s")
     if out.returncode != 0 or not out.stdout.strip():
         return ""
     try:
@@ -211,10 +223,8 @@ def pod_wedged(cluster, name):
     if pods:
         first = pods[0].get("metadata", {}).get("name", "")
         if first:
-            lg = subprocess.run(
-                ["kubectl", "--context", cluster, "logs", first,
-                 "--all-containers", "--tail=20", "--request-timeout=20s"],
-                capture_output=True, text=True)
+            lg = _kubectl("--context", cluster, "logs", first,
+                 "--all-containers", "--tail=20", "--request-timeout=20s")
             if "exec format error" in (lg.stdout + lg.stderr):
                 return "exec format error: the image is built for another architecture"
     return ""
@@ -281,10 +291,8 @@ def cleanup(cluster, name, kinds=("minicluster", "job")):
         return []
     removed = []
     for kind in kinds:
-        r = subprocess.run(
-            ["kubectl", "--context", cluster, "delete", kind, name,
-             "--ignore-not-found", "--wait=false"],
-            capture_output=True, text=True)
+        r = _kubectl("--context", cluster, "delete", kind, name,
+             "--ignore-not-found", "--wait=false")
         if r.returncode == 0 and r.stdout.strip():
             removed.append(f"{kind}/{name}")
     return removed
@@ -416,27 +424,13 @@ def run(fluxq, js, outdir, cond, timeout, poll):
             "manifest": (base + ".manifest.yaml") if artifact.strip() else None}
 
 
-def main(argv=None):
-    p = argparse.ArgumentParser(description="Paired base vs subsystem experiment.")
-    p.add_argument("--fluxq", default=os.environ.get("FLUXQ", "http://localhost:8080"))
-    p.add_argument("--jobspecs", default=os.path.join(HERE, "jobspecs"))
-    p.add_argument("--out", default=os.path.join(HERE, "results.json"))
-    p.add_argument("--runs", default=os.path.join(HERE, "runs"), help="logs + job records")
-    p.add_argument("--submit", action="store_true",
-                   help="dispatch and monitor (default: placement only, free)")
-    p.add_argument("--timeout", type=int, default=900, help="per-run wall clock, seconds")
-    p.add_argument("--poll", type=int, default=10)
-    p.add_argument("--only", default="", help="comma-separated app names")
-    args = p.parse_args(argv)
+def run_iteration(args, jobs, runs_dir, out_path, label=""):
+    """One full pass over the jobspecs, writing its own runs and results.json.
 
-    jobs = load_jobspecs(args.jobspecs)
-    if args.only:
-        keep = {s.strip() for s in args.only.split(",")}
-        jobs = {k: v for k, v in jobs.items() if k in keep}
-    if not jobs:
-        print(f"no jobspecs under {args.jobspecs}", file=sys.stderr)
-        return 1
-
+    Each iteration is self contained: its logs, job records and summary live
+    together, so a pass can be read, re-parsed or thrown away on its own. The
+    analysis tooling takes several such directories and treats them as replicates.
+    """
     results = []
     for app, js in jobs.items():
         rec = {"app": app, "requires": sorted(js.get("requires") or {})}
@@ -446,7 +440,7 @@ def main(argv=None):
             rec["nodes"] = None
 
         if args.submit:
-            print(f"{app} ...")
+            print(f"{label}{app} ...")
         for cond, spec in (("base", strip_requires(js)), ("subsystem", js)):
             entry = {"placement": satisfy(args.fluxq, spec)}
             if args.submit:
@@ -458,7 +452,7 @@ def main(argv=None):
                                     "note": "no feasible cluster at satisfy"}
                 else:
                     entry["run"] = run(args.fluxq, spec,
-                                       os.path.join(args.runs, app), cond,
+                                       os.path.join(runs_dir, app), cond,
                                        args.timeout, args.poll)
                     r = entry["run"]
                     print(f"    {cond}: {r['outcome']} in {r.get('seconds')}s"
@@ -529,11 +523,109 @@ def main(argv=None):
             summary["paired_runtime_deltas"] = deltas
             summary["median_delta_seconds"] = sorted(deltas)[len(deltas) // 2]
 
-    with open(args.out, "w") as f:
+    os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
+    with open(out_path, "w") as f:
         json.dump({"summary": summary, "results": results}, f, indent=2)
     print()
     print(json.dumps(summary, indent=2))
-    print(f"\nwrote {args.out}" + (f", logs under {args.runs}/" if args.submit else ""))
+    print(f"\nwrote {out_path}" + (f", logs under {runs_dir}/" if args.submit else ""))
+    return summary
+
+
+def main(argv=None):
+    p = argparse.ArgumentParser(description="Paired base vs subsystem experiment.")
+    p.add_argument("--fluxq", default=os.environ.get("FLUXQ", "http://localhost:8080"))
+    p.add_argument("--jobspecs", default=os.path.join(HERE, "jobspecs"))
+    p.add_argument("--out", default=os.path.join(HERE, "results.json"))
+    p.add_argument("--runs", default=os.path.join(HERE, "runs"), help="logs + job records")
+    p.add_argument("--submit", action="store_true",
+                   help="dispatch and monitor (default: placement only, free)")
+    p.add_argument("--timeout", type=int, default=900, help="per-run wall clock, seconds")
+    p.add_argument("--poll", type=int, default=10)
+    p.add_argument("--only", default="", help="comma-separated app names")
+    p.add_argument("--iterations", type=int, default=1,
+                   help="repeat the whole experiment N times. Each pass writes "
+                        "runs/<i>/ and runs/<i>/results.json, so the passes can be "
+                        "compared as replicates and one bad pass can be dropped")
+    p.add_argument("--start-iteration", type=int, default=0,
+                   help="first iteration number, for adding passes to an existing "
+                        "set without overwriting it")
+    args = p.parse_args(argv)
+
+    jobs = load_jobspecs(args.jobspecs)
+    if args.only:
+        keep = {s.strip() for s in args.only.split(",")}
+        jobs = {k: v for k, v in jobs.items() if k in keep}
+    if not jobs:
+        print(f"no jobspecs under {args.jobspecs}", file=sys.stderr)
+        return 1
+
+    if args.iterations == 1 and args.start_iteration == 0:
+        # one pass: keep the original layout, so existing tooling still works.
+        # run_iteration returns its summary; the process exit code is separate.
+        run_iteration(args, jobs, args.runs, args.out)
+        return 0
+
+    first, last = args.start_iteration, args.start_iteration + args.iterations
+    summaries = []
+    for i in range(first, last):
+        runs_dir = os.path.join(args.runs, str(i))
+        out_path = os.path.join(runs_dir, "results.json")
+        n = i - first + 1
+        print()
+        print("=" * 72)
+        print(f"iteration {i}  ({n} of {args.iterations})  -> {runs_dir}")
+        print("=" * 72)
+        started = time.time()
+        try:
+            summary = run_iteration(args, jobs, runs_dir, out_path,
+                                    label=f"[{i}] ")
+        except KeyboardInterrupt:
+            print(f"\ninterrupted during iteration {i}; "
+                  f"{len(summaries)} complete pass(es) are on disk")
+            break
+        summary["iteration"] = i
+        summary["wall_seconds"] = round(time.time() - started, 1)
+        summaries.append(summary)
+
+    # An index across the passes, so a reader does not have to open ten files to
+    # see whether they agree.
+    index = {
+        "iterations": [s["iteration"] for s in summaries],
+        "runs_root": args.runs,
+        "per_iteration": summaries,
+    }
+    if summaries:
+        for key in ("placement_differs", "base_ran", "subsystem_ran"):
+            vals = [s[key] for s in summaries if key in s]
+            if vals:
+                index[f"{key}_by_iteration"] = vals
+                index[f"{key}_median"] = sorted(vals)[len(vals) // 2]
+        wall = [s["wall_seconds"] for s in summaries]
+        index["wall_seconds_total"] = round(sum(wall), 1)
+
+    index_path = os.path.join(args.runs, "index.json")
+    os.makedirs(args.runs, exist_ok=True)
+    with open(index_path, "w") as f:
+        json.dump(index, f, indent=2)
+
+    print()
+    print("=" * 72)
+    print(f"{len(summaries)} iteration(s) complete in "
+          f"{index.get('wall_seconds_total', 0)}s")
+    for s in summaries:
+        bits = [f"iteration {s['iteration']}",
+                f"differs {s.get('placement_differs')}/{s.get('jobspecs')}"]
+        if "base_ran" in s:
+            bits.append(f"ran {s.get('base_ran')}/{s.get('subsystem_ran')}")
+        bits.append(f"{s['wall_seconds']}s")
+        print("  " + "  ".join(bits))
+    print()
+    print(f"wrote {index_path}")
+    print("analyse every pass together:")
+    dirs = " ".join(os.path.join(args.runs, str(s["iteration"])) for s in summaries)
+    print(f"  python3 parse_runs.py --runs {dirs} --out dataset.json")
+    print( "  python3 build_report.py --data dataset.json --out report.html")
     return 0
 
 

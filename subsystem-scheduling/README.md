@@ -245,9 +245,10 @@ for c in $(kubectl config get-contexts -o name | grep '^sched-'); do
   kubectl --context $c get crd miniclusters.flux-framework.org -o name 2>/dev/null || echo MISSING
 done
 
-kubectl --context sched-gke-arm apply -f https://raw.githubusercontent.com/flux-framework/flux-operator/refs/heads/main/examples/dist/flux-operator-arm.yaml
-kubectl --context sched-gke-arm taint nodes --all kubernetes.io/arch=arm64:NoSchedule-
-kubectl --context sched-gke-arm -n operator-system rollout status deploy/operator-controller-manager --timeout=5m
+# The arm clusters need the arch taint gone and the arm operator image. create-all.sh
+# runs this itself; it is here for a cluster that came up without it, and is a
+# no-op when there is nothing to fix.
+bash ./clusters/fix-arm-operator.sh
 bash ./clusters/validate-fleet.sh
 
 bash ./clusters/make-portable-kubeconfig.sh
@@ -256,9 +257,21 @@ bash ./fluxq-container/run.sh
 export FLUXQ=http://localhost:8080
 SECRETARY_SECRET=flux-secretary-token ./clusters/register-all.sh
 curl -s $FLUXQ/v1/clusters | python3 -m json.tool | grep -c '"name"'  # 7
+bash ./clusters/validate-fleet.sh
 
 # Run one at a time...
 python3 run_experiment.py --submit --timeout 900 --only metric-kripke-cpu
+
+# Or repeat the whole experiment. Each pass writes runs/<i>/ with its own
+# results.json, so the passes are replicates and one bad pass can be dropped.
+python3 run_experiment.py --submit --timeout 600 --iterations 10
+
+# Add more passes later without overwriting what is there
+python3 run_experiment.py --submit --iterations 5 --start-iteration 10
+
+# Then analyse every pass together: medians with the spread, per app and per metric
+python3 parse_runs.py --runs runs/0 runs/1 runs/2 ... --out dataset.json
+python3 build_report.py --data dataset.json --out report.html
 ```
 
 Clean up between runs
@@ -271,9 +284,32 @@ for ctx in sched-gke-cpu sched-gke-arm sched-gke-bigmem sched-gke-gpu-nvidia \
 done
 ```
 
-If can't make a cluster:
+If a cluster won't create
+
+GCE capacity and quota are per zone AND per machine family, so the same request can
+fail all afternoon while a neighbouring zone or an AMD equivalent succeeds.
+`create-gke-bigmem.sh` and `create-gke-gpu.sh` walk a list of both; the defaults are
+in `clusters/env.sh` and every combination keeps the same memory bucket and
+architecture, so the fleet's dimensions do not change.
+
+To go straight to something you know has headroom, set them for the whole fleet:
 
 ```bash
-MACHINES="n2d-highmem-32" ZONES="us-central1-b" ./create-gke-bigmem.sh &
-PARTS="n1-standard-8:nvidia-tesla-t4" ZONES="us-central1-c" ./create-gke-gpu.sh
+GKE_BIGMEM_MACHINES="n2d-highmem-32" GKE_BIGMEM_ZONES="us-central1-b" \
+GKE_GPU_PARTS="n1-standard-8:nvidia-tesla-t4" GKE_GPU_ZONES="us-central1-c" \
+  PARALLEL=1 bash ./clusters/create-all.sh
+```
+
+Or one script at a time, with the narrower names those scripts also accept:
+
+```bash
+MACHINES="n2d-highmem-32" ZONES="us-central1-b" ./clusters/create-gke-bigmem.sh &
+PARTS="n1-standard-8:nvidia-tesla-t4" ZONES="us-central1-c" ./clusters/create-gke-gpu.sh
+```
+
+Check quota first, since if it is quota rather than capacity no zone will help:
+
+```bash
+gcloud compute regions describe us-central1 \
+  --format='table(quotas.metric,quotas.limit,quotas.usage)' | grep -iE "gpu|N2D?_CPUS"
 ```
