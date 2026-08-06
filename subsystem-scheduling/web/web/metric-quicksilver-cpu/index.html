@@ -1,0 +1,645 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>metric-quicksilver-cpu - subsystem scheduling</title><style>
+:root {
+  --bg:#0f1115; --panel:#171a21; --line:#262b36; --ink:#e6e9ef; --dim:#9aa4b2;
+  --accent:#7aa2f7; --good:#9ece6a; --bad:#f7768e; --warn:#e0af68; --same:#565f89;
+  --base:#e0af68; --sub:#7aa2f7;
+}
+* { box-sizing:border-box }
+body { margin:0; background:var(--bg); color:var(--ink);
+  font:14px/1.55 ui-sans-serif,-apple-system,Segoe UI,Roboto,sans-serif }
+a { color:var(--accent); text-decoration:none }
+a:hover { text-decoration:underline }
+header { padding:20px 26px 14px; border-bottom:1px solid var(--line) }
+h1 { margin:0 0 5px; font-size:19px; font-weight:600 }
+h1 .crumb { color:var(--dim); font-weight:400 }
+.sub { color:var(--dim); font-size:13px; max-width:960px }
+.wrap { padding:20px 26px 70px; max-width:1560px }
+.cards { display:flex; flex-wrap:wrap; gap:10px; margin:16px 0 24px }
+.card { background:var(--panel); border:1px solid var(--line); border-radius:8px;
+  padding:11px 15px; min-width:120px }
+.card .n { font-size:21px; font-weight:600 }
+.card .k { color:var(--dim); font-size:11px; text-transform:uppercase;
+  letter-spacing:.06em }
+h2 { font-size:15px; margin:30px 0 10px; font-weight:600 }
+h2 .hint { color:var(--dim); font-weight:400; font-size:12px; margin-left:8px }
+h3 { font-size:13px; margin:20px 0 8px; font-weight:600; color:var(--dim);
+  text-transform:uppercase; letter-spacing:.05em }
+table { border-collapse:collapse; width:100%; background:var(--panel);
+  border:1px solid var(--line); border-radius:8px; overflow:hidden }
+th,td { padding:7px 11px; text-align:left; border-bottom:1px solid var(--line);
+  font-size:13px; vertical-align:top }
+th { color:var(--dim); font-weight:600; font-size:11px; text-transform:uppercase;
+  letter-spacing:.05em; white-space:nowrap; cursor:pointer; user-select:none }
+th:hover { color:var(--ink) }
+tr:last-child td { border-bottom:none }
+tbody tr:hover { background:#1c2028 }
+td.num { text-align:right; font-variant-numeric:tabular-nums;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace }
+.pill { display:inline-block; padding:1px 7px; border-radius:10px; font-size:11px;
+  border:1px solid; white-space:nowrap }
+.ok   { color:var(--good); border-color:#2c4a1e; background:#16260f }
+.fail { color:var(--bad);  border-color:#4a1e28; background:#260f14 }
+.miss { color:var(--warn); border-color:#4a3a1e; background:#261e0f }
+.diff { color:var(--accent); border-color:#24365e; background:#111a2e }
+.same { color:var(--same); border-color:#2b3252; background:#141827 }
+.win-s { color:var(--good); font-weight:600 }
+.win-b { color:var(--bad); font-weight:600 }
+.win-t, .win-mixed { color:var(--dim) }
+pre { background:#0b0d11; border:1px solid var(--line); border-radius:6px;
+  padding:11px; overflow:auto; max-height:420px; font-size:12px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace; color:#c8d0dc }
+details { background:var(--panel); border:1px solid var(--line); border-radius:8px;
+  margin:8px 0 }
+summary { padding:9px 13px; cursor:pointer; font-size:13px }
+summary:hover { background:#1c2028 }
+details .body { padding:2px 13px 14px }
+.note { color:var(--dim); font-size:12.5px; margin:8px 0 14px; max-width:980px }
+.warnbox { border:1px solid #4a3a1e; background:#1d1710; color:var(--warn);
+  padding:10px 13px; border-radius:6px; font-size:12.5px; margin:10px 0;
+  max-width:980px }
+.plots { display:flex; flex-wrap:wrap; gap:14px; margin:10px 0 6px }
+.plot { background:var(--panel); border:1px solid var(--line); border-radius:8px;
+  padding:10px 12px 6px }
+.plot .cap { color:var(--dim); font-size:11.5px; margin:2px 0 0 }
+.legend { color:var(--dim); font-size:12px; margin:4px 0 14px }
+.legend i { display:inline-block; width:10px; height:10px; border-radius:2px;
+  margin:0 4px 0 12px; vertical-align:middle }
+.kv { color:var(--dim) } .kv b { color:var(--ink); font-weight:600 }
+.bar { display:inline-block; height:7px; border-radius:3px;
+  background:var(--accent); vertical-align:middle }
+.bar.b { background:var(--bad) }
+</style></head><body>
+<header><h1><a href="../index.html">Subsystem scheduling</a> <span class="crumb">/</span> metric-quicksilver-cpu</h1><div class="sub">Every replicate of this application: where each arm was placed, what the application itself reported, and every launch the agent tried.</div></header>
+<div class="wrap"><p class="note"><a href="../index.html">&larr; all applications</a></p><div class="cards"><div class="card"><div class="n">10</div><div class="k">replicates</div></div><div class="card"><div class="n">10/10</div><div class="k">placement differs</div></div><div class="card"><div class="n">3/20</div><div class="k">runs that ran</div></div></div><div class="warnbox">No figure of merit was recorded for this application in any replicate, so only placement and the launch attempts can be compared.</div><h2>Per replicate <span class="hint">where each arm landed and what the job itself reported</span></h2><table class="sortable"><thead><tr><th>replicate</th><th>base cluster</th><th>subsystem cluster</th><th>differs</th><th>base</th><th>subsystem</th><th>base runtime</th><th>subsystem runtime</th><th>ratio</th><th>attempts</th></tr></thead><tbody><tr><td class="num">1</td><td>sched-gke-mid</td><td>sched-gke-cpu</td><td data-sort="1"><span class="pill diff">yes</span></td><td><span class="pill miss">incomplete</span></td><td><span class="pill miss">incomplete</span></td><td class="num">&ndash;</td><td class="num">&ndash;</td><td class="num">&ndash;</td><td class="num">1 / 1</td></tr><tr><td class="num">2</td><td>sched-eks-arm-small</td><td>sched-gke-mid</td><td data-sort="1"><span class="pill diff">yes</span></td><td><span class="pill miss">never-started</span></td><td><span class="pill ok">ok</span></td><td class="num">&ndash;</td><td class="num">2.669</td><td class="num">&ndash;</td><td class="num">0 / 2</td></tr><tr><td class="num">3</td><td>sched-eks-cpu-efa-bigmem</td><td>sched-gke-mid</td><td data-sort="1"><span class="pill diff">yes</span></td><td><span class="pill miss">incomplete</span></td><td><span class="pill miss">incomplete</span></td><td class="num">&ndash;</td><td class="num">&ndash;</td><td class="num">&ndash;</td><td class="num">1 / 1</td></tr><tr><td class="num">4</td><td>sched-gke-bigmem</td><td>sched-gke-mid</td><td data-sort="1"><span class="pill diff">yes</span></td><td><span class="pill miss">incomplete</span></td><td><span class="pill miss">incomplete</span></td><td class="num">&ndash;</td><td class="num">&ndash;</td><td class="num">&ndash;</td><td class="num">1 / 1</td></tr><tr><td class="num">5</td><td>sched-gke-arm</td><td>sched-eks-cpu-efa-bigmem</td><td data-sort="1"><span class="pill diff">yes</span></td><td><span class="pill miss">never-started</span></td><td><span class="pill ok">ok</span></td><td class="num">&ndash;</td><td class="num">0.822</td><td class="num">&ndash;</td><td class="num">0 / 2</td></tr><tr><td class="num">6</td><td>sched-gke-cpu</td><td>sched-gke-mid</td><td data-sort="1"><span class="pill diff">yes</span></td><td><span class="pill miss">incomplete</span></td><td><span class="pill miss">incomplete</span></td><td class="num">&ndash;</td><td class="num">&ndash;</td><td class="num">&ndash;</td><td class="num">1 / 1</td></tr><tr><td class="num">7</td><td>sched-gke-mid</td><td>sched-eks-cpu-efa-bigmem</td><td data-sort="1"><span class="pill diff">yes</span></td><td><span class="pill miss">incomplete</span></td><td><span class="pill miss">incomplete</span></td><td class="num">&ndash;</td><td class="num">&ndash;</td><td class="num">&ndash;</td><td class="num">1 / 1</td></tr><tr><td class="num">8</td><td>sched-gke-bigmem</td><td>sched-gke-mid</td><td data-sort="1"><span class="pill diff">yes</span></td><td><span class="pill miss">incomplete</span></td><td><span class="pill miss">incomplete</span></td><td class="num">&ndash;</td><td class="num">&ndash;</td><td class="num">&ndash;</td><td class="num">1 / 1</td></tr><tr><td class="num">9</td><td>sched-eks-arm-small</td><td>sched-eks-cpu-efa-bigmem</td><td data-sort="1"><span class="pill diff">yes</span></td><td><span class="pill miss">never-started</span></td><td><span class="pill miss">incomplete</span></td><td class="num">&ndash;</td><td class="num">&ndash;</td><td class="num">&ndash;</td><td class="num">0 / 1</td></tr><tr><td class="num">10</td><td>sched-eks-cpu-efa-bigmem</td><td>sched-gke-cpu</td><td data-sort="1"><span class="pill diff">yes</span></td><td><span class="pill ok">ok</span></td><td><span class="pill miss">incomplete</span></td><td class="num">0.872</td><td class="num">&ndash;</td><td class="num">&ndash;</td><td class="num">2 / 1</td></tr></tbody></table><h2>Launch attempts and output <span class="hint">the agent's path to a working launch, which is the experiment's subject</span></h2><details><summary><b>replicate 1</b> <span class="kv">base &middot; sched-gke-mid</span> <span class="pill miss">incomplete</span> <span class="kv">1 attempt(s)</span></summary><div class="body"><table><thead><tr><th>#</th><th>status</th><th>rc</th><th>exception</th><th>runtime</th><th>nodes</th><th>tasks</th><th>args changed</th><th>why</th></tr></thead><tbody><tr><td class="num">1</td><td><span class="pill fail">failed</span></td><td class="num">143</td><td>exec</td><td class="num">32.315</td><td class="num">2</td><td class="num">16</td><td>-</td><td class="kv">CPU build; 2 nodes x 8 cores = 16 ranks, 1 core each, MPI-only with 1 OMP thread.</td></tr></tbody></table><h3>submitted commands</h3><pre>1: OMP_NUM_THREADS=1 flux submit -N 2 -n 16 -c 1 --exclusive --cwd /opt/quicksilver -o cpu-affinity=per-task qs -i /opt/quicksilver/Examples/CORAL2_Benchmark/Problem1/Coral2_P1.inp -X 4 -Y 4 -Z 4 -x 4 -y 4 -z 4 -n 1000 -N 1</pre><h3>stderr</h3><pre>[metric-quicksilver-cpu-job-0013-0:00141] [10] /usr/local/lib/openmpi/mca_pml_cm.so(+0x5fae)[0x7a740696ffae]
+[metric-quicksilver-cpu-job-0013-0:00139] [10] /usr/local/lib/openmpi/mca_pml_cm.so(+0x5fae)[0x793b1d4acfae]
+[metric-quicksilver-cpu-job-0013-0:00136] [10] /usr/local/lib/openmpi/mca_pml_cm.so(+0x5fae)[0x7c6e002b5fae]
+[metric-quicksilver-cpu-job-0013-0:00144] [11] /usr/local/lib/libmpi.so.40(mca_pml_base_select+0x1e2)[0x7b6a89d6b3b2]
+[metric-quicksilver-cpu-job-0013-0:00141] [11] /usr/local/lib/libmpi.so.40(mca_pml_base_select+0x1e2)[0x7a740818d3b2]
+[metric-quicksilver-cpu-job-0013-0:00139] [11] /usr/local/lib/libmpi.so.40(mca_pml_base_select+0x1e2)[0x793b1ecca3b2]
+[metric-quicksilver-cpu-job-0013-0:00136] [11] /usr/local/lib/libmpi.so.40(mca_pml_base_select+0x1e2)[0x7c6e015ce3b2]
+[metric-quicksilver-cpu-job-0013-0:00144] [12] /usr/local/lib/libmpi.so.40(ompi_mpi_init+0x6c9)[0x7b6a89d78489]
+[metric-quicksilver-cpu-job-0013-0:00141] [12] /usr/local/lib/libmpi.so.40(ompi_mpi_init+0x6c9)[0x7a740819a489]
+[metric-quicksilver-cpu-job-0013-0:00139] [12] /usr/local/lib/libmpi.so.40(ompi_mpi_init+0x6c9)[0x793b1ecd7489]
+[metric-quicksilver-cpu-job-0013-0:00136] [12] /usr/local/lib/libmpi.so.40(ompi_mpi_init+0x6c9)[0x7c6e015db489]
+[metric-quicksilver-cpu-job-0013-0:00144] [13] /usr/local/lib/libmpi.so.40(PMPI_Init_thread+0x5b)[0x7b6a89d117ab]
+[metric-quicksilver-cpu-job-0013-0:00141] [13] /usr/local/lib/libmpi.so.40(PMPI_Init_thread+0x5b)[0x7a74081337ab]
+[metric-quicksilver-cpu-job-0013-0:00139] [13] /usr/local/lib/libmpi.so.40(PMPI_Init_thread+0x5b)[0x793b1ec707ab]
+[metric-quicksilver-cpu-job-0013-0:00136] [13] /usr/local/lib/libmpi.so.40(PMPI_Init_thread+0x5b)[0x7c6e015747ab]
+[metric-quicksilver-cpu-job-0013-0:00144] [14] qs(+0x31f07)[0x581f36a1bf07]
+[metric-quicksilver-cpu-job-0013-0:00141] [14] qs(+0x31f07)[0x57a3f45e4f07]
+[metric-quicksilver-cpu-job-0013-0:00139] [14] qs(+0x31f07)[0x58e13239ef07]
+[metric-quicksilver-cpu-job-0013-0:00136] [14] qs(+0x31f07)[0x587c3063df07]
+[metric-quicksilver-cpu-job-0013-0:00144] [15] qs(+0x689e)[0x581f369f089e]
+[metric-quicksilver-cpu-job-0013-0:00141] [15] qs(+0x689e)[0x57a3f45b989e]
+[metric-quicksilver-cpu-job-0013-0:00139] [15] qs(+0x689e)[0x58e13237389e]
+[metric-quicksilver-cpu-job-0013-0:00136] [15] qs(+0x689e)[0x587c3061289e]
+[metric-quicksilver-cpu-job-0013-0:00144] [16] /lib/x86_64-linux-gnu/libc.so.6(+0x29d90)[0x7b6a8970bd90]
+[metric-quicksilver-cpu-job-0013-0:00141] [16] /lib/x86_64-linux-gnu/libc.so.6(+0x29d90)[0x7a7407b2dd90]
+[metric-quicksilver-cpu-job-0013-0:00139] [16] /lib/x86_64-linux-gnu/libc.so.6(+0x29d90)[0x793b1e66ad90]
+[metric-quicksilver-cpu-job-0013-0:00136] [16] /lib/x86_64-linux-gnu/libc.so.6(+0x29d90)[0x7c6e00f6ed90]
+[metric-quicksilver-cpu-job-0013-0:00144] [17] /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80)[0x7b6a8970be40]
+[metric-quicksilver-cpu-job-0013-0:00141] [17] /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80)[0x7a7407b2de40]
+[metric-quicksilver-cpu-job-0013-0:00139] [17] /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80)[0x793b1e66ae40]
+[metric-quicksilver-cpu-job-0013-0:00136] [17] /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80)[0x7c6e00f6ee40]
+[metric-quicksilver-cpu-job-0013-0:00144] [18] qs(+0x6b75)[0x581f369f0b75]
+[metric-quicksilver-cpu-job-0013-0:00141] [18] qs(+0x6b75)[0x57a3f45b9b75]
+[metric-quicksilver-cpu-job-0013-0:00139] [18] qs(+0x6b75)[0x58e132373b75]
+[metric-quicksilver-cpu-job-0013-0:00136] [18] qs(+0x6b75)[0x587c30612b75]
+[metric-quicksilver-cpu-job-0013-0:00144] *** End of error message ***
+[metric-quicksilver-cpu-job-0013-0:00141] *** End of error message ***
+[metric-quicksilver-cpu-job-0013-0:00139] *** End of error message ***
+[metric-quicksilver-cpu-job-0013-0:00136] *** End of error message ***
+flux-shell[0]: FATAL: doom: rank 6 exited and exit-timeout=30s has expired</pre></div></details><details><summary><b>replicate 1</b> <span class="kv">subsystem &middot; sched-gke-cpu</span> <span class="pill miss">incomplete</span> <span class="kv">1 attempt(s)</span></summary><div class="body"><table><thead><tr><th>#</th><th>status</th><th>rc</th><th>exception</th><th>runtime</th><th>nodes</th><th>tasks</th><th>args changed</th><th>why</th></tr></thead><tbody><tr><td class="num">1</td><td><span class="pill fail">failed</span></td><td class="num">143</td><td>exec</td><td class="num">35.972</td><td class="num">2</td><td class="num">16</td><td>-</td><td class="kv">CPU build, 16 cores across 2 nodes: one rank per core, no GPUs.</td></tr></tbody></table><h3>submitted commands</h3><pre>1: flux submit -N 2 -n 16 -c 1 --exclusive -o cpu-affinity=per-task qs -i /opt/quicksilver/Examples/CORAL2_Benchmark/Problem1/Coral2_P1.inp -X 4 -Y 4 -Z 4 -x 4 -y 4 -z 4 -n 1000 -N 1</pre><h3>stderr</h3><pre>[metric-quicksilver-cpu-job-0014-1:00092] [ 0] /lib/x86_64-linux-gnu/libc.so.6(+0x42520)[0x7f1f7beed520]
+[metric-quicksilver-cpu-job-0014-1:00095] [ 1] /lib/x86_64-linux-gnu/libc.so.6(+0x1a884a)[0x7e1ac24f384a]
+[metric-quicksilver-cpu-job-0014-1:00092] [ 1] /lib/x86_64-linux-gnu/libc.so.6(+0x1a884a)[0x7f1f7c05384a]
+[metric-quicksilver-cpu-job-0014-1:00095] [ 2] /usr/local/lib/libfabric.so.1(+0x3926f4)[0x7e1ac16646f4]
+[metric-quicksilver-cpu-job-0014-1:00092] [ 2] /usr/local/lib/libfabric.so.1(+0x3926f4)[0x7f1f7b1c46f4]
+[metric-quicksilver-cpu-job-0014-1:00095] [ 3] /usr/local/lib/libfabric.so.1(+0x392a74)[0x7e1ac1664a74]
+[metric-quicksilver-cpu-job-0014-1:00092] [ 3] /usr/local/lib/libfabric.so.1(+0x392a74)[0x7f1f7b1c4a74]
+[metric-quicksilver-cpu-job-0014-1:00095] [ 4] /usr/local/lib/libfabric.so.1(+0x3732de)[0x7e1ac16452de]
+[metric-quicksilver-cpu-job-0014-1:00092] [ 4] /usr/local/lib/libfabric.so.1(+0x3732de)[0x7f1f7b1a52de]
+[metric-quicksilver-cpu-job-0014-1:00095] [ 5] /usr/local/lib/libfabric.so.1(+0x37371c)[0x7e1ac164571c]
+[metric-quicksilver-cpu-job-0014-1:00092] [ 5] /usr/local/lib/libfabric.so.1(+0x37371c)[0x7f1f7b1a571c]
+[metric-quicksilver-cpu-job-0014-1:00095] [ 6] /usr/local/lib/libfabric.so.1(+0x34d4af)[0x7e1ac161f4af]
+[metric-quicksilver-cpu-job-0014-1:00092] [ 6] /usr/local/lib/libfabric.so.1(+0x34d4af)[0x7f1f7b17f4af]
+[metric-quicksilver-cpu-job-0014-1:00095] [ 7] /usr/local/lib/libfabric.so.1(+0x340271)[0x7e1ac1612271]
+[metric-quicksilver-cpu-job-0014-1:00092] [ 7] /usr/local/lib/libfabric.so.1(+0x340271)[0x7f1f7b172271]
+[metric-quicksilver-cpu-job-0014-1:00095] [ 8] /usr/local/lib/openmpi/mca_mtl_ofi.so(+0x59f8)[0x7e1ac11919f8]
+[metric-quicksilver-cpu-job-0014-1:00092] [ 8] /usr/local/lib/openmpi/mca_mtl_ofi.so(+0x59f8)[0x7f1f7acf19f8]
+[metric-quicksilver-cpu-job-0014-1:00095] [ 9] /usr/local/lib/libmpi.so.40(ompi_mtl_base_select+0xa4)[0x7e1ac29c5164]
+[metric-quicksilver-cpu-job-0014-1:00092] [ 9] /usr/local/lib/libmpi.so.40(ompi_mtl_base_select+0xa4)[0x7f1f7c525164]
+[metric-quicksilver-cpu-job-0014-1:00095] [10] /usr/local/lib/openmpi/mca_pml_cm.so(+0x5fae)[0x7e1ac11b6fae]
+[metric-quicksilver-cpu-job-0014-1:00092] [10] /usr/local/lib/openmpi/mca_pml_cm.so(+0x5fae)[0x7f1f7ad16fae]
+[metric-quicksilver-cpu-job-0014-1:00095] [11] /usr/local/lib/libmpi.so.40(mca_pml_base_select+0x1e2)[0x7e1ac29d43b2]
+[metric-quicksilver-cpu-job-0014-1:00092] [11] /usr/local/lib/libmpi.so.40(mca_pml_base_select+0x1e2)[0x7f1f7c5343b2]
+[metric-quicksilver-cpu-job-0014-1:00095] [12] /usr/local/lib/libmpi.so.40(ompi_mpi_init+0x6c9)[0x7e1ac29e1489]
+[metric-quicksilver-cpu-job-0014-1:00092] [12] /usr/local/lib/libmpi.so.40(ompi_mpi_init+0x6c9)[0x7f1f7c541489]
+[metric-quicksilver-cpu-job-0014-1:00095] [13] /usr/local/lib/libmpi.so.40(PMPI_Init_thread+0x5b)[0x7e1ac297a7ab]
+[metric-quicksilver-cpu-job-0014-1:00092] [13] /usr/local/lib/libmpi.so.40(PMPI_Init_thread+0x5b)[0x7f1f7c4da7ab]
+[metric-quicksilver-cpu-job-0014-1:00095] [14] qs(+0x31f07)[0x5676e6926f07]
+[metric-quicksilver-cpu-job-0014-1:00092] [14] qs(+0x31f07)[0x58031d498f07]
+[metric-quicksilver-cpu-job-0014-1:00095] [15] qs(+0x689e)[0x5676e68fb89e]
+[metric-quicksilver-cpu-job-0014-1:00092] [15] qs(+0x689e)[0x58031d46d89e]
+[metric-quicksilver-cpu-job-0014-1:00095] [16] /lib/x86_64-linux-gnu/libc.so.6(+0x29d90)[0x7e1ac2374d90]
+[metric-quicksilver-cpu-job-0014-1:00092] [16] /lib/x86_64-linux-gnu/libc.so.6(+0x29d90)[0x7f1f7bed4d90]
+[metric-quicksilver-cpu-job-0014-1:00095] [17] /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80)[0x7e1ac2374e40]
+[metric-quicksilver-cpu-job-0014-1:00092] [17] /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80)[0x7f1f7bed4e40]
+[metric-quicksilver-cpu-job-0014-1:00095] [18] qs(+0x6b75)[0x5676e68fbb75]
+[metric-quicksilver-cpu-job-0014-1:00092] [18] qs(+0x6b75)[0x58031d46db75]
+[metric-quicksilver-cpu-job-0014-1:00095] *** End of error message ***
+[metric-quicksilver-cpu-job-0014-1:00092] *** End of error message ***
+flux-shell[0]: FATAL: doom: rank 9 exited and exit-timeout=30s has expired</pre></div></details><details><summary><b>replicate 2</b> <span class="kv">base &middot; sched-eks-arm-small</span> <span class="pill miss">never-started</span> <span class="kv">0 attempt(s)</span></summary><div class="body"><p class="note">Nothing was captured for this run. The transcript says the workload never started.</p></div></details><details><summary><b>replicate 2</b> <span class="kv">subsystem &middot; sched-gke-mid</span> <span class="pill ok">ok</span> <span class="kv">2 attempt(s), ran in <b>2.669s</b></span></summary><div class="body"><table><thead><tr><th>#</th><th>status</th><th>rc</th><th>exception</th><th>runtime</th><th>nodes</th><th>tasks</th><th>args changed</th><th>why</th></tr></thead><tbody><tr><td class="num">1</td><td><span class="pill fail">failed</span></td><td class="num">134</td><td>-</td><td class="num">17.958</td><td class="num">2</td><td class="num">8</td><td>-</td><td class="kv">Match 16 cores across 2 nodes: 8 ranks x 2 threads, CPU build so no GPUs.</td></tr><tr><td class="num">2</td><td><span class="pill ok">ok</span></td><td class="num">0</td><td>-</td><td class="num">2.669</td><td class="num">2</td><td class="num">8</td><td>-</td><td class="kv">Test whether the abort comes from the fabric/transport rather than layout.</td></tr></tbody></table><h3>submitted commands</h3><pre>1: OMP_NUM_THREADS=2 flux submit -N 2 -n 8 -c 2 --exclusive --cwd /opt/quicksilver -o cpu-affinity=per-task qs -i /opt/quicksilver/Examples/CORAL2_Benchmark/Problem1/Coral2_P1.inp -X 4 -Y 4 -Z 4 -x 4 -y 4 -z 4 -n 1000 -N 1
+2: OMPI_MCA_btl=self,vader,tcp OMPI_MCA_btl_tcp_if_include=eth0 OMPI_MCA_pml=ob1 OMP_NUM_THREADS=2 flux submit -N 2 -n 8 -c 2 --exclusive --cwd /opt/quicksilver -o cpu-affinity=per-task qs -i /opt/quicksilver/Examples/CORAL2_Benchmark/Problem1/Coral2_P1.inp -X 4 -Y 4 -Z 4 -x 4 -y 4 -z 4 -n 1000 -N 1</pre></div></details><details><summary><b>replicate 3</b> <span class="kv">base &middot; sched-eks-cpu-efa-bigmem</span> <span class="pill miss">incomplete</span> <span class="kv">1 attempt(s)</span></summary><div class="body"><table><thead><tr><th>#</th><th>status</th><th>rc</th><th>exception</th><th>runtime</th><th>nodes</th><th>tasks</th><th>args changed</th><th>why</th></tr></thead><tbody><tr><td class="num">1</td><td><span class="pill fail">failed</span></td><td class="num">143</td><td>exec</td><td class="num">34.376</td><td class="num">2</td><td class="num">16</td><td>-</td><td class="kv">CPU build, 16 cores across 2 nodes; use 16 single-core ranks as given.</td></tr></tbody></table><h3>submitted commands</h3><pre>1: flux submit -N 2 -n 16 -c 1 --exclusive --cwd /opt/quicksilver -o cpu-affinity=per-task qs -i /opt/quicksilver/Examples/CORAL2_Benchmark/Problem1/Coral2_P1.inp -X 4 -Y 4 -Z 4 -x 4 -y 4 -z 4 -n 1000 -N 1</pre><h3>stderr</h3><pre>[metric-quicksilver-cpu-job-0053-1:00090] [ 0] /lib/x86_64-linux-gnu/libc.so.6(+0x42520)[0x7f4ba8138520]
+[metric-quicksilver-cpu-job-0053-1:00094] [ 1] /lib/x86_64-linux-gnu/libc.so.6(+0x1a70ba)[0x7f4c384740ba]
+[metric-quicksilver-cpu-job-0053-1:00090] [ 1] /lib/x86_64-linux-gnu/libc.so.6(+0x1a70ba)[0x7f4ba829d0ba]
+[metric-quicksilver-cpu-job-0053-1:00094] [ 2] /usr/local/lib/libfabric.so.1(+0x3926f4)[0x7f4c373fc6f4]
+[metric-quicksilver-cpu-job-0053-1:00090] [ 2] /usr/local/lib/libfabric.so.1(+0x3926f4)[0x7f4ba72256f4]
+[metric-quicksilver-cpu-job-0053-1:00094] [ 3] /usr/local/lib/libfabric.so.1(+0x392a74)[0x7f4c373fca74]
+[metric-quicksilver-cpu-job-0053-1:00090] [ 3] /usr/local/lib/libfabric.so.1(+0x392a74)[0x7f4ba7225a74]
+[metric-quicksilver-cpu-job-0053-1:00094] [ 4] /usr/local/lib/libfabric.so.1(+0x3732de)[0x7f4c373dd2de]
+[metric-quicksilver-cpu-job-0053-1:00090] [ 4] /usr/local/lib/libfabric.so.1(+0x3732de)[0x7f4ba72062de]
+[metric-quicksilver-cpu-job-0053-1:00094] [ 5] /usr/local/lib/libfabric.so.1(+0x37371c)[0x7f4c373dd71c]
+[metric-quicksilver-cpu-job-0053-1:00090] [ 5] /usr/local/lib/libfabric.so.1(+0x37371c)[0x7f4ba720671c]
+[metric-quicksilver-cpu-job-0053-1:00094] [ 6] /usr/local/lib/libfabric.so.1(+0x34d4af)[0x7f4c373b74af]
+[metric-quicksilver-cpu-job-0053-1:00090] [ 6] /usr/local/lib/libfabric.so.1(+0x34d4af)[0x7f4ba71e04af]
+[metric-quicksilver-cpu-job-0053-1:00094] [ 7] /usr/local/lib/libfabric.so.1(+0x340271)[0x7f4c373aa271]
+[metric-quicksilver-cpu-job-0053-1:00090] [ 7] /usr/local/lib/libfabric.so.1(+0x340271)[0x7f4ba71d3271]
+[metric-quicksilver-cpu-job-0053-1:00094] [ 8] /usr/local/lib/openmpi/mca_mtl_ofi.so(+0x59f8)[0x7f4c36f559f8]
+[metric-quicksilver-cpu-job-0053-1:00090] [ 8] /usr/local/lib/openmpi/mca_mtl_ofi.so(+0x59f8)[0x7f4ba6d7e9f8]
+[metric-quicksilver-cpu-job-0053-1:00094] [ 9] /usr/local/lib/libmpi.so.40(ompi_mtl_base_select+0xa4)[0x7f4c38947164]
+[metric-quicksilver-cpu-job-0053-1:00090] [ 9] /usr/local/lib/libmpi.so.40(ompi_mtl_base_select+0xa4)[0x7f4ba8770164]
+[metric-quicksilver-cpu-job-0053-1:00094] [10] /usr/local/lib/openmpi/mca_pml_cm.so(+0x5fae)[0x7f4c36f74fae]
+[metric-quicksilver-cpu-job-0053-1:00090] [10] /usr/local/lib/openmpi/mca_pml_cm.so(+0x5fae)[0x7f4ba6d9dfae]
+[metric-quicksilver-cpu-job-0053-1:00094] [11] /usr/local/lib/libmpi.so.40(mca_pml_base_select+0x1e2)[0x7f4c389563b2]
+[metric-quicksilver-cpu-job-0053-1:00090] [11] /usr/local/lib/libmpi.so.40(mca_pml_base_select+0x1e2)[0x7f4ba877f3b2]
+[metric-quicksilver-cpu-job-0053-1:00094] [12] /usr/local/lib/libmpi.so.40(ompi_mpi_init+0x6c9)[0x7f4c38963489]
+[metric-quicksilver-cpu-job-0053-1:00090] [12] /usr/local/lib/libmpi.so.40(ompi_mpi_init+0x6c9)[0x7f4ba878c489]
+[metric-quicksilver-cpu-job-0053-1:00094] [13] /usr/local/lib/libmpi.so.40(PMPI_Init_thread+0x5b)[0x7f4c388fc7ab]
+[metric-quicksilver-cpu-job-0053-1:00090] [13] /usr/local/lib/libmpi.so.40(PMPI_Init_thread+0x5b)[0x7f4ba87257ab]
+[metric-quicksilver-cpu-job-0053-1:00094] [14] qs(+0x31f07)[0x55d6709b6f07]
+[metric-quicksilver-cpu-job-0053-1:00090] [14] qs(+0x31f07)[0x56009dd5cf07]
+[metric-quicksilver-cpu-job-0053-1:00094] [15] qs(+0x689e)[0x55d67098b89e]
+[metric-quicksilver-cpu-job-0053-1:00090] [15] qs(+0x689e)[0x56009dd3189e]
+[metric-quicksilver-cpu-job-0053-1:00094] [16] /lib/x86_64-linux-gnu/libc.so.6(+0x29d90)[0x7f4c382f6d90]
+[metric-quicksilver-cpu-job-0053-1:00090] [16] /lib/x86_64-linux-gnu/libc.so.6(+0x29d90)[0x7f4ba811fd90]
+[metric-quicksilver-cpu-job-0053-1:00094] [17] /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80)[0x7f4c382f6e40]
+[metric-quicksilver-cpu-job-0053-1:00090] [17] /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80)[0x7f4ba811fe40]
+[metric-quicksilver-cpu-job-0053-1:00094] [18] qs(+0x6b75)[0x55d67098bb75]
+[metric-quicksilver-cpu-job-0053-1:00090] [18] qs(+0x6b75)[0x56009dd31b75]
+[metric-quicksilver-cpu-job-0053-1:00094] *** End of error message ***
+[metric-quicksilver-cpu-job-0053-1:00090] *** End of error message ***
+flux-shell[0]: FATAL: doom: rank 4 exited and exit-timeout=30s has expired</pre></div></details><details><summary><b>replicate 3</b> <span class="kv">subsystem &middot; sched-gke-mid</span> <span class="pill miss">incomplete</span> <span class="kv">1 attempt(s)</span></summary><div class="body"><table><thead><tr><th>#</th><th>status</th><th>rc</th><th>exception</th><th>runtime</th><th>nodes</th><th>tasks</th><th>args changed</th><th>why</th></tr></thead><tbody><tr><td class="num">1</td><td><span class="pill fail">failed</span></td><td class="num">143</td><td>exec</td><td class="num">30.959</td><td class="num">2</td><td class="num">16</td><td>-</td><td class="kv">CPU build; use all 16 cores across both nodes as 16 single-core ranks.</td></tr></tbody></table><h3>submitted commands</h3><pre>1: OMP_NUM_THREADS=1 flux submit -N 2 -n 16 -c 1 --exclusive --cwd /opt/quicksilver -o cpu-affinity=per-task qs -i /opt/quicksilver/Examples/CORAL2_Benchmark/Problem1/Coral2_P1.inp -X 4 -Y 4 -Z 4 -x 4 -y 4 -z 4 -n 1000 -N 1</pre><h3>stderr</h3><pre>[metric-quicksilver-cpu-job-0054-0:00141] [ 1] /lib/x86_64-linux-gnu/libc.so.6(+0x1a884a)[0x7ebf8a17084a]
+[metric-quicksilver-cpu-job-0054-0:00141] [ 2] /usr/local/lib/libfabric.so.1(+0x3926f4)[0x7ebf892e16f4]
+[metric-quicksilver-cpu-job-0054-0:00141] [ 3] /usr/local/lib/libfabric.so.1(+0x392a74)[0x7ebf892e1a74]
+[metric-quicksilver-cpu-job-0054-0:00141] [ 4] /usr/local/lib/libfabric.so.1(+0x3732de)[0x7ebf892c22de]
+[metric-quicksilver-cpu-job-0054-0:00141] [ 5] /usr/local/lib/libfabric.so.1(+0x37371c)[0x7ebf892c271c]
+[metric-quicksilver-cpu-job-0054-0:00141] [ 6] /usr/local/lib/libfabric.so.1(+0x34d4af)[0x7ebf8929c4af]
+[metric-quicksilver-cpu-job-0054-0:00141] [ 7] /usr/local/lib/libfabric.so.1(+0x340271)[0x7ebf8928f271]
+[metric-quicksilver-cpu-job-0054-0:00141] [ 8] /usr/local/lib/openmpi/mca_mtl_ofi.so(+0x59f8)[0x7ebf88e0e9f8]
+[metric-quicksilver-cpu-job-0054-0:00141] [ 9] /usr/local/lib/libmpi.so.40(ompi_mtl_base_select+0xa4)[0x7ebf8a642164]
+[metric-quicksilver-cpu-job-0054-0:00141] [10] /usr/local/lib/openmpi/mca_pml_cm.so(+0x5fae)[0x7ebf88e33fae]
+[metric-quicksilver-cpu-job-0054-0:00141] [11] /usr/local/lib/libmpi.so.40(mca_pml_base_select+0x1e2)[0x7ebf8a6513b2]
+[metric-quicksilver-cpu-job-0054-0:00141] [12] /usr/local/lib/libmpi.so.40(ompi_mpi_init+0x6c9)[0x7ebf8a65e489]
+[metric-quicksilver-cpu-job-0054-0:00141] [13] /usr/local/lib/libmpi.so.40(PMPI_Init_thread+0x5b)[0x7ebf8a5f77ab]
+[metric-quicksilver-cpu-job-0054-0:00141] [14] qs(+0x31f07)[0x594661022f07]
+[metric-quicksilver-cpu-job-0054-0:00141] [15] qs(+0x689e)[0x594660ff789e]
+[metric-quicksilver-cpu-job-0054-0:00141] [16] /lib/x86_64-linux-gnu/libc.so.6(+0x29d90)[0x7ebf89ff1d90]
+[metric-quicksilver-cpu-job-0054-0:00141] [17] /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80)[0x7ebf89ff1e40]
+[metric-quicksilver-cpu-job-0054-0:00141] [18] qs(+0x6b75)[0x594660ff7b75]
+[metric-quicksilver-cpu-job-0054-0:00141] *** End of error message ***
+[metric-quicksilver-cpu-job-0054-0:00137] [ 0] /lib/x86_64-linux-gnu/libc.so.6(+0x42520)[0x789808774520]
+[metric-quicksilver-cpu-job-0054-0:00137] [ 1] /lib/x86_64-linux-gnu/libc.so.6(+0x1a884a)[0x7898088da84a]
+[metric-quicksilver-cpu-job-0054-0:00137] [ 2] /usr/local/lib/libfabric.so.1(+0x3926f4)[0x789807a4b6f4]
+[metric-quicksilver-cpu-job-0054-0:00137] [ 3] /usr/local/lib/libfabric.so.1(+0x392a74)[0x789807a4ba74]
+[metric-quicksilver-cpu-job-0054-0:00137] [ 4] /usr/local/lib/libfabric.so.1(+0x3732de)[0x789807a2c2de]
+[metric-quicksilver-cpu-job-0054-0:00137] [ 5] /usr/local/lib/libfabric.so.1(+0x37371c)[0x789807a2c71c]
+[metric-quicksilver-cpu-job-0054-0:00137] [ 6] /usr/local/lib/libfabric.so.1(+0x34d4af)[0x789807a064af]
+[metric-quicksilver-cpu-job-0054-0:00137] [ 7] /usr/local/lib/libfabric.so.1(+0x340271)[0x7898079f9271]
+[metric-quicksilver-cpu-job-0054-0:00137] [ 8] /usr/local/lib/openmpi/mca_mtl_ofi.so(+0x59f8)[0x7898075789f8]
+[metric-quicksilver-cpu-job-0054-0:00137] [ 9] /usr/local/lib/libmpi.so.40(ompi_mtl_base_select+0xa4)[0x789808dac164]
+[metric-quicksilver-cpu-job-0054-0:00137] [10] /usr/local/lib/openmpi/mca_pml_cm.so(+0x5fae)[0x78980759dfae]
+[metric-quicksilver-cpu-job-0054-0:00137] [11] /usr/local/lib/libmpi.so.40(mca_pml_base_select+0x1e2)[0x789808dbb3b2]
+[metric-quicksilver-cpu-job-0054-0:00137] [12] /usr/local/lib/libmpi.so.40(ompi_mpi_init+0x6c9)[0x789808dc8489]
+[metric-quicksilver-cpu-job-0054-0:00137] [13] /usr/local/lib/libmpi.so.40(PMPI_Init_thread+0x5b)[0x789808d617ab]
+[metric-quicksilver-cpu-job-0054-0:00137] [14] qs(+0x31f07)[0x5a9c9de17f07]
+[metric-quicksilver-cpu-job-0054-0:00137] [15] qs(+0x689e)[0x5a9c9ddec89e]
+[metric-quicksilver-cpu-job-0054-0:00137] [16] /lib/x86_64-linux-gnu/libc.so.6(+0x29d90)[0x78980875bd90]
+[metric-quicksilver-cpu-job-0054-0:00137] [17] /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80)[0x78980875be40]
+[metric-quicksilver-cpu-job-0054-0:00137] [18] qs(+0x6b75)[0x5a9c9ddecb75]
+[metric-quicksilver-cpu-job-0054-0:00137] *** End of error message ***
+flux-shell[0]: FATAL: doom: rank 1 exited and exit-timeout=30s has expired</pre></div></details><details><summary><b>replicate 4</b> <span class="kv">base &middot; sched-gke-bigmem</span> <span class="pill miss">incomplete</span> <span class="kv">1 attempt(s)</span></summary><div class="body"><table><thead><tr><th>#</th><th>status</th><th>rc</th><th>exception</th><th>runtime</th><th>nodes</th><th>tasks</th><th>args changed</th><th>why</th></tr></thead><tbody><tr><td class="num">1</td><td><span class="pill fail">failed</span></td><td class="num">135</td><td>exec</td><td class="num">33.674</td><td class="num">2</td><td class="num">32</td><td>-</td><td class="kv">Fill all 32 cores across both nodes with 1 rank/core, CPU-only build.</td></tr></tbody></table><h3>submitted commands</h3><pre>1: OMP_NUM_THREADS=1 flux submit -N 2 -n 32 -c 1 --exclusive --cwd /opt/quicksilver -o cpu-affinity=per-task qs -i /opt/quicksilver/Examples/CORAL2_Benchmark/Problem1/Coral2_P1.inp -X 4 -Y 4 -Z 4 -x 4 -y 4 -z 4 -n 1000 -N 1</pre><h3>stderr</h3><pre>[metric-quicksilver-cpu-job-0073-0:00147] [11] /usr/local/lib/libmpi.so.40(mca_pml_base_select+0x1e2)[0x7cfd153233b2]
+[metric-quicksilver-cpu-job-0073-0:00145] [ 9] /usr/local/lib/libmpi.so.40(ompi_mtl_base_select+0xa4)[0x7d671d3f6164]
+[metric-quicksilver-cpu-job-0073-0:00140] [11] /usr/local/lib/libmpi.so.40(mca_pml_base_select+0x1e2)[0x780c26a853b2]
+[metric-quicksilver-cpu-job-0073-0:00138] [10] /usr/local/lib/openmpi/mca_pml_cm.so(+0x5fae)[0x7a99780d3fae]
+[metric-quicksilver-cpu-job-0073-0:00147] [12] /usr/local/lib/libmpi.so.40(ompi_mpi_init+0x6c9)[0x7cfd15330489]
+[metric-quicksilver-cpu-job-0073-0:00145] [10] /usr/local/lib/openmpi/mca_pml_cm.so(+0x5fae)[0x7d671c0ecfae]
+[metric-quicksilver-cpu-job-0073-0:00140] [12] /usr/local/lib/libmpi.so.40(ompi_mpi_init+0x6c9)[0x780c26a92489]
+[metric-quicksilver-cpu-job-0073-0:00138] [11] /usr/local/lib/libmpi.so.40(mca_pml_base_select+0x1e2)[0x7a99793ec3b2]
+[metric-quicksilver-cpu-job-0073-0:00147] [13] /usr/local/lib/libmpi.so.40(PMPI_Init_thread+0x5b)[0x7cfd152c97ab]
+[metric-quicksilver-cpu-job-0073-0:00145] [11] /usr/local/lib/libmpi.so.40(mca_pml_base_select+0x1e2)[0x7d671d4053b2]
+[metric-quicksilver-cpu-job-0073-0:00140] [13] /usr/local/lib/libmpi.so.40(PMPI_Init_thread+0x5b)[0x780c26a2b7ab]
+[metric-quicksilver-cpu-job-0073-0:00138] [12] /usr/local/lib/libmpi.so.40(ompi_mpi_init+0x6c9)[0x7a99793f9489]
+[metric-quicksilver-cpu-job-0073-0:00147] [14] qs(+0x31f07)[0x5bf4e9777f07]
+[metric-quicksilver-cpu-job-0073-0:00145] [12] /usr/local/lib/libmpi.so.40(ompi_mpi_init+0x6c9)[0x7d671d412489]
+[metric-quicksilver-cpu-job-0073-0:00140] [14] qs(+0x31f07)[0x5d4150607f07]
+[metric-quicksilver-cpu-job-0073-0:00138] [13] /usr/local/lib/libmpi.so.40(PMPI_Init_thread+0x5b)[0x7a99793927ab]
+[metric-quicksilver-cpu-job-0073-0:00147] [15] qs(+0x689e)[0x5bf4e974c89e]
+[metric-quicksilver-cpu-job-0073-0:00145] [13] /usr/local/lib/libmpi.so.40(PMPI_Init_thread+0x5b)[0x7d671d3ab7ab]
+[metric-quicksilver-cpu-job-0073-0:00140] [15] qs(+0x689e)[0x5d41505dc89e]
+[metric-quicksilver-cpu-job-0073-0:00138] [14] qs(+0x31f07)[0x5609e0c81f07]
+[metric-quicksilver-cpu-job-0073-0:00147] [16] /lib/x86_64-linux-gnu/libc.so.6(+0x29d90)[0x7cfd14cc3d90]
+[metric-quicksilver-cpu-job-0073-0:00145] [14] qs(+0x31f07)[0x57cc5f511f07]
+[metric-quicksilver-cpu-job-0073-0:00140] [16] /lib/x86_64-linux-gnu/libc.so.6(+0x29d90)[0x780c26425d90]
+[metric-quicksilver-cpu-job-0073-0:00138] [15] qs(+0x689e)[0x5609e0c5689e]
+[metric-quicksilver-cpu-job-0073-0:00147] [17] /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80)[0x7cfd14cc3e40]
+[metric-quicksilver-cpu-job-0073-0:00145] [15] qs(+0x689e)[0x57cc5f4e689e]
+[metric-quicksilver-cpu-job-0073-0:00140] [17] /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80)[0x780c26425e40]
+[metric-quicksilver-cpu-job-0073-0:00138] [16] /lib/x86_64-linux-gnu/libc.so.6(+0x29d90)[0x7a9978d8cd90]
+[metric-quicksilver-cpu-job-0073-0:00147] [18] qs(+0x6b75)[0x5bf4e974cb75]
+[metric-quicksilver-cpu-job-0073-0:00145] [16] /lib/x86_64-linux-gnu/libc.so.6(+0x29d90)[0x7d671cda5d90]
+[metric-quicksilver-cpu-job-0073-0:00140] [18] qs(+0x6b75)[0x5d41505dcb75]
+[metric-quicksilver-cpu-job-0073-0:00138] [17] /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80)[0x7a9978d8ce40]
+[metric-quicksilver-cpu-job-0073-0:00147] *** End of error message ***
+[metric-quicksilver-cpu-job-0073-0:00145] [17] /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80)[0x7d671cda5e40]
+[metric-quicksilver-cpu-job-0073-0:00140] *** End of error message ***
+[metric-quicksilver-cpu-job-0073-0:00138] [18] qs(+0x6b75)[0x5609e0c56b75]
+[metric-quicksilver-cpu-job-0073-0:00145] [18] qs(+0x6b75)[0x57cc5f4e6b75]
+[metric-quicksilver-cpu-job-0073-0:00138] *** End of error message ***
+[metric-quicksilver-cpu-job-0073-0:00145] *** End of error message ***
+flux-shell[0]: FATAL: doom: rank 11 exited and exit-timeout=30s has expired</pre></div></details><details><summary><b>replicate 4</b> <span class="kv">subsystem &middot; sched-gke-mid</span> <span class="pill miss">incomplete</span> <span class="kv">1 attempt(s)</span></summary><div class="body"><table><thead><tr><th>#</th><th>status</th><th>rc</th><th>exception</th><th>runtime</th><th>nodes</th><th>tasks</th><th>args changed</th><th>why</th></tr></thead><tbody><tr><td class="num">1</td><td><span class="pill fail">failed</span></td><td class="num">143</td><td>exec</td><td class="num">32.093</td><td class="num">2</td><td class="num">16</td><td>-</td><td class="kv">CPU build, 2 nodes x 8 cores; use all 16 cores as 16 MPI ranks, 1 core each.</td></tr></tbody></table><h3>submitted commands</h3><pre>1: flux submit -N 2 -n 16 -c 1 --exclusive --cwd /opt/quicksilver -o cpu-affinity=per-task qs -i /opt/quicksilver/Examples/CORAL2_Benchmark/Problem1/Coral2_P1.inp -X 4 -Y 4 -Z 4 -x 4 -y 4 -z 4 -n 1000 -N 1</pre><h3>stderr</h3><pre>[metric-quicksilver-cpu-job-0074-0:00139] [ 1] /lib/x86_64-linux-gnu/libc.so.6(+0x1a884a)[0x7a7a4ea5a84a]
+[metric-quicksilver-cpu-job-0074-0:00139] [ 2] /usr/local/lib/libfabric.so.1(+0x3926f4)[0x7a7a4dbcb6f4]
+[metric-quicksilver-cpu-job-0074-0:00139] [ 3] /usr/local/lib/libfabric.so.1(+0x392a74)[0x7a7a4dbcba74]
+[metric-quicksilver-cpu-job-0074-0:00139] [ 4] /usr/local/lib/libfabric.so.1(+0x3732de)[0x7a7a4dbac2de]
+[metric-quicksilver-cpu-job-0074-0:00139] [ 5] /usr/local/lib/libfabric.so.1(+0x37371c)[0x7a7a4dbac71c]
+[metric-quicksilver-cpu-job-0074-0:00139] [ 6] /usr/local/lib/libfabric.so.1(+0x34d4af)[0x7a7a4db864af]
+[metric-quicksilver-cpu-job-0074-0:00137] [ 0] /lib/x86_64-linux-gnu/libc.so.6(+0x42520)[0x7a60c1abe520]
+[metric-quicksilver-cpu-job-0074-0:00139] [ 7] /usr/local/lib/libfabric.so.1(+0x340271)[0x7a7a4db79271]
+[metric-quicksilver-cpu-job-0074-0:00137] [ 1] /lib/x86_64-linux-gnu/libc.so.6(+0x1a884a)[0x7a60c1c2484a]
+[metric-quicksilver-cpu-job-0074-0:00139] [ 8] /usr/local/lib/openmpi/mca_mtl_ofi.so(+0x59f8)[0x7a7a4d6f89f8]
+[metric-quicksilver-cpu-job-0074-0:00137] [ 2] /usr/local/lib/libfabric.so.1(+0x3926f4)[0x7a60c0d956f4]
+[metric-quicksilver-cpu-job-0074-0:00139] [ 9] /usr/local/lib/libmpi.so.40(ompi_mtl_base_select+0xa4)[0x7a7a4ef2c164]
+[metric-quicksilver-cpu-job-0074-0:00137] [ 3] /usr/local/lib/libfabric.so.1(+0x392a74)[0x7a60c0d95a74]
+[metric-quicksilver-cpu-job-0074-0:00139] [10] /usr/local/lib/openmpi/mca_pml_cm.so(+0x5fae)[0x7a7a4d71dfae]
+[metric-quicksilver-cpu-job-0074-0:00137] [ 4] /usr/local/lib/libfabric.so.1(+0x3732de)[0x7a60c0d762de]
+[metric-quicksilver-cpu-job-0074-0:00139] [11] /usr/local/lib/libmpi.so.40(mca_pml_base_select+0x1e2)[0x7a7a4ef3b3b2]
+[metric-quicksilver-cpu-job-0074-0:00137] [ 5] /usr/local/lib/libfabric.so.1(+0x37371c)[0x7a60c0d7671c]
+[metric-quicksilver-cpu-job-0074-0:00139] [12] /usr/local/lib/libmpi.so.40(ompi_mpi_init+0x6c9)[0x7a7a4ef48489]
+[metric-quicksilver-cpu-job-0074-0:00137] [ 6] /usr/local/lib/libfabric.so.1(+0x34d4af)[0x7a60c0d504af]
+[metric-quicksilver-cpu-job-0074-0:00139] [13] /usr/local/lib/libmpi.so.40(PMPI_Init_thread+0x5b)[0x7a7a4eee17ab]
+[metric-quicksilver-cpu-job-0074-0:00137] [ 7] /usr/local/lib/libfabric.so.1(+0x340271)[0x7a60c0d43271]
+[metric-quicksilver-cpu-job-0074-0:00139] [14] qs(+0x31f07)[0x5c486162ef07]
+[metric-quicksilver-cpu-job-0074-0:00137] [ 8] /usr/local/lib/openmpi/mca_mtl_ofi.so(+0x59f8)[0x7a60c08c29f8]
+[metric-quicksilver-cpu-job-0074-0:00139] [15] qs(+0x689e)[0x5c486160389e]
+[metric-quicksilver-cpu-job-0074-0:00137] [ 9] /usr/local/lib/libmpi.so.40(ompi_mtl_base_select+0xa4)[0x7a60c20f6164]
+[metric-quicksilver-cpu-job-0074-0:00139] [16] /lib/x86_64-linux-gnu/libc.so.6(+0x29d90)[0x7a7a4e8dbd90]
+[metric-quicksilver-cpu-job-0074-0:00137] [10] /usr/local/lib/openmpi/mca_pml_cm.so(+0x5fae)[0x7a60c08e7fae]
+[metric-quicksilver-cpu-job-0074-0:00139] [17] /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80)[0x7a7a4e8dbe40]
+[metric-quicksilver-cpu-job-0074-0:00137] [11] /usr/local/lib/libmpi.so.40(mca_pml_base_select+0x1e2)[0x7a60c21053b2]
+[metric-quicksilver-cpu-job-0074-0:00139] [18] qs(+0x6b75)[0x5c4861603b75]
+[metric-quicksilver-cpu-job-0074-0:00137] [12] /usr/local/lib/libmpi.so.40(ompi_mpi_init+0x6c9)[0x7a60c2112489]
+[metric-quicksilver-cpu-job-0074-0:00139] *** End of error message ***
+[metric-quicksilver-cpu-job-0074-0:00137] [13] /usr/local/lib/libmpi.so.40(PMPI_Init_thread+0x5b)[0x7a60c20ab7ab]
+[metric-quicksilver-cpu-job-0074-0:00137] [14] qs(+0x31f07)[0x5a22e2e14f07]
+[metric-quicksilver-cpu-job-0074-0:00137] [15] qs(+0x689e)[0x5a22e2de989e]
+[metric-quicksilver-cpu-job-0074-0:00137] [16] /lib/x86_64-linux-gnu/libc.so.6(+0x29d90)[0x7a60c1aa5d90]
+[metric-quicksilver-cpu-job-0074-0:00137] [17] /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80)[0x7a60c1aa5e40]
+[metric-quicksilver-cpu-job-0074-0:00137] [18] qs(+0x6b75)[0x5a22e2de9b75]
+[metric-quicksilver-cpu-job-0074-0:00137] *** End of error message ***
+flux-shell[0]: FATAL: doom: rank 7 exited and exit-timeout=30s has expired</pre></div></details><details><summary><b>replicate 5</b> <span class="kv">base &middot; sched-gke-arm</span> <span class="pill miss">never-started</span> <span class="kv">0 attempt(s)</span></summary><div class="body"><p class="note">Nothing was captured for this run. The transcript says the workload never started.</p></div></details><details><summary><b>replicate 5</b> <span class="kv">subsystem &middot; sched-eks-cpu-efa-bigmem</span> <span class="pill ok">ok</span> <span class="kv">2 attempt(s), ran in <b>0.822s</b></span></summary><div class="body"><table><thead><tr><th>#</th><th>status</th><th>rc</th><th>exception</th><th>runtime</th><th>nodes</th><th>tasks</th><th>args changed</th><th>why</th></tr></thead><tbody><tr><td class="num">1</td><td><span class="pill fail">failed</span></td><td class="num">134</td><td>-</td><td class="num">14.409</td><td class="num">2</td><td class="num">8</td><td>-</td><td class="kv">2 nodes, 16 cores, CPU build: 8 MPI ranks x 2 OpenMP threads fills the allocation evenly.</td></tr><tr><td class="num">2</td><td><span class="pill ok">ok</span></td><td class="num">0</td><td>-</td><td class="num">0.822</td><td class="num">2</td><td class="num">8</td><td>-</td><td class="kv">Rule out fabric/transport as the cause of the abort by forcing ob1/tcp.</td></tr></tbody></table><h3>submitted commands</h3><pre>1: OMP_NUM_THREADS=2 OMP_PROC_BIND=close flux submit -N 2 -n 8 -c 2 --exclusive --cwd /opt/quicksilver -o cpu-affinity=per-task qs -i /opt/quicksilver/Examples/CORAL2_Benchmark/Problem1/Coral2_P1.inp -X 4 -Y 4 -Z 4 -x 4 -y 4 -z 4 -n 1000 -N 1
+2: OMPI_MCA_btl=self,vader,tcp OMPI_MCA_pml=ob1 OMP_NUM_THREADS=2 flux submit -N 2 -n 8 -c 2 --exclusive --cwd /opt/quicksilver -o cpu-affinity=per-task qs -i /opt/quicksilver/Examples/CORAL2_Benchmark/Problem1/Coral2_P1.inp -X 4 -Y 4 -Z 4 -x 4 -y 4 -z 4 -n 1000 -N 1</pre></div></details><details><summary><b>replicate 6</b> <span class="kv">base &middot; sched-gke-cpu</span> <span class="pill miss">incomplete</span> <span class="kv">1 attempt(s)</span></summary><div class="body"><table><thead><tr><th>#</th><th>status</th><th>rc</th><th>exception</th><th>runtime</th><th>nodes</th><th>tasks</th><th>args changed</th><th>why</th></tr></thead><tbody><tr><td class="num">1</td><td><span class="pill fail">failed</span></td><td class="num">143</td><td>exec</td><td class="num">32.252</td><td class="num">2</td><td class="num">16</td><td>-</td><td class="kv">CPU build, 16 cores across 2 nodes: one rank per core, no GPUs.</td></tr></tbody></table><h3>submitted commands</h3><pre>1: flux submit -N 2 -n 16 -c 1 --exclusive --cwd /opt/quicksilver -o cpu-affinity=per-task qs -i /opt/quicksilver/Examples/CORAL2_Benchmark/Problem1/Coral2_P1.inp -X 4 -Y 4 -Z 4 -x 4 -y 4 -z 4 -n 1000 -N 1</pre><h3>stderr</h3><pre>[metric-quicksilver-cpu-job-0113-1:00091] [ 1] [metric-quicksilver-cpu-job-0113-1:00094] [ 0] /lib/x86_64-linux-gnu/libc.so.6(+0x42520)[0x7b99669b6520]
+/lib/x86_64-linux-gnu/libc.so.6(+0x1a884a)[0x7c8e7083884a]
+[metric-quicksilver-cpu-job-0113-1:00094] [ 1] /lib/x86_64-linux-gnu/libc.so.6(+0x1a884a)[0x7b9966b1c84a]
+[metric-quicksilver-cpu-job-0113-1:00091] [ 2] /usr/local/lib/libfabric.so.1(+0x3926f4)[0x7c8e6f9a96f4]
+[metric-quicksilver-cpu-job-0113-1:00094] [ 2] /usr/local/lib/libfabric.so.1(+0x3926f4)[0x7b9965c8d6f4]
+[metric-quicksilver-cpu-job-0113-1:00091] [ 3] /usr/local/lib/libfabric.so.1(+0x392a74)[0x7c8e6f9a9a74]
+[metric-quicksilver-cpu-job-0113-1:00094] [ 3] /usr/local/lib/libfabric.so.1(+0x392a74)[0x7b9965c8da74]
+[metric-quicksilver-cpu-job-0113-1:00091] [ 4] /usr/local/lib/libfabric.so.1(+0x3732de)[0x7c8e6f98a2de]
+[metric-quicksilver-cpu-job-0113-1:00094] [ 4] /usr/local/lib/libfabric.so.1(+0x3732de)[0x7b9965c6e2de]
+[metric-quicksilver-cpu-job-0113-1:00091] [ 5] /usr/local/lib/libfabric.so.1(+0x37371c)[0x7c8e6f98a71c]
+[metric-quicksilver-cpu-job-0113-1:00094] [ 5] /usr/local/lib/libfabric.so.1(+0x37371c)[0x7b9965c6e71c]
+[metric-quicksilver-cpu-job-0113-1:00091] [ 6] /usr/local/lib/libfabric.so.1(+0x34d4af)[0x7c8e6f9644af]
+[metric-quicksilver-cpu-job-0113-1:00094] [ 6] /usr/local/lib/libfabric.so.1(+0x34d4af)[0x7b9965c484af]
+[metric-quicksilver-cpu-job-0113-1:00091] [ 7] /usr/local/lib/libfabric.so.1(+0x340271)[0x7c8e6f957271]
+[metric-quicksilver-cpu-job-0113-1:00094] [ 7] /usr/local/lib/libfabric.so.1(+0x340271)[0x7b9965c3b271]
+[metric-quicksilver-cpu-job-0113-1:00091] [ 8] /usr/local/lib/openmpi/mca_mtl_ofi.so(+0x59f8)[0x7c8e6f4d69f8]
+[metric-quicksilver-cpu-job-0113-1:00094] [ 8] /usr/local/lib/openmpi/mca_mtl_ofi.so(+0x59f8)[0x7b99657ba9f8]
+[metric-quicksilver-cpu-job-0113-1:00091] [ 9] /usr/local/lib/libmpi.so.40(ompi_mtl_base_select+0xa4)[0x7c8e70d0a164]
+[metric-quicksilver-cpu-job-0113-1:00094] [ 9] /usr/local/lib/libmpi.so.40(ompi_mtl_base_select+0xa4)[0x7b9966fee164]
+[metric-quicksilver-cpu-job-0113-1:00091] [10] /usr/local/lib/openmpi/mca_pml_cm.so(+0x5fae)[0x7c8e6f4fbfae]
+[metric-quicksilver-cpu-job-0113-1:00094] [10] /usr/local/lib/openmpi/mca_pml_cm.so(+0x5fae)[0x7b99657dffae]
+[metric-quicksilver-cpu-job-0113-1:00091] [11] /usr/local/lib/libmpi.so.40(mca_pml_base_select+0x1e2)[0x7c8e70d193b2]
+[metric-quicksilver-cpu-job-0113-1:00094] [11] /usr/local/lib/libmpi.so.40(mca_pml_base_select+0x1e2)[0x7b9966ffd3b2]
+[metric-quicksilver-cpu-job-0113-1:00091] [12] /usr/local/lib/libmpi.so.40(ompi_mpi_init+0x6c9)[0x7c8e70d26489]
+[metric-quicksilver-cpu-job-0113-1:00094] [12] /usr/local/lib/libmpi.so.40(ompi_mpi_init+0x6c9)[0x7b996700a489]
+[metric-quicksilver-cpu-job-0113-1:00091] [13] /usr/local/lib/libmpi.so.40(PMPI_Init_thread+0x5b)[0x7c8e70cbf7ab]
+[metric-quicksilver-cpu-job-0113-1:00094] [13] /usr/local/lib/libmpi.so.40(PMPI_Init_thread+0x5b)[0x7b9966fa37ab]
+[metric-quicksilver-cpu-job-0113-1:00091] [14] qs(+0x31f07)[0x5a854b6f4f07]
+[metric-quicksilver-cpu-job-0113-1:00094] [14] qs(+0x31f07)[0x5999fe87ef07]
+[metric-quicksilver-cpu-job-0113-1:00091] [15] qs(+0x689e)[0x5a854b6c989e]
+[metric-quicksilver-cpu-job-0113-1:00094] [15] qs(+0x689e)[0x5999fe85389e]
+[metric-quicksilver-cpu-job-0113-1:00091] [16] /lib/x86_64-linux-gnu/libc.so.6(+0x29d90)[0x7c8e706b9d90]
+[metric-quicksilver-cpu-job-0113-1:00094] [16] /lib/x86_64-linux-gnu/libc.so.6(+0x29d90)[0x7b996699dd90]
+[metric-quicksilver-cpu-job-0113-1:00091] [17] /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80)[0x7c8e706b9e40]
+[metric-quicksilver-cpu-job-0113-1:00094] [17] /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80)[0x7b996699de40]
+[metric-quicksilver-cpu-job-0113-1:00091] [18] qs(+0x6b75)[0x5a854b6c9b75]
+[metric-quicksilver-cpu-job-0113-1:00094] [18] qs(+0x6b75)[0x5999fe853b75]
+[metric-quicksilver-cpu-job-0113-1:00091] *** End of error message ***
+[metric-quicksilver-cpu-job-0113-1:00094] *** End of error message ***
+flux-shell[0]: FATAL: doom: rank 12 exited and exit-timeout=30s has expired</pre></div></details><details><summary><b>replicate 6</b> <span class="kv">subsystem &middot; sched-gke-mid</span> <span class="pill miss">incomplete</span> <span class="kv">1 attempt(s)</span></summary><div class="body"><table><thead><tr><th>#</th><th>status</th><th>rc</th><th>exception</th><th>runtime</th><th>nodes</th><th>tasks</th><th>args changed</th><th>why</th></tr></thead><tbody><tr><td class="num">1</td><td><span class="pill fail">failed</span></td><td class="num">143</td><td>exec</td><td class="num">30.945</td><td class="num">2</td><td class="num">16</td><td>-</td><td class="kv">CPU-only build; 2 nodes x 8 cores = 16 ranks, one core each, mesh args unchanged.</td></tr></tbody></table><h3>submitted commands</h3><pre>1: OMP_NUM_THREADS=1 flux submit -N 2 -n 16 -c 1 --exclusive --cwd /opt/quicksilver/Examples/CORAL2_Benchmark/Problem1 -o cpu-affinity=per-task qs -i /opt/quicksilver/Examples/CORAL2_Benchmark/Problem1/Coral2_P1.inp -X 4 -Y 4 -Z 4 -x 4 -y 4 -z 4 -n 1000 -N 1</pre><h3>stderr</h3><pre>[metric-quicksilver-cpu-job-0114-0:00141] [ 1] /lib/x86_64-linux-gnu/libc.so.6(+0x1a884a)[0x793784ab384a]
+[metric-quicksilver-cpu-job-0114-0:00141] [ 2] /usr/local/lib/libfabric.so.1(+0x3926f4)[0x793783c246f4]
+[metric-quicksilver-cpu-job-0114-0:00141] [ 3] /usr/local/lib/libfabric.so.1(+0x392a74)[0x793783c24a74]
+[metric-quicksilver-cpu-job-0114-0:00141] [ 4] /usr/local/lib/libfabric.so.1(+0x3732de)[0x793783c052de]
+[metric-quicksilver-cpu-job-0114-0:00141] [ 5] /usr/local/lib/libfabric.so.1(+0x37371c)[0x793783c0571c]
+[metric-quicksilver-cpu-job-0114-0:00141] [ 6] /usr/local/lib/libfabric.so.1(+0x34d4af)[0x793783bdf4af]
+[metric-quicksilver-cpu-job-0114-0:00141] [ 7] /usr/local/lib/libfabric.so.1(+0x340271)[0x793783bd2271]
+[metric-quicksilver-cpu-job-0114-0:00141] [ 8] /usr/local/lib/openmpi/mca_mtl_ofi.so(+0x59f8)[0x7937837519f8]
+[metric-quicksilver-cpu-job-0114-0:00141] [ 9] /usr/local/lib/libmpi.so.40(ompi_mtl_base_select+0xa4)[0x793784f85164]
+[metric-quicksilver-cpu-job-0114-0:00141] [10] /usr/local/lib/openmpi/mca_pml_cm.so(+0x5fae)[0x793783776fae]
+[metric-quicksilver-cpu-job-0114-0:00141] [11] /usr/local/lib/libmpi.so.40(mca_pml_base_select+0x1e2)[0x793784f943b2]
+[metric-quicksilver-cpu-job-0114-0:00141] [12] /usr/local/lib/libmpi.so.40(ompi_mpi_init+0x6c9)[0x793784fa1489]
+[metric-quicksilver-cpu-job-0114-0:00141] [13] /usr/local/lib/libmpi.so.40(PMPI_Init_thread+0x5b)[0x793784f3a7ab]
+[metric-quicksilver-cpu-job-0114-0:00141] [14] qs(+0x31f07)[0x5b9f4a295f07]
+[metric-quicksilver-cpu-job-0114-0:00141] [15] qs(+0x689e)[0x5b9f4a26a89e]
+[metric-quicksilver-cpu-job-0114-0:00141] [16] /lib/x86_64-linux-gnu/libc.so.6(+0x29d90)[0x793784934d90]
+[metric-quicksilver-cpu-job-0114-0:00141] [17] /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80)[0x793784934e40]
+[metric-quicksilver-cpu-job-0114-0:00141] [18] qs(+0x6b75)[0x5b9f4a26ab75]
+[metric-quicksilver-cpu-job-0114-0:00141] *** End of error message ***
+[metric-quicksilver-cpu-job-0114-0:00139] [ 0] /lib/x86_64-linux-gnu/libc.so.6(+0x42520)[0x78a6a1a72520]
+[metric-quicksilver-cpu-job-0114-0:00139] [ 1] /lib/x86_64-linux-gnu/libc.so.6(+0x1a884a)[0x78a6a1bd884a]
+[metric-quicksilver-cpu-job-0114-0:00139] [ 2] /usr/local/lib/libfabric.so.1(+0x3926f4)[0x78a6a0d496f4]
+[metric-quicksilver-cpu-job-0114-0:00139] [ 3] /usr/local/lib/libfabric.so.1(+0x392a74)[0x78a6a0d49a74]
+[metric-quicksilver-cpu-job-0114-0:00139] [ 4] /usr/local/lib/libfabric.so.1(+0x3732de)[0x78a6a0d2a2de]
+[metric-quicksilver-cpu-job-0114-0:00139] [ 5] /usr/local/lib/libfabric.so.1(+0x37371c)[0x78a6a0d2a71c]
+[metric-quicksilver-cpu-job-0114-0:00139] [ 6] /usr/local/lib/libfabric.so.1(+0x34d4af)[0x78a6a0d044af]
+[metric-quicksilver-cpu-job-0114-0:00139] [ 7] /usr/local/lib/libfabric.so.1(+0x340271)[0x78a6a0cf7271]
+[metric-quicksilver-cpu-job-0114-0:00139] [ 8] /usr/local/lib/openmpi/mca_mtl_ofi.so(+0x59f8)[0x78a6a08769f8]
+[metric-quicksilver-cpu-job-0114-0:00139] [ 9] /usr/local/lib/libmpi.so.40(ompi_mtl_base_select+0xa4)[0x78a6a20aa164]
+[metric-quicksilver-cpu-job-0114-0:00139] [10] /usr/local/lib/openmpi/mca_pml_cm.so(+0x5fae)[0x78a6a089bfae]
+[metric-quicksilver-cpu-job-0114-0:00139] [11] /usr/local/lib/libmpi.so.40(mca_pml_base_select+0x1e2)[0x78a6a20b93b2]
+[metric-quicksilver-cpu-job-0114-0:00139] [12] /usr/local/lib/libmpi.so.40(ompi_mpi_init+0x6c9)[0x78a6a20c6489]
+[metric-quicksilver-cpu-job-0114-0:00139] [13] /usr/local/lib/libmpi.so.40(PMPI_Init_thread+0x5b)[0x78a6a205f7ab]
+[metric-quicksilver-cpu-job-0114-0:00139] [14] qs(+0x31f07)[0x5b0c301cdf07]
+[metric-quicksilver-cpu-job-0114-0:00139] [15] qs(+0x689e)[0x5b0c301a289e]
+[metric-quicksilver-cpu-job-0114-0:00139] [16] /lib/x86_64-linux-gnu/libc.so.6(+0x29d90)[0x78a6a1a59d90]
+[metric-quicksilver-cpu-job-0114-0:00139] [17] /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80)[0x78a6a1a59e40]
+[metric-quicksilver-cpu-job-0114-0:00139] [18] qs(+0x6b75)[0x5b0c301a2b75]
+[metric-quicksilver-cpu-job-0114-0:00139] *** End of error message ***
+flux-shell[0]: FATAL: doom: rank 5 exited and exit-timeout=30s has expired</pre></div></details><details><summary><b>replicate 7</b> <span class="kv">base &middot; sched-gke-mid</span> <span class="pill miss">incomplete</span> <span class="kv">1 attempt(s)</span></summary><div class="body"><table><thead><tr><th>#</th><th>status</th><th>rc</th><th>exception</th><th>runtime</th><th>nodes</th><th>tasks</th><th>args changed</th><th>why</th></tr></thead><tbody><tr><td class="num">1</td><td><span class="pill fail">failed</span></td><td class="num">143</td><td>exec</td><td class="num">32.664</td><td class="num">2</td><td class="num">16</td><td>-</td><td class="kv">CPU build, 16 cores across 2 nodes: 16 ranks, 1 core each, no GPUs.</td></tr></tbody></table><h3>submitted commands</h3><pre>1: OMP_NUM_THREADS=1 flux submit -N 2 -n 16 -c 1 --exclusive --cwd /opt/quicksilver -o cpu-affinity=per-task qs -i /opt/quicksilver/Examples/CORAL2_Benchmark/Problem1/Coral2_P1.inp -X 4 -Y 4 -Z 4 -x 4 -y 4 -z 4 -n 1000 -N 1</pre><h3>stderr</h3><pre>[metric-quicksilver-cpu-job-0133-0:00141] [10] /usr/local/lib/openmpi/mca_pml_cm.so(+0x5fae)[0x7a9349413fae]
+[metric-quicksilver-cpu-job-0133-0:00139] [10] /usr/local/lib/openmpi/mca_pml_cm.so(+0x5fae)[0x7fc3c01d8fae]
+[metric-quicksilver-cpu-job-0133-0:00136] [10] /usr/local/lib/openmpi/mca_pml_cm.so(+0x5fae)[0x7960ffa76fae]
+[metric-quicksilver-cpu-job-0133-0:00142] [11] /usr/local/lib/libmpi.so.40(mca_pml_base_select+0x1e2)[0x7ea2051d83b2]
+[metric-quicksilver-cpu-job-0133-0:00141] [11] /usr/local/lib/libmpi.so.40(mca_pml_base_select+0x1e2)[0x7a934ac313b2]
+[metric-quicksilver-cpu-job-0133-0:00139] [11] /usr/local/lib/libmpi.so.40(mca_pml_base_select+0x1e2)[0x7fc3c14f13b2]
+[metric-quicksilver-cpu-job-0133-0:00136] [11] /usr/local/lib/libmpi.so.40(mca_pml_base_select+0x1e2)[0x7961012943b2]
+[metric-quicksilver-cpu-job-0133-0:00142] [12] /usr/local/lib/libmpi.so.40(ompi_mpi_init+0x6c9)[0x7ea2051e5489]
+[metric-quicksilver-cpu-job-0133-0:00141] [12] /usr/local/lib/libmpi.so.40(ompi_mpi_init+0x6c9)[0x7a934ac3e489]
+[metric-quicksilver-cpu-job-0133-0:00139] [12] /usr/local/lib/libmpi.so.40(ompi_mpi_init+0x6c9)[0x7fc3c14fe489]
+[metric-quicksilver-cpu-job-0133-0:00136] [12] /usr/local/lib/libmpi.so.40(ompi_mpi_init+0x6c9)[0x7961012a1489]
+[metric-quicksilver-cpu-job-0133-0:00142] [13] /usr/local/lib/libmpi.so.40(PMPI_Init_thread+0x5b)[0x7ea20517e7ab]
+[metric-quicksilver-cpu-job-0133-0:00141] [13] /usr/local/lib/libmpi.so.40(PMPI_Init_thread+0x5b)[0x7a934abd77ab]
+[metric-quicksilver-cpu-job-0133-0:00139] [13] /usr/local/lib/libmpi.so.40(PMPI_Init_thread+0x5b)[0x7fc3c14977ab]
+[metric-quicksilver-cpu-job-0133-0:00136] [13] /usr/local/lib/libmpi.so.40(PMPI_Init_thread+0x5b)[0x79610123a7ab]
+[metric-quicksilver-cpu-job-0133-0:00142] [14] qs(+0x31f07)[0x56b6fa123f07]
+[metric-quicksilver-cpu-job-0133-0:00141] [14] qs(+0x31f07)[0x5c1915078f07]
+[metric-quicksilver-cpu-job-0133-0:00139] [14] qs(+0x31f07)[0x56a34f4d6f07]
+[metric-quicksilver-cpu-job-0133-0:00136] [14] qs(+0x31f07)[0x56a5229f3f07]
+[metric-quicksilver-cpu-job-0133-0:00142] [15] qs(+0x689e)[0x56b6fa0f889e]
+[metric-quicksilver-cpu-job-0133-0:00141] [15] qs(+0x689e)[0x5c191504d89e]
+[metric-quicksilver-cpu-job-0133-0:00139] [15] qs(+0x689e)[0x56a34f4ab89e]
+[metric-quicksilver-cpu-job-0133-0:00136] [15] qs(+0x689e)[0x56a5229c889e]
+[metric-quicksilver-cpu-job-0133-0:00142] [16] /lib/x86_64-linux-gnu/libc.so.6(+0x29d90)[0x7ea204b78d90]
+[metric-quicksilver-cpu-job-0133-0:00141] [16] /lib/x86_64-linux-gnu/libc.so.6(+0x29d90)[0x7a934a5d1d90]
+[metric-quicksilver-cpu-job-0133-0:00139] [16] /lib/x86_64-linux-gnu/libc.so.6(+0x29d90)[0x7fc3c0e91d90]
+[metric-quicksilver-cpu-job-0133-0:00136] [16] /lib/x86_64-linux-gnu/libc.so.6(+0x29d90)[0x796100c34d90]
+[metric-quicksilver-cpu-job-0133-0:00142] [17] /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80)[0x7ea204b78e40]
+[metric-quicksilver-cpu-job-0133-0:00141] [17] /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80)[0x7a934a5d1e40]
+[metric-quicksilver-cpu-job-0133-0:00139] [17] /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80)[0x7fc3c0e91e40]
+[metric-quicksilver-cpu-job-0133-0:00136] [17] /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80)[0x796100c34e40]
+[metric-quicksilver-cpu-job-0133-0:00142] [18] qs(+0x6b75)[0x56b6fa0f8b75]
+[metric-quicksilver-cpu-job-0133-0:00141] [18] qs(+0x6b75)[0x5c191504db75]
+[metric-quicksilver-cpu-job-0133-0:00139] [18] qs(+0x6b75)[0x56a34f4abb75]
+[metric-quicksilver-cpu-job-0133-0:00136] [18] qs(+0x6b75)[0x56a5229c8b75]
+[metric-quicksilver-cpu-job-0133-0:00142] *** End of error message ***
+[metric-quicksilver-cpu-job-0133-0:00141] *** End of error message ***
+[metric-quicksilver-cpu-job-0133-0:00139] *** End of error message ***
+[metric-quicksilver-cpu-job-0133-0:00136] *** End of error message ***
+flux-shell[0]: FATAL: doom: rank 6 exited and exit-timeout=30s has expired</pre></div></details><details><summary><b>replicate 7</b> <span class="kv">subsystem &middot; sched-eks-cpu-efa-bigmem</span> <span class="pill miss">incomplete</span> <span class="kv">1 attempt(s)</span></summary><div class="body"><table><thead><tr><th>#</th><th>status</th><th>rc</th><th>exception</th><th>runtime</th><th>nodes</th><th>tasks</th><th>args changed</th><th>why</th></tr></thead><tbody><tr><td class="num">1</td><td><span class="pill fail">failed</span></td><td class="num">143</td><td>exec</td><td class="num">34.402</td><td class="num">2</td><td class="num">16</td><td>-</td><td class="kv">Fill both nodes with 16 single-core MPI ranks; CPU-only build so no GPUs.</td></tr></tbody></table><h3>submitted commands</h3><pre>1: flux submit -N 2 -n 16 -c 1 --exclusive --cwd /opt/quicksilver -o cpu-affinity=per-task qs -i /opt/quicksilver/Examples/CORAL2_Benchmark/Problem1/Coral2_P1.inp -X 4 -Y 4 -Z 4 -x 4 -y 4 -z 4 -n 1000 -N 1</pre><h3>stderr</h3><pre>[metric-quicksilver-cpu-job-0134-0:00142] [ 0] /lib/x86_64-linux-gnu/libc.so.6(+0x42520)[0x7f7d0d000520]
+[metric-quicksilver-cpu-job-0134-0:00145] [ 1] /lib/x86_64-linux-gnu/libc.so.6(+0x1a70ba)[0x7f82f67fc0ba]
+[metric-quicksilver-cpu-job-0134-0:00142] [ 1] /lib/x86_64-linux-gnu/libc.so.6(+0x1a70ba)[0x7f7d0d1650ba]
+[metric-quicksilver-cpu-job-0134-0:00145] [ 2] /usr/local/lib/libfabric.so.1(+0x3926f4)[0x7f82f57846f4]
+[metric-quicksilver-cpu-job-0134-0:00142] [ 2] /usr/local/lib/libfabric.so.1(+0x3926f4)[0x7f7d07e8d6f4]
+[metric-quicksilver-cpu-job-0134-0:00145] [ 3] /usr/local/lib/libfabric.so.1(+0x392a74)[0x7f82f5784a74]
+[metric-quicksilver-cpu-job-0134-0:00142] [ 3] /usr/local/lib/libfabric.so.1(+0x392a74)[0x7f7d07e8da74]
+[metric-quicksilver-cpu-job-0134-0:00145] [ 4] /usr/local/lib/libfabric.so.1(+0x3732de)[0x7f82f57652de]
+[metric-quicksilver-cpu-job-0134-0:00142] [ 4] /usr/local/lib/libfabric.so.1(+0x3732de)[0x7f7d07e6e2de]
+[metric-quicksilver-cpu-job-0134-0:00145] [ 5] /usr/local/lib/libfabric.so.1(+0x37371c)[0x7f82f576571c]
+[metric-quicksilver-cpu-job-0134-0:00142] [ 5] /usr/local/lib/libfabric.so.1(+0x37371c)[0x7f7d07e6e71c]
+[metric-quicksilver-cpu-job-0134-0:00145] [ 6] /usr/local/lib/libfabric.so.1(+0x34d4af)[0x7f82f573f4af]
+[metric-quicksilver-cpu-job-0134-0:00142] [ 6] /usr/local/lib/libfabric.so.1(+0x34d4af)[0x7f7d07e484af]
+[metric-quicksilver-cpu-job-0134-0:00145] [ 7] /usr/local/lib/libfabric.so.1(+0x340271)[0x7f82f5732271]
+[metric-quicksilver-cpu-job-0134-0:00142] [ 7] /usr/local/lib/libfabric.so.1(+0x340271)[0x7f7d07e3b271]
+[metric-quicksilver-cpu-job-0134-0:00145] [ 8] /usr/local/lib/openmpi/mca_mtl_ofi.so(+0x59f8)[0x7f82f52dd9f8]
+[metric-quicksilver-cpu-job-0134-0:00142] [ 8] /usr/local/lib/openmpi/mca_mtl_ofi.so(+0x59f8)[0x7f7d0c14b9f8]
+[metric-quicksilver-cpu-job-0134-0:00145] [ 9] /usr/local/lib/libmpi.so.40(ompi_mtl_base_select+0xa4)[0x7f82f6ccf164]
+[metric-quicksilver-cpu-job-0134-0:00142] [ 9] /usr/local/lib/libmpi.so.40(ompi_mtl_base_select+0xa4)[0x7f7d0d638164]
+[metric-quicksilver-cpu-job-0134-0:00145] [10] /usr/local/lib/openmpi/mca_pml_cm.so(+0x5fae)[0x7f82f52fcfae]
+[metric-quicksilver-cpu-job-0134-0:00142] [10] /usr/local/lib/openmpi/mca_pml_cm.so(+0x5fae)[0x7f7d0c16afae]
+[metric-quicksilver-cpu-job-0134-0:00145] [11] /usr/local/lib/libmpi.so.40(mca_pml_base_select+0x1e2)[0x7f82f6cde3b2]
+[metric-quicksilver-cpu-job-0134-0:00142] [11] /usr/local/lib/libmpi.so.40(mca_pml_base_select+0x1e2)[0x7f7d0d6473b2]
+[metric-quicksilver-cpu-job-0134-0:00145] [12] /usr/local/lib/libmpi.so.40(ompi_mpi_init+0x6c9)[0x7f82f6ceb489]
+[metric-quicksilver-cpu-job-0134-0:00142] [12] /usr/local/lib/libmpi.so.40(ompi_mpi_init+0x6c9)[0x7f7d0d654489]
+[metric-quicksilver-cpu-job-0134-0:00145] [13] /usr/local/lib/libmpi.so.40(PMPI_Init_thread+0x5b)[0x7f82f6c847ab]
+[metric-quicksilver-cpu-job-0134-0:00142] [13] /usr/local/lib/libmpi.so.40(PMPI_Init_thread+0x5b)[0x7f7d0d5ed7ab]
+[metric-quicksilver-cpu-job-0134-0:00145] [14] qs(+0x31f07)[0x55631de93f07]
+[metric-quicksilver-cpu-job-0134-0:00142] [14] qs(+0x31f07)[0x55db8e87ef07]
+[metric-quicksilver-cpu-job-0134-0:00145] [15] qs(+0x689e)[0x55631de6889e]
+[metric-quicksilver-cpu-job-0134-0:00142] [15] qs(+0x689e)[0x55db8e85389e]
+[metric-quicksilver-cpu-job-0134-0:00145] [16] /lib/x86_64-linux-gnu/libc.so.6(+0x29d90)[0x7f82f667ed90]
+[metric-quicksilver-cpu-job-0134-0:00142] [16] /lib/x86_64-linux-gnu/libc.so.6(+0x29d90)[0x7f7d0cfe7d90]
+[metric-quicksilver-cpu-job-0134-0:00145] [17] /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80)[0x7f82f667ee40]
+[metric-quicksilver-cpu-job-0134-0:00142] [17] /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80)[0x7f7d0cfe7e40]
+[metric-quicksilver-cpu-job-0134-0:00145] [18] qs(+0x6b75)[0x55631de68b75]
+[metric-quicksilver-cpu-job-0134-0:00142] [18] qs(+0x6b75)[0x55db8e853b75]
+[metric-quicksilver-cpu-job-0134-0:00145] *** End of error message ***
+[metric-quicksilver-cpu-job-0134-0:00142] *** End of error message ***
+flux-shell[0]: FATAL: doom: rank 15 exited and exit-timeout=30s has expired</pre></div></details><details><summary><b>replicate 8</b> <span class="kv">base &middot; sched-gke-bigmem</span> <span class="pill miss">incomplete</span> <span class="kv">1 attempt(s)</span></summary><div class="body"><table><thead><tr><th>#</th><th>status</th><th>rc</th><th>exception</th><th>runtime</th><th>nodes</th><th>tasks</th><th>args changed</th><th>why</th></tr></thead><tbody><tr><td class="num">1</td><td><span class="pill fail">failed</span></td><td class="num">143</td><td>exec</td><td class="num">32.145</td><td class="num">2</td><td class="num">32</td><td>-</td><td class="kv">CPU build, 32 cores over 2 nodes: one rank per core, 1 OpenMP thread each.</td></tr></tbody></table><h3>submitted commands</h3><pre>1: OMP_NUM_THREADS=1 flux submit -N 2 -n 32 -c 1 --exclusive --cwd /opt/quicksilver -o cpu-affinity=per-task qs -i /opt/quicksilver/Examples/CORAL2_Benchmark/Problem1/Coral2_P1.inp -X 4 -Y 4 -Z 4 -x 4 -y 4 -z 4 -n 1000 -N 1</pre><h3>stderr</h3><pre>[metric-quicksilver-cpu-job-0153-1:00113] [16] /lib/x86_64-linux-gnu/libc.so.6(+0x29d90)[0x7934dde46d90]
+[metric-quicksilver-cpu-job-0153-1:00111] [16] /lib/x86_64-linux-gnu/libc.so.6(+0x29d90)[0x7d1bded1bd90]
+[metric-quicksilver-cpu-job-0153-1:00109] [16] /lib/x86_64-linux-gnu/libc.so.6(+0x29d90)[0x7c12888fcd90]
+[metric-quicksilver-cpu-job-0153-1:00107] [16] /lib/x86_64-linux-gnu/libc.so.6(+0x29d90)[0x7fe64e124d90]
+[metric-quicksilver-cpu-job-0153-1:00105] [16] /lib/x86_64-linux-gnu/libc.so.6(+0x29d90)[0x79ac81350d90]
+[metric-quicksilver-cpu-job-0153-1:00103] [16] /lib/x86_64-linux-gnu/libc.so.6(+0x29d90)[0x7afdcdac1d90]
+[metric-quicksilver-cpu-job-0153-1:00100] [16] /lib/x86_64-linux-gnu/libc.so.6(+0x29d90)[0x7e6f5f795d90]
+[metric-quicksilver-cpu-job-0153-1:00099] [16] /lib/x86_64-linux-gnu/libc.so.6(+0x29d90)[0x7c0eaafd7d90]
+[metric-quicksilver-cpu-job-0153-1:00090] [16] /lib/x86_64-linux-gnu/libc.so.6(+0x29d90)[0x7b9815e3bd90]
+[metric-quicksilver-cpu-job-0153-1:00115] [17] /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80)[0x789e694aee40]
+[metric-quicksilver-cpu-job-0153-1:00113] [17] /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80)[0x7934dde46e40]
+[metric-quicksilver-cpu-job-0153-1:00111] [17] /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80)[0x7d1bded1be40]
+[metric-quicksilver-cpu-job-0153-1:00109] [17] /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80)[0x7c12888fce40]
+[metric-quicksilver-cpu-job-0153-1:00107] [17] /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80)[0x7fe64e124e40]
+[metric-quicksilver-cpu-job-0153-1:00105] [17] /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80)[0x79ac81350e40]
+[metric-quicksilver-cpu-job-0153-1:00103] [17] /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80)[0x7afdcdac1e40]
+[metric-quicksilver-cpu-job-0153-1:00100] [17] /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80)[0x7e6f5f795e40]
+[metric-quicksilver-cpu-job-0153-1:00099] [17] /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80)[0x7c0eaafd7e40]
+[metric-quicksilver-cpu-job-0153-1:00090] [17] /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80)[0x7b9815e3be40]
+[metric-quicksilver-cpu-job-0153-1:00115] [18] qs(+0x6b75)[0x5ba225952b75]
+[metric-quicksilver-cpu-job-0153-1:00113] [18] qs(+0x6b75)[0x5570cfd02b75]
+[metric-quicksilver-cpu-job-0153-1:00111] [18] qs(+0x6b75)[0x5ce542188b75]
+[metric-quicksilver-cpu-job-0153-1:00109] [18] qs(+0x6b75)[0x58d3833bab75]
+[metric-quicksilver-cpu-job-0153-1:00107] [18] qs(+0x6b75)[0x556606114b75]
+[metric-quicksilver-cpu-job-0153-1:00105] [18] qs(+0x6b75)[0x591103223b75]
+[metric-quicksilver-cpu-job-0153-1:00103] [18] qs(+0x6b75)[0x55c7f46c5b75]
+[metric-quicksilver-cpu-job-0153-1:00100] [18] qs(+0x6b75)[0x5a23235f8b75]
+[metric-quicksilver-cpu-job-0153-1:00099] [18] qs(+0x6b75)[0x59b7eea50b75]
+[metric-quicksilver-cpu-job-0153-1:00090] [18] qs(+0x6b75)[0x5cc075d60b75]
+[metric-quicksilver-cpu-job-0153-1:00115] *** End of error message ***
+[metric-quicksilver-cpu-job-0153-1:00113] *** End of error message ***
+[metric-quicksilver-cpu-job-0153-1:00111] *** End of error message ***
+[metric-quicksilver-cpu-job-0153-1:00109] *** End of error message ***
+[metric-quicksilver-cpu-job-0153-1:00107] *** End of error message ***
+[metric-quicksilver-cpu-job-0153-1:00105] *** End of error message ***
+[metric-quicksilver-cpu-job-0153-1:00103] *** End of error message ***
+[metric-quicksilver-cpu-job-0153-1:00100] *** End of error message ***
+[metric-quicksilver-cpu-job-0153-1:00099] *** End of error message ***
+[metric-quicksilver-cpu-job-0153-1:00090] *** End of error message ***
+flux-shell[0]: FATAL: doom: rank 27 exited and exit-timeout=30s has expired</pre></div></details><details><summary><b>replicate 8</b> <span class="kv">subsystem &middot; sched-gke-mid</span> <span class="pill miss">incomplete</span> <span class="kv">1 attempt(s)</span></summary><div class="body"><table><thead><tr><th>#</th><th>status</th><th>rc</th><th>exception</th><th>runtime</th><th>nodes</th><th>tasks</th><th>args changed</th><th>why</th></tr></thead><tbody><tr><td class="num">1</td><td><span class="pill fail">failed</span></td><td class="num">143</td><td>exec</td><td class="num">30.676</td><td class="num">2</td><td class="num">16</td><td>-</td><td class="kv">CPU build; 16 cores total across 2 nodes, so 16 single-core MPI ranks with 1 OpenMP thread each.</td></tr></tbody></table><h3>submitted commands</h3><pre>1: OMP_NUM_THREADS=1 flux submit -N 2 -n 16 -c 1 --exclusive --cwd /opt/quicksilver -o cpu-affinity=per-task qs -i /opt/quicksilver/Examples/CORAL2_Benchmark/Problem1/Coral2_P1.inp -X 4 -Y 4 -Z 4 -x 4 -y 4 -z 4 -n 1000 -N 1</pre><h3>stderr</h3><pre>[metric-quicksilver-cpu-job-0154-1:00092] [ 5] /usr/local/lib/libfabric.so.1(+0x37371c)[0x7c77d7b4b71c]
+[metric-quicksilver-cpu-job-0154-1:00092] [ 6] /usr/local/lib/libfabric.so.1(+0x34d4af)[0x7c77d7b254af]
+[metric-quicksilver-cpu-job-0154-1:00092] [ 7] /usr/local/lib/libfabric.so.1(+0x340271)[0x7c77d7b18271]
+[metric-quicksilver-cpu-job-0154-1:00092] [ 8] /usr/local/lib/openmpi/mca_mtl_ofi.so(+0x59f8)[0x7c77d76979f8]
+[metric-quicksilver-cpu-job-0154-1:00092] [ 9] /usr/local/lib/libmpi.so.40(ompi_mtl_base_select+0xa4)[0x7c77d8ecb164]
+[metric-quicksilver-cpu-job-0154-1:00092] [10] /usr/local/lib/openmpi/mca_pml_cm.so(+0x5fae)[0x7c77d76bcfae]
+[metric-quicksilver-cpu-job-0154-1:00092] [11] /usr/local/lib/libmpi.so.40(mca_pml_base_select+0x1e2)[0x7c77d8eda3b2]
+[metric-quicksilver-cpu-job-0154-1:00092] [12] /usr/local/lib/libmpi.so.40(ompi_mpi_init+0x6c9)[0x7c77d8ee7489]
+[metric-quicksilver-cpu-job-0154-1:00092] [13] /usr/local/lib/libmpi.so.40(PMPI_Init_thread+0x5b)[0x7c77d8e807ab]
+[metric-quicksilver-cpu-job-0154-1:00092] [14] qs(+0x31f07)[0x587ecfab3f07]
+[metric-quicksilver-cpu-job-0154-1:00092] [15] qs(+0x689e)[0x587ecfa8889e]
+[metric-quicksilver-cpu-job-0154-1:00092] [16] /lib/x86_64-linux-gnu/libc.so.6(+0x29d90)[0x7c77d887ad90]
+[metric-quicksilver-cpu-job-0154-1:00092] [17] /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80)[0x7c77d887ae40]
+[metric-quicksilver-cpu-job-0154-1:00092] [18] qs(+0x6b75)[0x587ecfa88b75]
+[metric-quicksilver-cpu-job-0154-1:00092] *** End of error message ***
+[metric-quicksilver-cpu-job-0154-0:00136] *** Process received signal ***
+[metric-quicksilver-cpu-job-0154-0:00136] Signal: Bus error (7)
+[metric-quicksilver-cpu-job-0154-0:00136] Signal code: Non-existant physical address (2)
+[metric-quicksilver-cpu-job-0154-0:00136] Failing at address: 0x7f3e15024000
+[metric-quicksilver-cpu-job-0154-0:00136] [ 0] /lib/x86_64-linux-gnu/libc.so.6(+0x42520)[0x7f3e24fbc520]
+[metric-quicksilver-cpu-job-0154-0:00136] [ 1] /lib/x86_64-linux-gnu/libc.so.6(+0x1a884a)[0x7f3e2512284a]
+[metric-quicksilver-cpu-job-0154-0:00136] [ 2] /usr/local/lib/libfabric.so.1(+0x3926f4)[0x7f3e1fe8d6f4]
+[metric-quicksilver-cpu-job-0154-0:00136] [ 3] /usr/local/lib/libfabric.so.1(+0x392a74)[0x7f3e1fe8da74]
+[metric-quicksilver-cpu-job-0154-0:00136] [ 4] /usr/local/lib/libfabric.so.1(+0x3732de)[0x7f3e1fe6e2de]
+[metric-quicksilver-cpu-job-0154-0:00136] [ 5] /usr/local/lib/libfabric.so.1(+0x37371c)[0x7f3e1fe6e71c]
+[metric-quicksilver-cpu-job-0154-0:00136] [ 6] /usr/local/lib/libfabric.so.1(+0x34d4af)[0x7f3e1fe484af]
+[metric-quicksilver-cpu-job-0154-0:00136] [ 7] /usr/local/lib/libfabric.so.1(+0x340271)[0x7f3e1fe3b271]
+[metric-quicksilver-cpu-job-0154-0:00136] [ 8] /usr/local/lib/openmpi/mca_mtl_ofi.so(+0x59f8)[0x7f3e242c59f8]
+[metric-quicksilver-cpu-job-0154-0:00136] [ 9] /usr/local/lib/libmpi.so.40(ompi_mtl_base_select+0xa4)[0x7f3e255f4164]
+[metric-quicksilver-cpu-job-0154-0:00136] [10] /usr/local/lib/openmpi/mca_pml_cm.so(+0x5fae)[0x7f3e242eafae]
+[metric-quicksilver-cpu-job-0154-0:00136] [11] /usr/local/lib/libmpi.so.40(mca_pml_base_select+0x1e2)[0x7f3e256033b2]
+[metric-quicksilver-cpu-job-0154-0:00136] [12] /usr/local/lib/libmpi.so.40(ompi_mpi_init+0x6c9)[0x7f3e25610489]
+[metric-quicksilver-cpu-job-0154-0:00136] [13] /usr/local/lib/libmpi.so.40(PMPI_Init_thread+0x5b)[0x7f3e255a97ab]
+[metric-quicksilver-cpu-job-0154-0:00136] [14] qs(+0x31f07)[0x577fa4dfaf07]
+[metric-quicksilver-cpu-job-0154-0:00136] [15] qs(+0x689e)[0x577fa4dcf89e]
+[metric-quicksilver-cpu-job-0154-0:00136] [16] /lib/x86_64-linux-gnu/libc.so.6(+0x29d90)[0x7f3e24fa3d90]
+[metric-quicksilver-cpu-job-0154-0:00136] [17] /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80)[0x7f3e24fa3e40]
+[metric-quicksilver-cpu-job-0154-0:00136] [18] qs(+0x6b75)[0x577fa4dcfb75]
+[metric-quicksilver-cpu-job-0154-0:00136] *** End of error message ***
+flux-shell[0]: FATAL: doom: rank 0 exited and exit-timeout=30s has expired</pre></div></details><details><summary><b>replicate 9</b> <span class="kv">base &middot; sched-eks-arm-small</span> <span class="pill miss">never-started</span> <span class="kv">0 attempt(s)</span></summary><div class="body"><p class="note">Nothing was captured for this run. The transcript says the workload never started.</p></div></details><details><summary><b>replicate 9</b> <span class="kv">subsystem &middot; sched-eks-cpu-efa-bigmem</span> <span class="pill miss">incomplete</span> <span class="kv">1 attempt(s)</span></summary><div class="body"><table><thead><tr><th>#</th><th>status</th><th>rc</th><th>exception</th><th>runtime</th><th>nodes</th><th>tasks</th><th>args changed</th><th>why</th></tr></thead><tbody><tr><td class="num">1</td><td><span class="pill fail">failed</span></td><td class="num">143</td><td>exec</td><td class="num">34.732</td><td class="num">2</td><td class="num">16</td><td>-</td><td class="kv">CPU build; 2 nodes x 8 cores = 16 ranks, one core each, no GPUs.</td></tr></tbody></table><h3>submitted commands</h3><pre>1: OMP_NUM_THREADS=1 flux submit -N 2 -n 16 -c 1 --exclusive --cwd /opt/quicksilver -o cpu-affinity=per-task qs -i /opt/quicksilver/Examples/CORAL2_Benchmark/Problem1/Coral2_P1.inp -X 4 -Y 4 -Z 4 -x 4 -y 4 -z 4 -n 1000 -N 1</pre><h3>stderr</h3><pre>[metric-quicksilver-cpu-job-0014-1:00092] [ 0] /lib/x86_64-linux-gnu/libc.so.6(+0x42520)[0x7f1f859f3520]
+[metric-quicksilver-cpu-job-0014-1:00098] [ 1] /lib/x86_64-linux-gnu/libc.so.6(+0x1a70ba)[0x7fbd45e8a0ba]
+[metric-quicksilver-cpu-job-0014-1:00092] [ 1] /lib/x86_64-linux-gnu/libc.so.6(+0x1a70ba)[0x7f1f85b580ba]
+[metric-quicksilver-cpu-job-0014-1:00098] [ 2] /usr/local/lib/libfabric.so.1(+0x3926f4)[0x7fbd44e126f4]
+[metric-quicksilver-cpu-job-0014-1:00092] [ 2] /usr/local/lib/libfabric.so.1(+0x3926f4)[0x7f1f84ae06f4]
+[metric-quicksilver-cpu-job-0014-1:00098] [ 3] /usr/local/lib/libfabric.so.1(+0x392a74)[0x7fbd44e12a74]
+[metric-quicksilver-cpu-job-0014-1:00092] [ 3] /usr/local/lib/libfabric.so.1(+0x392a74)[0x7f1f84ae0a74]
+[metric-quicksilver-cpu-job-0014-1:00098] [ 4] /usr/local/lib/libfabric.so.1(+0x3732de)[0x7fbd44df32de]
+[metric-quicksilver-cpu-job-0014-1:00092] [ 4] /usr/local/lib/libfabric.so.1(+0x3732de)[0x7f1f84ac12de]
+[metric-quicksilver-cpu-job-0014-1:00098] [ 5] /usr/local/lib/libfabric.so.1(+0x37371c)[0x7fbd44df371c]
+[metric-quicksilver-cpu-job-0014-1:00092] [ 5] /usr/local/lib/libfabric.so.1(+0x37371c)[0x7f1f84ac171c]
+[metric-quicksilver-cpu-job-0014-1:00098] [ 6] /usr/local/lib/libfabric.so.1(+0x34d4af)[0x7fbd44dcd4af]
+[metric-quicksilver-cpu-job-0014-1:00092] [ 6] /usr/local/lib/libfabric.so.1(+0x34d4af)[0x7f1f84a9b4af]
+[metric-quicksilver-cpu-job-0014-1:00098] [ 7] /usr/local/lib/libfabric.so.1(+0x340271)[0x7fbd44dc0271]
+[metric-quicksilver-cpu-job-0014-1:00092] [ 7] /usr/local/lib/libfabric.so.1(+0x340271)[0x7f1f84a8e271]
+[metric-quicksilver-cpu-job-0014-1:00098] [ 8] /usr/local/lib/openmpi/mca_mtl_ofi.so(+0x59f8)[0x7fbd4496b9f8]
+[metric-quicksilver-cpu-job-0014-1:00092] [ 8] /usr/local/lib/openmpi/mca_mtl_ofi.so(+0x59f8)[0x7f1f846399f8]
+[metric-quicksilver-cpu-job-0014-1:00098] [ 9] /usr/local/lib/libmpi.so.40(ompi_mtl_base_select+0xa4)[0x7fbd4635d164]
+[metric-quicksilver-cpu-job-0014-1:00092] [ 9] /usr/local/lib/libmpi.so.40(ompi_mtl_base_select+0xa4)[0x7f1f8602b164]
+[metric-quicksilver-cpu-job-0014-1:00098] [10] /usr/local/lib/openmpi/mca_pml_cm.so(+0x5fae)[0x7fbd4498afae]
+[metric-quicksilver-cpu-job-0014-1:00092] [10] /usr/local/lib/openmpi/mca_pml_cm.so(+0x5fae)[0x7f1f84658fae]
+[metric-quicksilver-cpu-job-0014-1:00098] [11] /usr/local/lib/libmpi.so.40(mca_pml_base_select+0x1e2)[0x7fbd4636c3b2]
+[metric-quicksilver-cpu-job-0014-1:00092] [11] /usr/local/lib/libmpi.so.40(mca_pml_base_select+0x1e2)[0x7f1f8603a3b2]
+[metric-quicksilver-cpu-job-0014-1:00098] [12] /usr/local/lib/libmpi.so.40(ompi_mpi_init+0x6c9)[0x7fbd46379489]
+[metric-quicksilver-cpu-job-0014-1:00092] [12] /usr/local/lib/libmpi.so.40(ompi_mpi_init+0x6c9)[0x7f1f86047489]
+[metric-quicksilver-cpu-job-0014-1:00098] [13] /usr/local/lib/libmpi.so.40(PMPI_Init_thread+0x5b)[0x7fbd463127ab]
+[metric-quicksilver-cpu-job-0014-1:00092] [13] /usr/local/lib/libmpi.so.40(PMPI_Init_thread+0x5b)[0x7f1f85fe07ab]
+[metric-quicksilver-cpu-job-0014-1:00098] [14] qs(+0x31f07)[0x5622373f6f07]
+[metric-quicksilver-cpu-job-0014-1:00092] [14] qs(+0x31f07)[0x5613620cbf07]
+[metric-quicksilver-cpu-job-0014-1:00098] [15] qs(+0x689e)[0x5622373cb89e]
+[metric-quicksilver-cpu-job-0014-1:00092] [15] qs(+0x689e)[0x5613620a089e]
+[metric-quicksilver-cpu-job-0014-1:00098] [16] /lib/x86_64-linux-gnu/libc.so.6(+0x29d90)[0x7fbd45d0cd90]
+[metric-quicksilver-cpu-job-0014-1:00092] [16] /lib/x86_64-linux-gnu/libc.so.6(+0x29d90)[0x7f1f859dad90]
+[metric-quicksilver-cpu-job-0014-1:00098] [17] /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80)[0x7fbd45d0ce40]
+[metric-quicksilver-cpu-job-0014-1:00092] [17] /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80)[0x7f1f859dae40]
+[metric-quicksilver-cpu-job-0014-1:00098] [18] qs(+0x6b75)[0x5622373cbb75]
+[metric-quicksilver-cpu-job-0014-1:00092] [18] qs(+0x6b75)[0x5613620a0b75]
+[metric-quicksilver-cpu-job-0014-1:00098] *** End of error message ***
+[metric-quicksilver-cpu-job-0014-1:00092] *** End of error message ***
+flux-shell[0]: FATAL: doom: rank 6 exited and exit-timeout=30s has expired</pre></div></details><details><summary><b>replicate 10</b> <span class="kv">base &middot; sched-eks-cpu-efa-bigmem</span> <span class="pill ok">ok</span> <span class="kv">2 attempt(s), ran in <b>0.872s</b></span></summary><div class="body"><table><thead><tr><th>#</th><th>status</th><th>rc</th><th>exception</th><th>runtime</th><th>nodes</th><th>tasks</th><th>args changed</th><th>why</th></tr></thead><tbody><tr><td class="num">1</td><td><span class="pill fail">failed</span></td><td class="num">143</td><td>exec</td><td class="num">34.372</td><td class="num">2</td><td class="num">16</td><td>-</td><td class="kv">CPU build, 16 cores across 2 nodes; 1 thread per rank as requested (-N 1), so 16 single-core tasks.</td></tr><tr><td class="num">2</td><td><span class="pill ok">ok</span></td><td class="num">0</td><td>-</td><td class="num">0.872</td><td class="num">2</td><td class="num">8</td><td>-</td><td class="kv">Try 8 ranks (4/node, cube-friendly decomposition) and force ob1/tcp in case the crash is transport-related.</td></tr></tbody></table><h3>submitted commands</h3><pre>1: flux submit -N 2 -n 16 -c 1 --exclusive --cwd /opt/quicksilver -o cpu-affinity=per-task qs -i /opt/quicksilver/Examples/CORAL2_Benchmark/Problem1/Coral2_P1.inp -X 4 -Y 4 -Z 4 -x 4 -y 4 -z 4 -n 1000 -N 1
+2: OMPI_MCA_btl=self,vader,tcp OMPI_MCA_pml=ob1 flux submit -N 2 -n 8 -c 2 --exclusive --cwd /opt/quicksilver -o cpu-affinity=per-task qs -i /opt/quicksilver/Examples/CORAL2_Benchmark/Problem1/Coral2_P1.inp -X 4 -Y 4 -Z 4 -x 4 -y 4 -z 4 -n 1000 -N 1</pre></div></details><details><summary><b>replicate 10</b> <span class="kv">subsystem &middot; sched-gke-cpu</span> <span class="pill miss">incomplete</span> <span class="kv">1 attempt(s)</span></summary><div class="body"><table><thead><tr><th>#</th><th>status</th><th>rc</th><th>exception</th><th>runtime</th><th>nodes</th><th>tasks</th><th>args changed</th><th>why</th></tr></thead><tbody><tr><td class="num">1</td><td><span class="pill fail">failed</span></td><td class="num">143</td><td>exec</td><td class="num">34.856</td><td class="num">2</td><td class="num">16</td><td>-</td><td class="kv">Fill both nodes with one rank per core; CPU build so no GPUs requested.</td></tr></tbody></table><h3>submitted commands</h3><pre>1: OMP_NUM_THREADS=1 flux submit -N 2 -n 16 -c 1 --exclusive --cwd /opt/quicksilver -o cpu-affinity=per-task qs -i /opt/quicksilver/Examples/CORAL2_Benchmark/Problem1/Coral2_P1.inp -X 4 -Y 4 -Z 4 -x 4 -y 4 -z 4 -n 1000 -N 1</pre><h3>stderr</h3><pre>[metric-quicksilver-cpu-job-0034-0:00143] [ 1] /lib/x86_64-linux-gnu/libc.so.6(+0x1a884a)[0x7ec958e5184a]
+[metric-quicksilver-cpu-job-0034-0:00138] [ 0] /lib/x86_64-linux-gnu/libc.so.6(+0x42520)[0x7ff4f57b8520]
+[metric-quicksilver-cpu-job-0034-0:00143] [ 2] /usr/local/lib/libfabric.so.1(+0x3926f4)[0x7ec957fc26f4]
+[metric-quicksilver-cpu-job-0034-0:00138] [ 1] /lib/x86_64-linux-gnu/libc.so.6(+0x1a884a)[0x7ff4f591e84a]
+[metric-quicksilver-cpu-job-0034-0:00143] [ 3] /usr/local/lib/libfabric.so.1(+0x392a74)[0x7ec957fc2a74]
+[metric-quicksilver-cpu-job-0034-0:00138] [ 2] /usr/local/lib/libfabric.so.1(+0x3926f4)[0x7ff4f4a8f6f4]
+[metric-quicksilver-cpu-job-0034-0:00143] [ 4] /usr/local/lib/libfabric.so.1(+0x3732de)[0x7ec957fa32de]
+[metric-quicksilver-cpu-job-0034-0:00138] [ 3] /usr/local/lib/libfabric.so.1(+0x392a74)[0x7ff4f4a8fa74]
+[metric-quicksilver-cpu-job-0034-0:00143] [ 5] /usr/local/lib/libfabric.so.1(+0x37371c)[0x7ec957fa371c]
+[metric-quicksilver-cpu-job-0034-0:00138] [ 4] /usr/local/lib/libfabric.so.1(+0x3732de)[0x7ff4f4a702de]
+[metric-quicksilver-cpu-job-0034-0:00143] [ 6] /usr/local/lib/libfabric.so.1(+0x34d4af)[0x7ec957f7d4af]
+[metric-quicksilver-cpu-job-0034-0:00138] [ 5] /usr/local/lib/libfabric.so.1(+0x37371c)[0x7ff4f4a7071c]
+[metric-quicksilver-cpu-job-0034-0:00143] [ 7] /usr/local/lib/libfabric.so.1(+0x340271)[0x7ec957f70271]
+[metric-quicksilver-cpu-job-0034-0:00138] [ 6] /usr/local/lib/libfabric.so.1(+0x34d4af)[0x7ff4f4a4a4af]
+[metric-quicksilver-cpu-job-0034-0:00143] [ 8] /usr/local/lib/openmpi/mca_mtl_ofi.so(+0x59f8)[0x7ec957aef9f8]
+[metric-quicksilver-cpu-job-0034-0:00138] [ 7] /usr/local/lib/libfabric.so.1(+0x340271)[0x7ff4f4a3d271]
+[metric-quicksilver-cpu-job-0034-0:00143] [ 9] /usr/local/lib/libmpi.so.40(ompi_mtl_base_select+0xa4)[0x7ec959323164]
+[metric-quicksilver-cpu-job-0034-0:00138] [ 8] /usr/local/lib/openmpi/mca_mtl_ofi.so(+0x59f8)[0x7ff4f45bc9f8]
+[metric-quicksilver-cpu-job-0034-0:00143] [10] /usr/local/lib/openmpi/mca_pml_cm.so(+0x5fae)[0x7ec957b14fae]
+[metric-quicksilver-cpu-job-0034-0:00138] [ 9] /usr/local/lib/libmpi.so.40(ompi_mtl_base_select+0xa4)[0x7ff4f5df0164]
+[metric-quicksilver-cpu-job-0034-0:00143] [11] /usr/local/lib/libmpi.so.40(mca_pml_base_select+0x1e2)[0x7ec9593323b2]
+[metric-quicksilver-cpu-job-0034-0:00138] [10] /usr/local/lib/openmpi/mca_pml_cm.so(+0x5fae)[0x7ff4f45e1fae]
+[metric-quicksilver-cpu-job-0034-0:00143] [12] /usr/local/lib/libmpi.so.40(ompi_mpi_init+0x6c9)[0x7ec95933f489]
+[metric-quicksilver-cpu-job-0034-0:00138] [11] /usr/local/lib/libmpi.so.40(mca_pml_base_select+0x1e2)[0x7ff4f5dff3b2]
+[metric-quicksilver-cpu-job-0034-0:00143] [13] /usr/local/lib/libmpi.so.40(PMPI_Init_thread+0x5b)[0x7ec9592d87ab]
+[metric-quicksilver-cpu-job-0034-0:00138] [12] /usr/local/lib/libmpi.so.40(ompi_mpi_init+0x6c9)[0x7ff4f5e0c489]
+[metric-quicksilver-cpu-job-0034-0:00143] [14] qs(+0x31f07)[0x58775d13cf07]
+[metric-quicksilver-cpu-job-0034-0:00138] [13] /usr/local/lib/libmpi.so.40(PMPI_Init_thread+0x5b)[0x7ff4f5da57ab]
+[metric-quicksilver-cpu-job-0034-0:00143] [15] qs(+0x689e)[0x58775d11189e]
+[metric-quicksilver-cpu-job-0034-0:00138] [14] qs(+0x31f07)[0x57e4acafdf07]
+[metric-quicksilver-cpu-job-0034-0:00143] [16] /lib/x86_64-linux-gnu/libc.so.6(+0x29d90)[0x7ec958cd2d90]
+[metric-quicksilver-cpu-job-0034-0:00138] [15] qs(+0x689e)[0x57e4acad289e]
+[metric-quicksilver-cpu-job-0034-0:00143] [17] /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80)[0x7ec958cd2e40]
+[metric-quicksilver-cpu-job-0034-0:00138] [16] /lib/x86_64-linux-gnu/libc.so.6(+0x29d90)[0x7ff4f579fd90]
+[metric-quicksilver-cpu-job-0034-0:00143] [18] qs(+0x6b75)[0x58775d111b75]
+[metric-quicksilver-cpu-job-0034-0:00138] [17] /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80)[0x7ff4f579fe40]
+[metric-quicksilver-cpu-job-0034-0:00143] *** End of error message ***
+[metric-quicksilver-cpu-job-0034-0:00138] [18] qs(+0x6b75)[0x57e4acad2b75]
+[metric-quicksilver-cpu-job-0034-0:00138] *** End of error message ***
+flux-shell[0]: FATAL: doom: rank 11 exited and exit-timeout=30s has expired</pre></div></details></div>
+<script>
+document.querySelectorAll('table.sortable').forEach(t => {
+  t.querySelectorAll('th').forEach((th, i) => th.onclick = () => {
+    const body = t.tBodies[0], rows = [...body.rows];
+    const dir = th.dataset.dir === 'asc' ? -1 : 1;
+    t.querySelectorAll('th').forEach(o => delete o.dataset.dir);
+    th.dataset.dir = dir === 1 ? 'asc' : 'desc';
+    const val = r => {
+      const c = r.cells[i];
+      const raw = c.dataset.sort !== undefined ? c.dataset.sort : c.textContent;
+      const n = parseFloat(raw);
+      return isNaN(n) ? raw.trim().toLowerCase() : n;
+    };
+    rows.sort((a, b) => { const x = val(a), y = val(b);
+      return (x > y ? 1 : x < y ? -1 : 0) * dir; });
+    rows.forEach(r => body.appendChild(r));
+  });
+});
+</script>
+</body></html>

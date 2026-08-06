@@ -67,18 +67,40 @@ prints the advertised GPU resource so you can verify the device plugin.
 
 #### Fleet
 
-We create seven single-node-pool (homogeneous) clusters, spanning different dimensions 
-to match on, and the goal would be to show the value of descriptive metadata. 
+Six clusters, all the same shape: **8 physical cores per node, 3 nodes.**
 
-| context | cloud | instance | arch | gpu | net | mem | ~$/hr |
-|---|---|---|---|---|---|---|---|
-| `sched-gke-cpu` | GKE | e2-standard-4 | amd64 | – | eth | 16 GB | 0.13 |
-| `sched-eks-arm-efa` | EKS | hpc7g.4xlarge | **arm64** | – | **EFA** | 128 GB | ~1.7 |
-| `sched-eks-gpu-nvidia` | EKS | g5.2xlarge | amd64 | NVIDIA x1 | eth | 32 GB | 1.21 |
-| `sched-eks-gpu-nvidia-x4` | EKS | g5.12xlarge | amd64 | NVIDIA x4 | eth | 192 GB | 5.67 |
-| `sched-gke-gpu-nvidia` | GKE | g2-standard-8 | amd64 | NVIDIA x1 | eth | 32 GB | 0.85 |
-| `sched-eks-gpu-amd` | EKS | g4ad.8xlarge | amd64 | **AMD x2** | eth | 128 GB | 1.73 |
-| `sched-eks-cpu-efa-bigmem` | EKS | r7i.8xlarge | amd64 | – | **EFA** | 256 GB | ~2.1 |
+Uniform containment is a design constraint, not a convenience. When it differed it
+decided placement: `amd64` plus `>=16GB` resolved to two clusters, one took 76% of
+placements, and the performance numbers measured that cluster rather than the
+mechanism. Cores matter as much as nodes, because the agent sizes tasks to the
+cores it finds — a 2-core node got 4 tasks and a 16-core node got 32, so the two
+arms ran different jobs and the comparison was not one.
+
+vCPU is not cores. x86 counts hardware threads and arm64 parts have no SMT, so 8
+real cores is 16 vCPU on Intel and AMD, 8 on Graviton and Ampere.
+
+| context | cloud | instance | vCPU | cores | arch | net | mem | bucket | ~$/hr |
+|---|---|---|---|---|---|---|---|---|---|
+| `sched-gke-cpu` | GKE | e2-highcpu-16 | 16 | 8 | amd64 | eth | 16 GB | 0-16GB | 0.40 |
+| `sched-gke-mid` | GKE | e2-standard-16 | 16 | 8 | amd64 | eth | 64 GB | 16-64GB | 0.54 |
+| `sched-gke-bigmem` | GKE | n2-highmem-16 | 16 | 8 | amd64 | eth | 128 GB | 64-192GB | 0.95 |
+| `sched-gke-arm` | GKE | t2a-standard-8 | 8 | 8 | **arm64** | eth | 32 GB | 16-64GB | 0.31 |
+| `sched-eks-arm-small` | EKS | c7g.2xlarge | 8 | 8 | **arm64** | eth | 16 GB | 0-16GB | 0.29 |
+| `sched-eks-cpu-efa-bigmem` | EKS | m7i.4xlarge | 16 | 8 | amd64 | **EFA** | 64 GB | 16-64GB | 0.81 |
+
+Roughly **$9/hr** with the control planes. `FLEET_CORES_PER_NODE` and `FLEET_NODES`
+in `clusters/env.sh` are the source of truth; `validate-fleet.sh` checks every
+cluster against them and exits non-zero if any differs, because a mismatched core
+count silently invalidates the comparison.
+
+The `192GB+` bucket is gone: memory scales with vCPU in every family, so it forces
+a larger instance and breaks the core count.
+
+**Not in the fleet.** The GPU clusters are commented out of `FLEET_CONTEXTS`: the
+pod is granted a real `nvidia.com/gpu`, hwloc cannot enumerate it, and a resource
+set written in `commands.pre` does not reach the broker, so any `-g` request is
+unsatisfiable. GCP has no EFA, and the EKS AL2023 AMI ships no ROCm driver for
+g4ad. See the limitations section.
 
 Note that this is how I'm rebuilding (and pushing) the fluxq container from the root of the fluxq repository branch.
 
@@ -256,15 +278,21 @@ bash ./clusters/create-secret.sh
 bash ./fluxq-container/run.sh
 export FLUXQ=http://localhost:8080
 SECRETARY_SECRET=flux-secretary-token ./clusters/register-all.sh
-curl -s $FLUXQ/v1/clusters | python3 -m json.tool | grep -c '"name"'  # 7
+curl -s $FLUXQ/v1/clusters | python3 -m json.tool | grep -c '"name"'  # 6
 bash ./clusters/validate-fleet.sh
 
+# Just one iteration
+python3 run_experiment.py --submit --timeout 300 --iterations 1 --start-iteration 0 --only osu-benchmark,metrics-quicksilver-cpu
+  
 # Run one at a time...
 python3 run_experiment.py --submit --timeout 900 --only metric-kripke-cpu
 
 # Or repeat the whole experiment. Each pass writes runs/<i>/ with its own
 # results.json, so the passes are replicates and one bad pass can be dropped.
 python3 run_experiment.py --submit --timeout 600 --iterations 10
+
+# Just AMG
+python3 run_experiment.py --submit --timeout 600 --iterations 10 --only metric-amg2023
 
 # Add more passes later without overwriting what is there
 python3 run_experiment.py --submit --iterations 5 --start-iteration 10
@@ -313,3 +341,23 @@ Check quota first, since if it is quota rather than capacity no zone will help:
 gcloud compute regions describe us-central1 \
   --format='table(quotas.metric,quotas.limit,quotas.usage)' | grep -iE "gpu|N2D?_CPUS"
 ```
+
+## Requirements
+
+`requires` states what an application needs, and nothing else. A requirement that
+moves placement without meaning anything is worse than no requirement, because it
+looks like a result: `stream` carried a memory bucket, is bandwidth-bound rather
+than capacity-bound, and the bucket sent it to the worse machine in every
+replicate.
+
+So `memory` appears only on `minife`, whose working set is the mesh. Everything
+else is constrained by `architecture`, and by `network` where the measurement is
+of the fabric.
+
+```bash
+python3 fit_requirements.py --dry-run   # prints how many clusters each app can use
+python3 fit_requirements.py
+```
+
+Each application should have more than one feasible cluster and fewer than all of
+them. One means the arms cannot differ; all means nothing was constrained.

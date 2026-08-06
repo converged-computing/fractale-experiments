@@ -12,7 +12,7 @@ source "$(dirname "$0")/env.sh"
 # instead of an unusable cluster.
 gcloud container clusters create "$C_GKE_ARM" \
   --project "$GCP_PROJECT" --zone "$GCP_ZONE" \
-  --machine-type t2a-standard-8 --num-nodes 3 \
+  --machine-type t2a-standard-8 --num-nodes "${NODES:-$FLEET_NODES}" \
   --node-taints=""
 
 gke_kubeconfig "$C_GKE_ARM"

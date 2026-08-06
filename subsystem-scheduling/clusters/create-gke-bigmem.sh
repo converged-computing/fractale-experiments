@@ -14,7 +14,7 @@ source "$(dirname "$0")/env.sh"
 # n2, which is usually the reason one works when the other does not.
 MACHINES="${MACHINES:-$GKE_BIGMEM_MACHINES}"
 ZONES="${ZONES:-$GKE_BIGMEM_ZONES}"
-NODES="${NODES:-2}"
+NODES="${NODES:-$FLEET_NODES}"
 
 made=""
 for zone in $ZONES; do

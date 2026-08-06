@@ -23,9 +23,10 @@ KCFG_IN_CONTAINER="${KCFG_IN_CONTAINER:-/kube/config}"
 
 CONTEXTS=("$@")
 if [ ${#CONTEXTS[@]} -eq 0 ]; then
-  CONTEXTS=("$C_GKE_CPU" "$C_GKE_ARM" "$C_GKE_BIGMEM" "$C_GKE_GPU" "$C_EKS_ARM_SMALL" "$C_EKS_GPU1" "$C_EKS_BIGMEM")
-  # Remove GPU for now - none are working
-  CONTEXTS=("$C_GKE_CPU" "$C_GKE_ARM" "$C_GKE_BIGMEM" "$C_EKS_ARM_SMALL" "$C_EKS_BIGMEM")
+  # From the fleet, not a copy of it: a cluster missing here is registered
+  # nowhere, so nothing can ever be placed on it. The GPU clusters are commented
+  # out of FLEET_CONTEXTS itself, which is the one place that decision lives.
+  CONTEXTS=("${FLEET_CONTEXTS[@]}")
 fi
 
 docker ps --format '{{.Names}}' | grep -qx "$CONTAINER" || {
@@ -38,7 +39,7 @@ for ctx in "${CONTEXTS[@]}"; do
   fi
   echo "==> $ctx"
   docker exec "$CONTAINER" fluxq cluster register \
-    --name "$ctx" --manager flux-operator \
+    --name "$ctx" --manager flux-operator --config "reserve=false" \
     --config "kubeconfig=$KCFG_IN_CONTAINER" --config "context=$ctx" \
     ${SECRETARY_SECRET:+--config "secretary_secret=$SECRETARY_SECRET"} \
     --discover || echo "   FAILED: $ctx (continuing)"

@@ -34,9 +34,38 @@ export C_EKS_BIGMEM=sched-eks-cpu-efa-bigmem
 # in the available regions, and no ROCm driver in the EKS AMI for g4ad.
 export C_GKE_ARM=sched-gke-arm
 export C_GKE_BIGMEM=sched-gke-bigmem
+export C_GKE_MID=sched-gke-mid
 export C_GKE_GPU4=sched-gke-gpu-nvidia-x4
 
 # The fleet, in ONE place. Every script defaults to this, so a cluster added or
+# EVERY CLUSTER HAS THE SAME SHAPE: 8 physical cores per node, 3 nodes.
+#
+# Containment must never be the thing that decides placement. When it was, the
+# result measured the fleet rather than the mechanism: amd64 + >=16GB resolved to
+# two clusters, one of them took 76% of placements, and every performance number
+# was really "that cluster is faster than the small one".
+#
+# Cores matter as much as nodes, because the agent sizes tasks to the cores it
+# finds. A 2-core node got 4 tasks and a 16-core node got 32, so the two arms ran
+# different jobs and the comparison was not a comparison. Uniform cores means the
+# same launch everywhere and a difference that is attributable to the cluster.
+#
+# vCPU is not cores. x86 counts hardware threads, arm64 parts do not, so 8 real
+# cores is 16 vCPU on Intel and AMD and 8 vCPU on Graviton and Ampere.
+#
+#   e2-highcpu-16    16 vCPU / 8 cores /  16 GiB   amd64
+#   e2-standard-16   16 vCPU / 8 cores /  64 GiB   amd64
+#   n2-highmem-16    16 vCPU / 8 cores / 128 GiB   amd64
+#   t2a-standard-8    8 vCPU / 8 cores /  32 GiB   arm64  (Ampere Altra)
+#   c7g.2xlarge       8 vCPU / 8 cores /  16 GiB   arm64  (Graviton3)
+#   m7i.4xlarge      16 vCPU / 8 cores /  64 GiB   amd64
+#
+# The 192GB+ bucket is gone: memory scales with vCPU in every family, so that
+# bucket forces a larger instance and breaks the core count. Three buckets remain
+# and they are enough to discriminate.
+export FLEET_CORES_PER_NODE=8
+export FLEET_NODES=3
+
 # dropped does not have to be chased through create-secret, make-portable-
 # kubeconfig, register-all and teardown separately — which is how a run ends up
 # against fewer clusters than intended.
@@ -47,6 +76,7 @@ FLEET_CONTEXTS=(
   "$C_GKE_CPU"
   "$C_GKE_ARM"
   "$C_GKE_BIGMEM"
+  "$C_GKE_MID"
   # "$C_GKE_GPU"   # removed: flux cannot enumerate the device
   "$C_EKS_ARM_SMALL"
   # "$C_EKS_GPU1"  # removed: flux cannot enumerate the device
@@ -65,7 +95,9 @@ export FLEET_CONTEXTS
 #
 # All 192GB+ and amd64, so the memory bucket does not change. n2d is AMD EPYC and
 # draws on a different quota pool than n2, which is usually why one works.
-export GKE_BIGMEM_MACHINES="${GKE_BIGMEM_MACHINES:-n2-highmem-32 n2d-highmem-32 n1-highmem-32 m1-megamem-96}"
+# All 8 physical cores. n2d is AMD and draws on a different quota pool than n2,
+# which is usually why one works when the other does not; both are 16 vCPU.
+export GKE_BIGMEM_MACHINES="${GKE_BIGMEM_MACHINES:-n2-highmem-16 n2d-highmem-16 n1-highmem-16}"
 export GKE_BIGMEM_ZONES="${GKE_BIGMEM_ZONES:-$GCP_ZONE us-central1-b us-central1-c us-central1-f}"
 
 # machine:accelerator pairs, each landing in 16-64GB with one NVIDIA device. The

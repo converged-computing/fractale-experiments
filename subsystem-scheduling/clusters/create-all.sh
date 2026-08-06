@@ -17,6 +17,7 @@ declare -A SCRIPT_FOR=(
   ["$C_GKE_CPU"]=./create-gke-cpu.sh
   ["$C_GKE_ARM"]=./create-gke-arm.sh
   ["$C_GKE_BIGMEM"]=./create-gke-bigmem.sh
+  ["$C_GKE_MID"]=./create-gke-mid.sh
   ["$C_GKE_GPU"]=./create-gke-gpu.sh
   ["$C_GKE_GPU4"]=./create-gke-gpu-x4.sh
   ["$C_EKS_ARM_SMALL"]=./create-eks-arm-small.sh

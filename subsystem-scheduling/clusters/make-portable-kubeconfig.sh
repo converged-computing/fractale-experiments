@@ -21,7 +21,9 @@ SA="${SA:-fluxq}"
 
 CONTEXTS=("$@")
 if [ ${#CONTEXTS[@]} -eq 0 ]; then
-  CONTEXTS=("$C_GKE_CPU" "$C_GKE_ARM" "$C_GKE_BIGMEM" "$C_EKS_ARM_SMALL" "$C_EKS_BIGMEM")
+  # From the fleet, not a copy of it. A hardcoded list silently omits a cluster
+  # added later, and the omission only shows up as a job that cannot be dispatched.
+  CONTEXTS=("${FLEET_CONTEXTS[@]}")
 fi
 
 TMP="$(mktemp)"; : > "$TMP"
