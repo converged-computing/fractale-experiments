@@ -18,17 +18,18 @@ source ./env.sh
 #
 #   cloud|region-or-zone|expected-nodes|gpu-resource|gpus-per-node
 declare -A SPEC=(
-  ["$C_GKE_CPU"]="gke|$GCP_ZONE|5|-|0"
-  ["$C_GKE_ARM"]="gke|$GCP_ZONE|3|-|0"
-  ["$C_GKE_BIGMEM"]="gke|$GCP_ZONE|2|-|0"
+  ["$C_GKE_CPU"]="gke|$GCP_ZONE|$FLEET_NODES|-|0"
+  ["$C_GKE_MID"]="gke|$GCP_ZONE|$FLEET_NODES|-|0"
+  ["$C_GKE_ARM"]="gke|$GCP_ZONE|$FLEET_NODES|-|0"
+  ["$C_GKE_BIGMEM"]="gke|$GCP_ZONE|$FLEET_NODES|-|0"
   ["$C_GKE_GPU"]="gke|us-central1-c|3|nvidia.com/gpu|1"
   ["$C_GKE_GPU4"]="gke|$GCP_ZONE|2|nvidia.com/gpu|4"
-  ["$C_EKS_ARM_SMALL"]="eks|us-east-1|3|-|0"
+  ["$C_EKS_ARM_SMALL"]="eks|us-east-1|$FLEET_NODES|-|0"
   ["$C_EKS_ARM"]="eks|$AWS_REGION_ARM|2|-|0"
   ["$C_EKS_GPU1"]="eks|$AWS_REGION_GPU|5|nvidia.com/gpu|1"
   ["$C_EKS_GPU4"]="eks|$AWS_REGION_GPU|2|nvidia.com/gpu|4"
   ["$C_EKS_AMD"]="eks|$AWS_REGION_GPU|3|amd.com/gpu|1"
-  ["$C_EKS_BIGMEM"]="eks|$AWS_REGION_GPU|2|-|0"
+  ["$C_EKS_BIGMEM"]="eks|$AWS_REGION_GPU|$FLEET_NODES|-|0"
 )
 
 FLEET=()
@@ -171,3 +172,42 @@ echo "$fail problem(s) found. Do NOT run the experiment: a partial fleet"
 echo "changes which placements are possible, and the results would describe"
 echo "a fleet that is not the one in the methods."
 exit 1
+
+# ---------------------------------------------------------------------------
+# The invariant the experiment rests on: every cluster the same shape.
+#
+# Containment must not decide placement, and the agent sizes tasks to the cores
+# it finds. A cluster with a different core count silently makes the two arms run
+# different jobs, which is not visible in any per-cluster check above.
+#
+# hwloc counts cores; Kubernetes allocatable.cpu counts hardware threads. arm64
+# parts have no SMT, so the expected vCPU differs by architecture even though the
+# core count does not.
+echo
+echo "== uniform shape"
+shape_bad=0
+for ctx in "${FLEET_CONTEXTS[@]}"; do
+  cpu="$(kubectl --context "$ctx" get nodes -o \
+    jsonpath='{.items[0].status.allocatable.cpu}' --request-timeout=20s 2>/dev/null)"
+  arch="$(kubectl --context "$ctx" get nodes -o \
+    jsonpath='{.items[0].status.nodeInfo.architecture}' --request-timeout=20s 2>/dev/null)"
+  n="$(kubectl --context "$ctx" get nodes --no-headers --request-timeout=20s 2>/dev/null | wc -l)"
+  [ -n "$cpu" ] || { printf "   %-26s unreachable\n" "$ctx"; shape_bad=$((shape_bad+1)); continue; }
+
+  # allocatable is a little under capacity, so round up to the nearest whole cpu
+  vcpu="${cpu%m}"
+  case "$cpu" in *m) vcpu=$(( (vcpu + 999) / 1000 ));; esac
+  if [ "$arch" = "arm64" ]; then cores="$vcpu"; else cores=$(( vcpu / 2 )); fi
+
+  status="ok"
+  [ "$cores" -eq "$FLEET_CORES_PER_NODE" ] || { status="CORES $cores"; shape_bad=$((shape_bad+1)); }
+  [ "$n" -eq "$FLEET_NODES" ] || { status="$status NODES $n"; shape_bad=$((shape_bad+1)); }
+  printf "   %-26s %-6s %2s vcpu -> %s cores, %s nodes   %s\n" \
+    "$ctx" "$arch" "$vcpu" "$cores" "$n" "$status"
+done
+if [ "$shape_bad" -ne 0 ]; then
+  echo
+  echo "The fleet is not uniform. Placement will be decided by containment and the" >&2
+  echo "two arms will run different task counts, which makes the comparison invalid." >&2
+  exit 1
+fi

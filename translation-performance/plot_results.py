@@ -8,6 +8,28 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 
+# Fixed hue order and colours. Without these, seaborn derives the hue
+# categories separately for each subplot (each gets its own `subset`) and
+# assigns palette slots in order of appearance, so the same experiment gets
+# a different colour in each panel.
+#
+# "deep" is seaborn's default theme palette, which is what the OSU line and
+# box plots were already using, and "muted" is what the scaling bar plot was
+# already using -- so these preserve the current appearance and only fix the
+# panel-to-panel inconsistency.
+EXPERIMENT_ORDER = ["flux", "slurm", "flux to slurm"]
+EXPERIMENT_COLORS = dict(zip(EXPERIMENT_ORDER, sns.color_palette("deep", 3)))
+
+VARIANT_ORDER = [
+    "flux affinity (no)",
+    "flux affinity (yes)",
+    "slurm affinity (no)",
+    "slurm affinity (yes)",
+    "flux to slurm",
+]
+VARIANT_COLORS = dict(zip(VARIANT_ORDER, sns.color_palette("muted", 5)))
+
+
 class HPCResultParser:
     def __init__(self, root_dir):
         self.root_dir = Path(root_dir)
@@ -52,6 +74,11 @@ class HPCResultParser:
         """
         Extracts specific Figures of Merit based on the application.
         """
+        # FIXME: "error" is a non-empty literal and therefore always truthy, so
+        # this reduces to `"srun" in content.lower()` -- any output mentioning
+        # srun is discarded. Left as-is so re-running reproduces the published
+        # numbers; the intended test was probably:
+        #   if "error" in content.lower() and "srun" in content.lower():
         if "error" and "srun" in content.lower():
             return {"error": content.strip(), "fom": None}
         if (
@@ -291,7 +318,13 @@ def plot_results(df, osu_df):
             app_df = df[df["app"] == app].copy()
             app_df["Variant"] = app_df.apply(get_variant_label, axis=1)
             sns.barplot(
-                data=app_df, x="nodes", y="fom", hue="Variant", palette="muted", ax=ax
+                data=app_df,
+                x="nodes",
+                y="fom",
+                hue="Variant",
+                hue_order=VARIANT_ORDER,
+                palette=VARIANT_COLORS,
+                ax=ax,
             )
 
             ax.set_title(app.capitalize())
@@ -300,7 +333,7 @@ def plot_results(df, osu_df):
             elif "lammps" in app:
                 ax.set_ylabel("M/Atom Steps Per Second")
             elif "kripke" in app:
-                ax.set_ylabel("(seconds/iteration)/unknowns)")
+                ax.set_ylabel("(seconds/iteration)/unknowns")
             else:
                 ax.set_ylabel("Figure of Merit")
 
@@ -323,6 +356,7 @@ def plot_results(df, osu_df):
         # Save with bbox_inches='tight' so the external legend isn't clipped
         plt.savefig("img/scaling_combined.png", bbox_inches="tight")
         plt.savefig("img/scaling_combined.svg", bbox_inches="tight")
+        plt.savefig("img/scaling_combined.pdf", bbox_inches="tight")
         plt.close()
 
     # OSU Latency Plots (Kept as separate plots)
@@ -332,7 +366,14 @@ def plot_results(df, osu_df):
         ax = axes[i]
         subset = osu_df[osu_df["app"] == app]
         sns.lineplot(
-            ax=ax, data=subset, x="size", y="latency", hue="experiment", marker="s"
+            ax=ax,
+            data=subset,
+            x="size",
+            y="latency",
+            hue="experiment",
+            hue_order=EXPERIMENT_ORDER,
+            palette=EXPERIMENT_COLORS,
+            marker="s",
         )
         ax.set_xscale("log", base=2)
         ax.set_yscale("log")
@@ -343,13 +384,22 @@ def plot_results(df, osu_df):
     plt.tight_layout()
     plt.savefig(f"img/osu_performance.png", bbox_inches="tight")
     plt.savefig(f"img/osu_performance.svg", bbox_inches="tight")
+    plt.savefig(f"img/osu_performance.pdf", bbox_inches="tight")
     plt.close()
 
     fig, axes = plt.subplots(1, 2, figsize=(16, 4))
     for i, app in enumerate(osu_df["app"].unique()):
         ax = axes[i]
         subset = osu_df[osu_df["app"] == app]
-        sns.boxplot(ax=ax, data=subset, x="size", y="latency", hue="experiment")
+        sns.boxplot(
+            ax=ax,
+            data=subset,
+            x="size",
+            y="latency",
+            hue="experiment",
+            hue_order=EXPERIMENT_ORDER,
+            palette=EXPERIMENT_COLORS,
+        )
         ax.set_xscale("log", base=2)
         ax.set_yscale("log")
         ax.set_title(f"OSU Benchmark: {app}")
@@ -359,12 +409,18 @@ def plot_results(df, osu_df):
     plt.tight_layout()
     plt.savefig(f"img/osu_performance_box.png", bbox_inches="tight")
     plt.savefig(f"img/osu_performance_box.svg", bbox_inches="tight")
+    plt.savefig(f"img/osu_performance_box.pdf", bbox_inches="tight")
     plt.close()
 
     print(df.shape)
     print(osu_df.shape)
-    import IPython
-    IPython.embed()
+
+    # Set PLOT_DEBUG=1 to drop into a shell here; otherwise a re-run of this
+    # script would block waiting on stdin.
+    if os.environ.get("PLOT_DEBUG"):
+        import IPython
+
+        IPython.embed()
     # How is lammps size 5 different?
 
 
@@ -397,7 +453,7 @@ def generate_stats_report(df, osu_df):
     for (app, nodes), group in df.groupby(["app", "nodes"]):
         flux_vals = group[group["experiment"] == "flux to slurm"]["fom"].dropna()
         slurm_vals = group[group["experiment"] == "slurm"]["fom"].dropna()
-        
+
         if not flux_vals.empty and not slurm_vals.empty:
             m_flux, m_slurm = flux_vals.mean(), slurm_vals.mean()
             std_flux, std_slurm = flux_vals.std(), slurm_vals.std()
@@ -463,8 +519,8 @@ def generate_stats_report(df, osu_df):
                 "size": 5,
                 "slurm_mean": m_slurm,
                 "flux_mean": m_flux,
-                "flux_mean": m_flux,
                 "slurm_std": std_slurm,
+                "flux_std": std_flux,
                 "diff_percent": diff_pct,
                 "p_value": p_val,
                 "significant": sig_label,

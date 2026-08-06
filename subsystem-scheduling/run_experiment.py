@@ -30,6 +30,7 @@ import argparse
 import copy
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -90,15 +91,25 @@ def strip_requires(js):
 def satisfy(fluxq, js):
     """Ranked feasible clusters. Allocates nothing, costs nothing."""
     try:
-        cands = _req(f"{fluxq}/v1/jobs/satisfy", js) or []
+        # ?trace=1 returns the decision alongside the ranking: every cluster
+        # considered, what each rejected one was missing, the score in terms, and
+        # whether the winner was a tie the shuffle happened to break. Without it a
+        # placement can be recorded but not accounted for.
+        resp = _req(f"{fluxq}/v1/jobs/satisfy?trace=1", js) or []
+        trace = {}
+        if isinstance(resp, dict):
+            cands, trace = resp.get("candidates") or [], resp.get("trace") or {}
+        else:
+            cands = resp
     except urllib.error.HTTPError as e:
         return {"error": f"HTTP {e.code}: {e.read().decode()[:200]}", "feasible": 0, "cluster": None}
     except Exception as e:  # noqa: BLE001
         return {"error": str(e), "feasible": 0, "cluster": None}
     if not cands:
-        return {"feasible": 0, "cluster": None, "matched": [], "score": None}
+        return {"feasible": 0, "cluster": None, "matched": [], "score": None,
+                "trace": trace}
     top = cands[0]
-    return {"feasible": len(cands), "cluster": top.get("cluster"),
+    return {"feasible": len(cands), "cluster": top.get("cluster"), "trace": trace,
             "matched": top.get("matched", []), "score": top.get("score"),
             "free_now": top.get("free_now"),
             "candidates": [c.get("cluster") for c in cands]}
@@ -228,6 +239,24 @@ def pod_wedged(cluster, name):
             if "exec format error" in (lg.stdout + lg.stderr):
                 return "exec format error: the image is built for another architecture"
     return ""
+
+
+def agent_mode(path):
+    """The mode the run ENDED in, and how many API retries it took.
+
+    The transcript emits a mode line at the start and another on fallback, so the
+    first says "agent" even when the API dropped and the deterministic ladder took
+    over. Reading the first hides the outage entirely. That distinction matters:
+    the ladder varies task layout only, so a failure needing an environment change
+    cannot be recovered without the agent.
+    """
+    try:
+        text = re.sub(r"\x1b\[[0-9;]*m", "",
+                      open(path, errors="replace").read())
+    except OSError:
+        return None, 0
+    modes = re.findall(r"FLUXSEC mode mode=(\S+)", text)
+    return (modes[-1] if modes else None), len(re.findall(r"FLUXSEC api_retry ", text))
 
 
 def secretary_result(path):
@@ -399,7 +428,11 @@ def run(fluxq, js, outdir, cond, timeout, poll):
     # What happened INSIDE the container. fluxq reports the object's state, which
     # is terminal whether or not the workload ran, so the outcome is corrected
     # here and the runtime comes from the job eventlog rather than our poll.
+    # The predicted cluster and the one used should agree. When they do not, the
+    # dry run and the dispatch reached different answers, which is worth seeing
+    # rather than discovering later in the analysis.
     inner, runtime_s, attempts, reason = secretary_result(base + ".broker.log")
+    mode, api_retries = agent_mode(base + ".broker.log")
     if outcome == "completed" and inner != "ok":
         outcome = {
             "never-started": "never_started",
@@ -416,12 +449,85 @@ def run(fluxq, js, outdir, cond, timeout, poll):
             "cleaned": gone,
             "state": state, "seconds": elapsed, "timed_out": timed_out,
             "cluster": field(rec, "ClusterID"),
+            # How the cluster above was actually chosen. This is the dispatch
+            # decision, not the /satisfy dry run: satisfy ranks again and can
+            # reach a different answer, so its trace routinely names a cluster the
+            # job did not use. Both are kept, and this is the authoritative one.
+            "decision": field(rec, "Decision"),
+            # The mode the secretary ENDED in, and how many API retries it took, so
+            # an outage is visible while the run happens rather than inferred from
+            # the logs afterwards.
+            "agent_mode": mode,
+            "api_retries": api_retries,
             "note": field(rec, "Note"),               # driver's reason for failure
             "suggestion": field(rec, "Suggestion"),   # fluxq's reconfiguration hint
             "reschedules": field(rec, "Reschedules", default=0),
             "log_bytes": log_bytes, "log": base + ".log",
             "broker_bytes": broker_bytes, "broker_log": base + ".broker.log",
             "manifest": (base + ".manifest.yaml") if artifact.strip() else None}
+
+
+def report_run(cond, entry, tally):
+    """Print what happened, while it is happening.
+
+    Every failure this experiment hit was diagnosable from data the harness already
+    had and discarded until the run finished: a cluster that ranked top and never
+    took a job, an agent that lost its API and fell back to a ladder that could not
+    fix the failure, a workload that never started while the MiniCluster reported
+    COMPLETED. Hours were spent before any of it was visible.
+    """
+    r, p = entry.get("run") or {}, entry.get("placement") or {}
+    dec = r.get("decision") or {}
+    ranked = [x.get("cluster") for x in (dec.get("ranked") or [])]
+    ran_on = r.get("cluster")
+    if ran_on:
+        tally[ran_on] = tally.get(ran_on, 0) + 1
+
+    bits = [str(r.get("outcome")), f"{r.get('seconds')}s"]
+    if r.get("runtime_s") is not None:
+        # the job's own runtime from the flux eventlog, not the harness's poll
+        bits.append(f"job={r['runtime_s']}s")
+    if r.get("attempts"):
+        bits.append(f"attempts={r['attempts']}")
+    if r.get("log_bytes") is not None:
+        bits.append(f"log={r.get('log_bytes', 0)}B")
+    print(f"    {cond:9} {'  '.join(bits)}")
+
+    # Where it went, and whether that was the top of the ranking. A top-ranked
+    # cluster losing the allocation is how placement silently stops following the
+    # score, and it is invisible in the outcome alone.
+    place = f"on {ran_on or '-'}"
+    if ranked:
+        place += f"   {len(ranked)} feasible"
+        if ran_on and ranked[0] != ran_on:
+            place += f", but {ranked[0]} ranked first"
+        if dec.get("tied_at_top") and len(dec["tied_at_top"]) > 1:
+            place += f", {len(dec['tied_at_top'])} tied"
+    elif p.get("feasible"):
+        place += f"   satisfy said {p['feasible']} feasible"
+    print(f"              {place}")
+
+    # why the others were excluded: the actual subject of the experiment
+    rej = dec.get("rejected") or []
+    if rej:
+        why = ", ".join(
+            f"{str(x.get('cluster')).replace('sched-', '')}:"
+            f"{'+'.join(x.get('missing') or ['?'])}" for x in rej[:6])
+        print(f"              rejected {why}")
+
+    # the agent, and whether it kept its API
+    if r.get("agent_mode"):
+        line = f"              agent {r['agent_mode']}"
+        if r.get("api_retries"):
+            line += f", {r['api_retries']} api retry/ies"
+        print(line)
+
+    if r.get("app_reason"):
+        print(f"              reason {str(r['app_reason'])[:96]}")
+    if r.get("note") and r.get("note") != "MiniCluster applied":
+        print(f"              note {str(r['note'])[:96]}")
+    if r.get("cleaned"):
+        print(f"              cleaned {','.join(r['cleaned'])}")
 
 
 def run_iteration(args, jobs, runs_dir, out_path, label=""):
@@ -432,6 +538,9 @@ def run_iteration(args, jobs, runs_dir, out_path, label=""):
     analysis tooling takes several such directories and treats them as replicates.
     """
     results = []
+    # Cluster usage as the iteration proceeds. A cluster on zero is the
+    # signal that it is registered, feasible, and not taking work.
+    tally = {}
     for app, js in jobs.items():
         rec = {"app": app, "requires": sorted(js.get("requires") or {})}
         try:
@@ -454,12 +563,7 @@ def run_iteration(args, jobs, runs_dir, out_path, label=""):
                     entry["run"] = run(args.fluxq, spec,
                                        os.path.join(runs_dir, app), cond,
                                        args.timeout, args.poll)
-                    r = entry["run"]
-                    print(f"    {cond}: {r['outcome']} in {r.get('seconds')}s"
-                          f" on {r.get('cluster') or '-'}"
-                          f" log={r.get('log_bytes', 0)}B"
-                          + (f"  cleaned={','.join(r['cleaned'])}" if r.get("cleaned") else "")
-                          + (f"  note={r['note']}" if r.get("note") else ""))
+                    report_run(cond, entry, tally)
             rec[cond] = entry
 
         b, s = rec["base"]["placement"], rec["subsystem"]["placement"]
@@ -523,6 +627,28 @@ def run_iteration(args, jobs, runs_dir, out_path, label=""):
             summary["paired_runtime_deltas"] = deltas
             summary["median_delta_seconds"] = sorted(deltas)[len(deltas) // 2]
 
+    if args.submit and tally:
+        print()
+        print("  cluster usage this iteration:")
+        total = sum(tally.values())
+        for c in sorted(tally, key=lambda x: -tally[x]):
+            print(f"    {c:28} {tally[c]:>3}  {tally[c] / total * 100:4.0f}%  "
+                  + "#" * tally[c])
+        # A registered cluster that took nothing is the failure that cost this
+        # experiment two full runs: feasible, top-ranked, and never dispatched.
+        seen = set()
+        for r in results:
+            for arm in ("base", "subsystem"):
+                dec = ((r.get(arm) or {}).get("run") or {}).get("decision") or {}
+                for key in ("ranked", "rejected"):
+                    for x in dec.get(key) or []:
+                        seen.add(x.get("cluster"))
+        idle = sorted(c for c in seen if c and c not in tally)
+        if idle:
+            print(f"    NOT USED: {', '.join(idle)}")
+            print("    Those were considered and never dispatched to. Check they can")
+            print("    take a job before spending another iteration.")
+
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
     with open(out_path, "w") as f:
         json.dump({"summary": summary, "results": results}, f, indent=2)
@@ -547,9 +673,14 @@ def main(argv=None):
                    help="repeat the whole experiment N times. Each pass writes "
                         "runs/<i>/ and runs/<i>/results.json, so the passes can be "
                         "compared as replicates and one bad pass can be dropped")
-    p.add_argument("--start-iteration", type=int, default=0,
-                   help="first iteration number, for adding passes to an existing "
-                        "set without overwriting it")
+    # Default None, not 0. Zero is a legitimate thing to ask for, and using it as
+    # the sentinel made "--start-iteration 0" indistinguishable from not passing
+    # the flag at all: the run took the flat layout and wrote no runs/0/ and no
+    # results.json under it.
+    p.add_argument("--start-iteration", type=int, default=None,
+                   help="first iteration number. Passing this always writes "
+                        "runs/<i>/, including --start-iteration 0, so passes can "
+                        "be added to an existing set without overwriting it")
     args = p.parse_args(argv)
 
     jobs = load_jobspecs(args.jobspecs)
@@ -560,13 +691,15 @@ def main(argv=None):
         print(f"no jobspecs under {args.jobspecs}", file=sys.stderr)
         return 1
 
-    if args.iterations == 1 and args.start_iteration == 0:
-        # one pass: keep the original layout, so existing tooling still works.
+    # The flat layout only when nothing about iterations was asked for, so
+    # existing invocations and tooling are unchanged.
+    if args.iterations == 1 and args.start_iteration is None:
         # run_iteration returns its summary; the process exit code is separate.
         run_iteration(args, jobs, args.runs, args.out)
         return 0
 
-    first, last = args.start_iteration, args.start_iteration + args.iterations
+    first = args.start_iteration or 0
+    last = first + args.iterations
     summaries = []
     for i in range(first, last):
         runs_dir = os.path.join(args.runs, str(i))
