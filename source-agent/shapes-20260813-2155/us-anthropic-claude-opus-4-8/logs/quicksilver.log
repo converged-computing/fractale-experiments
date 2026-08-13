@@ -1,0 +1,66 @@
+[auto-approved] finalize-setup: {"base_image": "buildpack-deps:bookworm-scm", "focus": null, "keep": true, "mode": "container", "ref": null, "repos": ["https://github.com/LLNL/Quicksilver"]}
+
+▸ https://github.com/LLNL/Quicksilver  [1/1]
+[auto-approved] clone: {"effect": "network + write", "repo": "https://github.com/LLNL/Quicksilver"}
+  · cloning https://github.com/LLNL/Quicksilver into container
+  · warning: could not resolve commit; rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+  ⚠ unpinned: rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+I'll start by exploring the repository structure to understand what Quicksilver builds.
+  → find . * file
+This is Quicksilver, a Monte Carlo particle transport proxy app. Let me examine the build system and key sources.
+  → read src/Makefile 1 120
+  → read README.md 1 120
+The README gives strong signals: "memory access patterns, communication patterns... latency bound table look-ups, highly branchy/divergent code path, poor vectorization." Let me look at the executable target and the parallelism/communication details.
+  → read src/Makefile 290 80
+  → search MPI_Iallreduce|MPI_Allreduce|MPI_Isend|MPI_Irecv|MPI_Recv|MPI_Send|MPI_Reduce|MPI_Bcast|MPI_Allto...
+The executable is `qs` (Quicksilver_EXE). MPI uses Allreduce/Iallreduce plus point-to-point Isend/Irecv. Let me check the executable name, the actual communication pattern (particle exchange between neighbor domains), OpenMP usage, and the run scripts.
+  → search Quicksilver_EXE 2 10
+  → search omp parallel|OMP_NUM_THREADS|pragma omp 3 15
+  → read Examples/CORAL2_Benchmark/Problem1/P1_64t.sh 1 60
+Excellent evidence. The subject is `qs`. It uses MPI + OpenMP, with a 3D domain decomposition (nParticles distributed, X/Y/Z domains). Let me look at the particle exchange communication (neighbor pattern) and the CUDA/HIP GPU kernels, plus shared memory comm.
+  → search SharedMemory|shm_open|MPI_Win|MPI_Comm_split_type 3 12
+  → search __global__|cudaMalloc|cudaMallocManaged|hipMalloc|__device__ 3 12
+GPU support is CUDA and HIP (rocm). Let me look at the GPU kernel launch and unified memory, plus the particle exchange (SendQueue/MC_Particle_Buffer) neighbor communication.
+  → search CycleTrackingKernel|<<<|cudaLaunch|hipLaunch|Managed|cudaSetDevice|hipSetDevice 3 10
+  → search nbrRank|neighbor|Isend|processSendQueue|mpiIrecv 2 8
+Let me look at the MpiCommObject exchange (the particle/neighbor exchange) and the main loop to confirm the neighbor + Iallreduce (test-for-done) pattern.
+  → read src/MpiCommObject.cc 1 80
+  → read src/main.cc 200 40
+I have a solid picture. Let me quickly confirm the test-for-done Iallreduce pattern in the main loop and check the MC_Particle_Buffer for the neighbor particle exchange.
+  → search IAllreduce|Allreduce|test.*done|blockingSendReceive|MPI_Test 3 8
+I have enough evidence. The particle buffer uses Isend/Irecv to neighbor domains, plus Iallreduce for the test-for-done. This is the classic MC transport pattern. Let me record the traces. I'll do CPU (mpi+openmp) and GPU (cuda / rocm) variants separately.
+  → record_shape qs mpi-threaded Quicksilver CPU build (MPI + OpenMP) srun -N4096 -n4096 qs -i Coral2_P1.inp -X 25...
+  → record_shape qs mpi-threaded Quicksilver CPU build (MPI + OpenMP) srun -N4096 -n4096 qs -i Coral2_P1.inp ... -...
+Let me record the remaining CPU fields and launch geometry, then the GPU variants.
+  → record_shape qs mpi-threaded Quicksilver CPU build (MPI + OpenMP) srun -N24576 -n24576 qs -i Coral2_P1.inp -X ...
+  → record_shape qs mpi-threaded Quicksilver CPU build (MPI + OpenMP) srun -n qs -i input.inp ... moderate CPU bui...
+Now the GPU variants. CUDA and HIP(rocm) are distinct builds. Let me record them, noting unified memory (UVM) usage and the CycleTrackingKernel launch.
+  → record_shape qs cuda Quicksilver CUDA build srun -n <ranks> qs -i input.inp ... (one GPU per rank, HAVE_CUDA +...
+  → record_shape qs rocm Quicksilver HIP/ROCm build (AMD GPU) srun -n <ranks> qs -i input.inp ... (HAVE_HIP --offl...
+I've completed the analysis. Here's a summary of what Quicksilver builds and how it wants to run:
+
+## Subject
+The repository builds a single executable **`qs`** (`Quicksilver_EXE=qs`, `src/Makefile:284`) — a Monte Carlo dynamic particle-transport proxy for LLNL's Mercury code. Built via `src/Makefile` (no CMake); parallelism is selected at compile time by preprocessor defines (`HAVE_MPI`, `HAVE_OPENMP`, `HAVE_CUDA`, `HAVE_HIP`, `HAVE_OPENMP_TARGET`).
+
+## Variants recorded
+
+**`qs:mpi-threaded` (CPU build)** — the mainline configuration:
+- MPI + OpenMP. OpenMP parallel-for over particles (`main.cc:227`), MPI 3D domain decomposition.
+- Communication is **mixed**: `{neighbor, reduction}` — particles crossing domain boundaries are shipped to neighbor ranks with `Isend/Irecv` (`MpiCommObject.cc`), plus an `(I)allreduce` "test-for-done" each cycle (`utilsMpi.cc:80`).
+- **Latency-sensitive**, not bandwidth-sensitive (small neighbor messages, no all-to-all).
+- **memory_latency bound / very_low arithmetic intensity / poor cache reuse** — stated outright in the README ("latency bound table look-ups... highly branchy/divergent... poor vectorization").
+- NUMA-sensitive (aprun `-cc depth`, `OMP_PLACES=cores`); neighbor placement preferred; can span single or multi-node (CORAL2 scales 1→24576 nodes).
+- Launch geometry from CORAL2 P1: 1 rank/node × 64 threads/task (literal `srun -N24576 -n24576`, `OMP_NUM_THREADS=64`).
+- No parallel I/O, no checkpoint/restart.
+
+**`qs:cuda`** and **`qs:rocm`** (GPU builds) — separate traces:
+- Particle tracking becomes a GPU kernel (`CycleTrackingKernel<<<grid,block>>>`, `main.cc:193`); **unified/managed memory assumed** (`gpuMallocManaged`).
+- CUDA (`HAVE_CUDA`) vs HIP targeting AMD gfx90a (`HAVE_HIP`) are distinct builds → distinct traces.
+- Same host-side MPI neighbor exchange + Iallreduce between launches; **no NCCL/RCCL/GPU-aware path found**, so `gpu_comm=none`.
+- Still memory-latency bound / very-low intensity per the README.
+
+Each variant is kept as its own trace with evidence cited to specific files/lines; negative claims use `absent:` search evidence.
+  ✓ recorded 30 assertion(s) across 3 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-2155/us-anthropic-claude-opus-4-8/
+  shapes-20260813-2155/us-anthropic-claude-opus-4-8/github.com/LLNL/Quicksilver/unpinned/shapes.json

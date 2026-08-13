@@ -1,0 +1,55 @@
+[auto-approved] finalize-setup: {"base_image": "buildpack-deps:bookworm-scm", "focus": null, "keep": true, "mode": "container", "ref": null, "repos": ["https://github.com/LLNL/AMG"]}
+
+▸ https://github.com/LLNL/AMG  [1/1]
+[auto-approved] clone: {"effect": "network + write", "repo": "https://github.com/LLNL/AMG"}
+  · cloning https://github.com/LLNL/AMG into container
+  · warning: could not resolve commit; rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+  ⚠ unpinned: rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+I'll start by orienting myself in the repository structure.
+  → find . * file
+This is AMG, an algebraic multigrid benchmark (from HYPRE) by LLNL. Let me read the README, docs, and build files.
+  → read README 1 120
+  → read Makefile.include 1 80
+Clear: SPMD, MPI + OpenMP, default build enables both. Let me read the docs README and the test driver for launch geometry.
+  → read docs/amg.README 1 150
+Excellent — key statement at lines 79-85: "highly synchronous code... surface-to-volume relationship... memory-access bound, doing only about 1-2 computations per memory access." Let me continue reading the docs for run examples.
+  → read docs/amg.README 150 120
+I have strong documentation evidence. Let me continue to see the suggested test runs section for concrete launch geometry.
+  → read docs/amg.README 269 120
+I have a concrete invocation: `mpirun -np 4 amg -P 2 2 1 -n 50 50 50` with OMP_NUM_THREADS=3. Now let me verify the parallelism details in the source — MPI collectives, neighbor comm, OpenMP, and confirm no GPU/parallel-IO.
+  → search MPI_Allreduce|MPI_Allgather|MPI_Alltoall|MPI_Bcast|MPI_Reduce 1 15
+  → search MPI_Isend|MPI_Irecv|MPI_Send_init|MPI_Recv_init|MPI_Startall 1 15
+  → search cuda|CUDA|hip|HIP|__global__|acc_|omp target 0 10
+Confirmed: neighbor point-to-point (Isend/Irecv, persistent Send_init/Recv_init/Startall) for the sparse matvec halo exchange, plus Allreduce/Bcast/Allgather for reductions/global info. No CUDA/HIP. Let me confirm OpenMP usage and check for shared memory / affinity.
+  → search #pragma omp parallel|omp_set_num_threads|HYPRE_USING_OPENMP 0 8
+  → search shm_open|MPI_Win|/dev/shm|sched_setaffinity|MPI_File|hdf5|adios 0 8
+Let me verify actual `#pragma omp` usage in the compute kernels and the driver's MPI_Init.
+  → search #pragma omp 0 6
+  → search MPI_Init|hypre_MPI_Init 1 4
+I have all the evidence needed. The subject is `amg`. Default build is MPI + OpenMP (cpu-mpi-openmp). There's also a serial option (`-DHYPRE_SEQUENTIAL`) via mpistubs, but the default and documented variant is MPI+OpenMP. Let me record the main trace.
+  → record_shape amg cpu-mpi-openmp AMG (BoomerAMG) parallel algebraic multigrid solver benchmark OMP_NUM_THREADS=...
+  → record_shape amg cpu-mpi-openmp AMG memory/accelerator/io OMP_NUM_THREADS=3 mpirun -np 4 amg -P 2 2 1 -n 50 50...
+  → record_shape amg cpu-mpi-openmp AMG launch + memory bound OMP_NUM_THREADS=3 mpirun -np 4 amg -P 2 2 1 -n 50 50...
+  → record_shape amg cpu-mpi-openmp AMG topology OMP_NUM_THREADS=3 mpirun -np 4 amg -P 2 2 1 -n 50 50 50 medium 3D...
+Let me re-record the ordered_dependency with proper positive evidence framing — actually it's a positive claim that comm is symmetric neighbor exchange, but the field is a bool set to false. I'll cite the actual symmetric-exchange code as positive evidence for symmetry (which the tool wants phrased as absent).
+  → record_shape amg cpu-mpi-openmp AMG ordered dependency OMP_NUM_THREADS=3 mpirun -np 4 amg -P 2 2 1 -n 50 50 50...
+I've completed the characterization. Here is a summary of what I found.
+
+## Subject: `amg`
+
+**What it builds:** The repository is LLNL's **AMG**, a compact benchmark derived from HYPRE's BoomerAMG. The Makefile system builds static libraries under `krylov/`, `parcsr_ls/`, `parcsr_mv/`, `seq_mv/`, `IJ_mv/`, `utilities/`, and links them into a single driver executable **`amg`** in `test/` (from `test/amg.c`). It is a parallel algebraic multigrid solver that generates its own 3D linear systems (27-point Laplacian, solved with AMG-PCG / AMG-GMRES).
+
+**Variant recorded:** `cpu-mpi-openmp` — this is the default and documented build (`mpicc`, `-DHYPRE_USING_OPENMP -fopenmp -DHYPRE_USING_PERSISTENT_COMM -DHYPRE_BIGINT`). A serial fallback exists via `-DHYPRE_SEQUENTIAL` + MPI stubs, but MPI+OpenMP is the intended shape.
+
+### Key findings
+- **Parallelism:** SPMD MPI (`hypre_MPI_Init`, data decomposition into P×Q×R chunks) + OpenMP threads within ranks (`#pragma omp parallel for` in matvec/matrix kernels). No GPU code anywhere.
+- **Communication:** *mixed* — neighbor point-to-point halo exchange for the sparse matvec (`MPI_Isend/Irecv`, and persistent `Send_init/Recv_init/Startall` with `-DHYPRE_USING_PERSISTENT_COMM`), plus `MPI_Allreduce` (Krylov dot products), `Bcast`, and `Allgather` (setup). Pattern set: `{neighbor, reduction, broadcast}`. Docs call it "highly synchronous" with a "surface-to-volume" pattern → latency- and bandwidth-sensitive; symmetric exchange (not a wavefront).
+- **Memory — the decisive field:** Docs state outright: *"AMG is also memory-access bound, doing only about 1-2 computations per memory access"* and *"would be very difficult to obtain good cache reuse."* → `bound_by=memory_bandwidth`, `arithmetic_intensity=very_low`, `cache_reuse=poor`. No shared-memory windows.
+- **Accelerator / I/O:** none — no CUDA/HIP, no MPI-IO/HDF5/ADIOS, no checkpointing (it prints timings/FOM only).
+- **Launch geometry (from documented invocation):** `OMP_NUM_THREADS=3 mpirun -np 4 amg -P 2 2 1 -n 50 50 50` → launcher `mpirun`, tasks=4, threads_per_task=3. Docs also show weak-scaling to >1,000,000 MPI processes, so span is `either`, placement `neighbor`, co-location `preferred`.
+
+All assertions are recorded under the single trace `amg:cpu-mpi-openmp`.
+  ✓ recorded 24 assertion(s) across 1 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-1651/us-anthropic-claude-opus-4-8/
+  shapes-20260813-1651/us-anthropic-claude-opus-4-8/github.com/LLNL/AMG/unpinned/shapes.json

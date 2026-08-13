@@ -1,0 +1,73 @@
+[auto-approved] finalize-setup: {"base_image": "buildpack-deps:bookworm-scm", "focus": null, "keep": true, "mode": "container", "ref": null, "repos": ["https://github.com/ekondis/mixbench"]}
+
+▸ https://github.com/ekondis/mixbench  [1/1]
+[auto-approved] clone: {"effect": "network + write", "repo": "https://github.com/ekondis/mixbench"}
+  · cloning https://github.com/ekondis/mixbench into container
+I'll analyze the mixbench repository. Let me start by orienting myself.
+  → find . * file
+Mixbench has 5 variants: cuda, hip, sycl, opencl, cpu. Let me read the README and key files.
+  → read README.md 1 80
+  → read include/common.h 1 60
+This is a microbenchmark measuring compute/memory tradeoff. It's a single-process, single-device benchmark. Let me look at the key implementation files: CUDA and CPU.
+  → read mixbench-cuda/mix_kernels_cuda.cu 1 100
+  → read mixbench-cpu/mix_kernels_cpu.cpp 1 60
+Clear picture. Let me confirm the OpenMP parallel usage in CPU version and check for any MPI (there won't be any).
+  → search #pragma omp parallel|omp_set_num_threads|OMP_NUM_THREADS|num_threads 2 15
+  → search MPI_|nccl|rccl|mpi.h 1 10
+No MPI, no NCCL. Confirmed: single-process benchmarks. The CPU version uses OpenMP with first-touch NUMA policy. Let me check the HIP and SYCL/OpenCL for GPU model, and check for multi-device.
+  → search hipSetDevice|cudaSetDevice|deviceCount|getDeviceCount|selectDevice|device_id 1 10
+  → read mixbench-cpu/mix_kernels_cpu.cpp 130 40
+All GPU variants use a single device (index 0 by default). No multi-GPU. Let me quickly check the CPU CMakeLists for OpenMP and the main-cuda invocation for launch info, plus check README of a subfolder for run command.
+  → read mixbench-cpu/README.md 1 40
+  → read mixbench-cuda/main-cuda.cpp 1 30
+I have enough evidence. This is a memory-bandwidth/compute roofline microbenchmark — it deliberately sweeps arithmetic intensity. Single process, single device, one GPU (selectable by ID, default 0). Let me record the traces.
+  → record_shape mixbench-cuda cuda mixbench CUDA GPU microbenchmark ./mixbench-cuda [GPU_ID] high Single-process,...
+  → record_shape mixbench-cuda cuda mixbench CUDA roofline character ./mixbench-cuda [GPU_ID] high Buffer ~256MB s...
+Now the HIP variant. Let me verify it's ROCm/HIP single-device.
+  → record_shape mixbench-hip rocm mixbench HIP GPU microbenchmark ./mixbench-hip high Single-process, single-GPU ...
+  → record_shape mixbench-cpu threaded mixbench CPU/OpenMP microbenchmark OMP_NUM_THREADS=N ./mixbench-cpu high Op...
+Let me fix the HIP multi_gpu assertion and add CPU cache/exclusivity, plus record SYCL and OpenCL variants.
+  → read mixbench-sycl/main-sycl.cpp 1 20
+  → search sycl::queue|gpu_selector|default_selector|parallel_for 1 6
+SYCL uses a single queue with a device_index arg. Let me record the fixes and remaining variants.
+  → record_shape mixbench-hip rocm mixbench HIP single-device fix ./mixbench-hip high Single device 0, no rccl.
+  → record_shape mixbench-cpu threaded mixbench CPU affinity/cache OMP_NUM_THREADS=N ./mixbench-cpu medium Streami...
+  → record_shape mixbench-sycl sycl mixbench SYCL GPU microbenchmark ./mixbench-sycl [device_index] high Single-qu...
+  → record_shape mixbench-opencl opencl mixbench OpenCL GPU microbenchmark ./mixbench-ocl [device_index] high Sing...
+I've completed the analysis. Here's a summary of how **mixbench** wants to run.
+
+## What it builds
+
+Mixbench is a **roofline microbenchmark** that sweeps operational (arithmetic) intensity to find the compute/memory-bandwidth balance point of a device. The repo builds **five independent single-executable targets**, each in its own subfolder with its own CMakeLists.txt (README.md:6-10):
+
+| Target | Model | Variant recorded |
+|---|---|---|
+| `mixbench-cuda` | CUDA | `cuda` |
+| `mixbench-hip` | HIP/ROCm | `rocm` |
+| `mixbench-sycl` | SYCL | `sycl` |
+| `mixbench-opencl` | OpenCL | `opencl` |
+| `mixbench-cpu` | OpenMP | `threaded` |
+
+These are genuinely different applications from a scheduler's view, so each got its own trace.
+
+## Shared shape (the important part)
+
+Every variant is a **single-process, single-device** benchmark. There is **no MPI, no NCCL/RCCL, no collectives, no point-to-point** anywhere in the tree (`absent: MPI_|nccl|rccl` returned zero hits). So all communication fields are `none`/false, and topology is `single_node`.
+
+The kernel (e.g. `mix_kernels_cuda.cu:54-60`) loads an element from a large streamed buffer, then does a *variable* number of FMAs on it before storing. At the low end of the sweep the FLOP/byte ratio starts at **0.25** (README.md:66) — a load with almost no compute. This is the definitive evidence for:
+- `memory.bound_by = memory_bandwidth`
+- `memory.arithmetic_intensity = very_low`
+- `memory.cache_reuse = poor` (each element loaded once, streaming access)
+
+## Per-variant distinctions
+
+- **GPU variants (cuda/hip/sycl/opencl):** `parallelism=gpu`, single device selectable by ID (default 0 — e.g. `main-cuda.cpp:20-23`, `main-hip.cpp:27` `hipSetDevice(0)`). `multi_gpu=false`, `gpu_comm=none`.
+- **CPU variant:** `parallelism=threaded` via OpenMP (`#pragma omp parallel for`, `mix_kernels_cpu.cpp:97`). It is **NUMA-sensitive** — the init loop deliberately respects first-touch placement (`:277-280`), and it benchmarks full-then-half thread counts (`:147-155`), so it wants **dedicated cores** (`cpu_exclusive`, `placement=pack`) to hit peak bandwidth. No accelerator.
+
+No parallel I/O or checkpointing exists in any variant.
+
+**Scheduling takeaway:** each is a small, self-contained benchmark that occupies exactly one device (GPU variants) or one CPU/node (OpenMP variant). No network sensitivity at all; the constraint that matters is **memory bandwidth** and, for the CPU version, NUMA-local placement with dedicated cores.
+  ✓ recorded 51 assertion(s) across 5 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-2155/us-anthropic-claude-opus-4-8/
+  shapes-20260813-2155/us-anthropic-claude-opus-4-8/github.com/ekondis/mixbench/a8cab0c7e7b7/shapes.json

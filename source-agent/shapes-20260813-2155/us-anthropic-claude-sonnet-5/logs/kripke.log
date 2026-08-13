@@ -1,0 +1,56 @@
+[auto-approved] finalize-setup: {"base_image": "buildpack-deps:bookworm-scm", "focus": null, "keep": true, "mode": "container", "ref": null, "repos": ["https://github.com/LLNL/Kripke"]}
+
+▸ https://github.com/LLNL/Kripke  [1/1]
+[auto-approved] clone: {"effect": "network + write", "repo": "https://github.com/LLNL/Kripke"}
+  · cloning https://github.com/LLNL/Kripke into container
+  → find . * dir
+  → find . CMakeLists.txt file
+  → find . *.md file
+  → read README.md 1 200
+  → read README.md 200 107
+Now let's look at the ParallelComm and Arch directories for MPI sweep and GPU details.
+  → find src/Kripke/ParallelComm *.cpp file
+  → find src/Kripke/ParallelComm *.h* file
+  → find src/Kripke/Arch * file
+  → search MPI_Isend|MPI_Irecv|MPI_Allreduce|MPI_Waitall|MPI_Comm 3 40
+This confirms upwind/downwind sweep pattern (wavefront), point-to-point Isend/Irecv, and Allreduce for reductions. Now check CUDA/HIP/OpenMP build options.
+  → search ENABLE_CUDA|ENABLE_HIP|ENABLE_OPENMP|ENABLE_MPI 3 30
+  → search checkpoint|restart|hdf5|MPI_File|netcdf 3 20
+  → search cudaMemcpy|cudaSetDevice|hipSetDevice|omp parallel|#pragma omp 2 20
+  → read src/kripke.cpp 255 40
+This confirms OpenMP thread-to-core mapping awareness (NUMA-sensitive). Let's check CUDA arch/kernel usage and check RAJA policy definitions for GPU.
+  → search RAJA::cuda|RAJA::hip|cuda_exec|hip_exec 3 20
+Good, confirmed CUDA and HIP backends via RAJA. Now let's check the sweep comm buffer sizes / message pattern more, and check whether CUDA-aware MPI is used (GPU direct comm) and multi-GPU per process.
+  → search cudaSetDevice|hipSetDevice|num_gpus|ngpu|gpu_count 3 20
+  → read src/Kripke/ParallelComm.cpp 1 60
+Confirmed GPU-aware MPI support via KRIPKE_USE_GPU_AWARE_MPI flag. This is direct GPU-to-GPU communication path. Let's check CMakeLists for that flag and check main CMakeLists for executable target.
+  → search GPU_AWARE_MPI|add_executable 3 10
+Good, executable target is `kripke.exe`. Now I have enough evidence for three variants: cpu (mpi+openmp), cuda (mpi+cuda+gpu_aware_mpi optional), rocm (mpi+hip). Let's check BlockJacobiComm for all_to_all pattern too, and check numa module.
+  → search numa|hwloc|sched_setaffinity|cpu_set 3 15
+That's Umpire-level NUMA support, not really Kripke's own pinning beyond thread-to-core report. Now let's check the BlockJacobiComm pattern (all_to_all reduction?) briefly.
+  → read src/Kripke/ParallelComm/BlockJacobiComm.cpp 1 60
+I have enough evidence. Now record shapes for three variants: cpu (mpi+openmp), cuda, rocm.
+  → record_shape kripke.exe cpu Kripke Sn transport solver, CPU build (MPI + OpenMP, no GPU) mpirun -np <N> ./bin/...
+  → record_shape kripke.exe cuda Kripke Sn transport solver, CUDA build (MPI + GPU, optional GPU-aware MPI) mpirun...
+  → record_shape kripke.exe cuda Kripke Sn transport solver, CUDA build (MPI + GPU, optional GPU-aware MPI) mpirun...
+Now the ROCm/HIP variant.
+  → record_shape kripke.exe rocm Kripke Sn transport solver, ROCm/HIP build (MPI + GPU, optional GPU-aware MPI) mp...
+Now let's add memory.bound_by/arithmetic_intensity/cache_reuse and other common fields across variants, plus io.checkpoint absence, launch geometry defaults, topology fields. Let's check for any statement about memory-bound nature in docs/comments.
+  → search memory bound|memory-bound|bandwidth bound|arithmetic intensity|flop 3 20
+  → read src/Kripke/Arch/SweepSubdomains.h 1 60
+  → record_shape kripke.exe cpu Kripke Sn transport solver, CPU build (MPI + OpenMP, no GPU) mpirun -np <N> ./bin/...
+  → record_shape kripke.exe cuda Kripke Sn transport solver, CUDA build (MPI + GPU, optional GPU-aware MPI) mpirun...
+  → record_shape kripke.exe rocm Kripke Sn transport solver, ROCm/HIP build (MPI + GPU, optional GPU-aware MPI) mp...
+I've recorded three distinct traces for `kripke.exe` covering the CPU (MPI+OpenMP), CUDA, and ROCm/HIP build variants, based on:
+
+- **Build system**: `cmake/kripke/CMakeLists.txt` builds a single executable target `kripke.exe`, with build-time options `ENABLE_MPI`, `ENABLE_OPENMP`, `ENABLE_CUDA`, `ENABLE_HIP`, `ENABLE_GPU_AWARE_MPI` (requires CHAI) selecting the variant.
+- **Algorithm**: Kripke solves the Sn Boltzmann transport equation via source iteration, with a parallel **sweep** algorithm (`--pmethod sweep`) that forms a strict upwind→downwind wavefront dependency across MPI ranks (`src/Kripke/ParallelComm.cpp`), using async point-to-point `MPI_Isend`/`MPI_Irecv` for face-plane exchange and periodic `MPI_Allreduce` for global reductions (`src/Kripke/Core/Comm.h`). An alternative Block-Jacobi method (`--pmethod bj`) removes the ordering dependency but keeps the same neighbor-exchange shape.
+- **On-node parallelism**: RAJA-based kernels select Sequential, OpenMP, CUDA, or HIP execution policies (`src/Kripke.h`), and OpenMP thread-to-core placement is explicitly reported at startup (`src/kripke.cpp`).
+- **GPU communication**: `useGpuAwareMPI()` in `ParallelComm.cpp` passes device pointers directly into MPI calls when CHAI's allocation is GPU and `ENABLE_GPU_AWARE_MPI` is set, i.e. a `gpu_aware_mpi` direct GPU-to-GPU path, available for both CUDA and HIP builds.
+- No parallel I/O libraries, no checkpoint/restart, no shared-memory windows or huge-page usage were found in the source.
+
+Each variant trace captures the shared sweep/wavefront + reduction communication pattern, memory-bandwidth-bound low-arithmetic-intensity streaming kernels (per README's emphasis on data-layout/nesting as the dominant performance factor), and the accelerator-specific differences (none / cuda / rocm, each optionally with gpu-aware MPI).
+  ✓ recorded 44 assertion(s) across 3 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-2155/us-anthropic-claude-sonnet-5/
+  shapes-20260813-2155/us-anthropic-claude-sonnet-5/github.com/LLNL/Kripke/1b35d13af69b/shapes.json

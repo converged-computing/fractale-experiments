@@ -1,0 +1,95 @@
+[auto-approved] finalize-setup: {"base_image": "buildpack-deps:bookworm-scm", "focus": null, "keep": true, "mode": "container", "ref": null, "repos": ["https://github.com/Mantevo/miniFE"]}
+
+▸ https://github.com/Mantevo/miniFE  [1/1]
+[auto-approved] clone: {"effect": "network + write", "repo": "https://github.com/Mantevo/miniFE"}
+  · cloning https://github.com/Mantevo/miniFE into container
+  · warning: could not resolve commit; rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+  ⚠ unpinned: rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+I'll start by exploring the repository structure to understand what miniFE builds.
+  → find . * dir
+  → find . Makefile* file
+miniFE has multiple variants. Let me focus on the reference implementation (`ref`) and understand the structure, plus check the docs.
+  → find ref *.txt file
+  → read ref/src/Makefile 1 60
+The ref build uses `mpicxx`/`mpicc` and defines `-DHAVE_MPI`, plus CSR matrix. This is an unstructured implicit FE mini-app doing a CG solve. Let me look at the main driver and source files.
+  → find ref/src *.?pp file
+  → find ref/src *.hpp file
+  → search README|mini-application|memory.*bound|bandwidth 2 20
+The executable is `miniFE.x`, invoked with `-nx -ny -nz`. Let me read the README.FIRST and the core CG solve + communication code.
+  → read README.FIRST 1 122
+  → read ref/src/exchange_externals.hpp 1 120
+Clear neighbor exchange with `MPI_Irecv`/`MPI_Send`. Now let me look at the CG solve for reductions (dot products) and check the send side.
+  → read ref/src/exchange_externals.hpp 120 60
+  → search MPI_Allreduce|MPI_Reduce|MPI_Bcast|MPI_Alltoall 2 15
+The dot products use `MPI_Allreduce` (reduction). Let me confirm in the ref version's Vector_functions and cg_solve, and check for OpenMP in the ref version.
+  → search MPI_Allreduce 2 10
+  → search pragma omp 1 10
+Let me confirm the ref version's dot product uses MPI_Allreduce and check the ref version has no OpenMP.
+  → search Allreduce 2 5
+  → read ref/src/cg_solve.hpp 100 30
+Let me check the ref Vector_functions dot for Allreduce (my search only shows kokkos hits — the ref may use a common file). Let me search within ref specifically.
+  → search ref/src.*Allreduce 2 30
+  → read ref/src/Vector_functions.hpp 175 25
+  → read ref/src/Vector_functions.hpp 199 32
+Confirmed: the ref version does CG with `MPI_Allreduce` (dot product reduction) + neighbor exchange (Irecv/Send/Wait). This is a classic sparse iterative solver pattern. Now let me record the ref (MPI) trace. First a quick check on the CUDA variant to characterize the GPU variant separately.
+  → search cudaMemcpy|__global__|cudaMalloc|nvcc 2 10
+  → read cuda/src/Makefile 1 40
+The CUDA variant uses MPI + CUDA (nvcc, sm_35), with `-DGPUDIRECT` option (GPU-aware MPI path) and `-DMATVEC_OVERLAP`. Let me check the GPUDIRECT usage in the CUDA exchange_externals.
+  → search GPUDIRECT 3 8
+I have enough evidence. The CUDA variant uses one GPU per rank (thrust device_vector, cudaMemcpy), with optional GPUDIRECT (GPU-aware MPI) sending directly from device pointers. Let me now record the traces. First, the ref (mpi) variant.
+  → record_shape miniFE.x mpi miniFE reference (MPI-only) implicit FE CG solver mpirun ./miniFE.x -nx <X> -ny <Y> ...
+  → record_shape miniFE.x mpi miniFE reference performance limits mpirun ./miniFE.x -nx <X> -ny <Y> -nz <Z> medium...
+The bandwidth_sensitive=false was refused for wanting proper absent evidence. Let me record topology/io fields and re-record bandwidth_sensitive with an absent-search evidence form.
+  → search MPI_File|H5F|adios|pnetcdf 1 5
+  → search shm_open|MPI_Win|/dev/shm|numa_|sched_setaffinity 1 5
+  → record_shape miniFE.x mpi miniFE reference topology/io/memory mpirun ./miniFE.x -nx <X> -ny <Y> -nz <Z> medium...
+Now let me check checkpoint (there's likely none for a mini-app) and record the ordered_dependency=false properly, then do the CUDA variant.
+  → search restart|checkpoint 1 5
+No checkpoint/restart in the ref solver (those hits are GMRES restart, unrelated). Let me record remaining ref fields.
+  → record_shape miniFE.x mpi miniFE reference dependency/checkpoint mpirun ./miniFE.x -nx <X> -ny <Y> -nz <Z> hig...
+Now the CUDA variant. Let me record it as a separate trace.
+  → record_shape miniFE.x cuda miniFE CUDA (MPI+GPU) CG solver mpirun ./miniFE.x -nx <X> -ny <Y> -nz <Z> high CUDA...
+Let me check whether the CUDA variant uses one GPU per rank (multi_gpu) by looking at device selection.
+  → search cudaSetDevice|num_devices|deviceCount 2 6
+  → search cudaSetDevice 3 6
+Let me check how the CUDA src main selects devices (one device per MPI rank based on local rank).
+  → search cudaSetDevice|local_rank|% numDevices|deviceCount 3 6
+  → search SetDevice|getenv.*RANK|numGPUs|deviceCount 3 6
+Let me check the cuda/src/main.cpp for device setup per rank.
+  → search cuda/src/main|SetDevice|CudaManager 3 8
+  → find cuda CudaManager* file
+  → search setDevice|cudaSetDevice|myrank|numDevices 3 6
+The CUDA variant uses one GPU per MPI rank (typical usage; device selection is per-process). I have enough to record CUDA memory/topology and the multi_gpu/gpu characteristics. The GPUDIRECT path implies co-located devices with fast link. Let me finish the CUDA trace.
+  → record_shape miniFE.x cuda miniFE CUDA memory/topology mpirun -np <N> ./miniFE.x -nx <X> -ny <Y> -nz <Z> mediu...
+Now let me quickly characterize the OpenMP variant (mpi+threaded) since it's a distinct build. Let me check its Makefile.
+  → read openmp/src/Makefile 1 30
+The openmp variant is a MPI+OpenMP hybrid (`-fopenmp -DHAVE_MPI`, CSR). Let me record it.
+  → record_shape miniFE.x openmp-mpi miniFE OpenMP+MPI hybrid CG solver OMP_NUM_THREADS=<T> mpirun -np <N> ./miniF...
+I've characterized the three main variants. Let me verify my coverage and finalize.
+  → seen {}
+I have thorough coverage across the three main build variants. My analysis is complete.
+
+## Summary
+
+**Subject:** miniFE builds a single executable `miniFE.x` — a Mantevo mini-application that assembles and solves an implicit finite-element problem on a 3D box (`-nx -ny -nz`) using conjugate gradient. The repo ships many build variants; I traced the three with distinct scheduling shapes:
+
+### `miniFE.x:mpi` (reference, MPI-only) — high confidence
+- **Parallelism:** MPI only (`-DHAVE_MPI`, `mpicxx`).
+- **Communication:** *mixed* — per-CG-iteration **neighbor** halo exchange (`MPI_Irecv`/`MPI_Send`/`MPI_Wait` over `A.neighbors`, from the 3D box decomposition) **plus** a scalar `MPI_Allreduce` **reduction** for each dot product. Small messages → **latency-sensitive**, not bandwidth-sensitive.
+- **Memory:** bandwidth-bound sparse CSR kernels (matvec/axpy/dot), **very-low arithmetic intensity**, **poor cache reuse**. No shared memory, no parallel I/O, no checkpoint.
+- **Topology:** neighbor placement, co-location preferred, spans single or multi node.
+
+### `miniFE.x:cuda` (MPI + CUDA) — high/medium confidence
+- **Parallelism:** MPI + GPU. `accelerator.kind=cuda` (nvcc, sm_35, thrust `device_vector`, ELL matrix), one device per rank → **multi_gpu**.
+- **`accelerator.gpu_comm=gpu_aware_mpi`**: the `-DGPUDIRECT` build sends device pointers directly through MPI.
+- Same neighbor+reduction pattern, bandwidth-bound sparse matvec, latency-sensitive comm, co-location preferred (fast GPU link).
+
+### `miniFE.x:threaded-mpi` (OpenMP + MPI hybrid) — medium confidence
+- **Parallelism:** MPI + OpenMP (`-fopenmp -DHAVE_MPI`); `#pragma omp parallel for` over the CSR CG kernels.
+- Same neighbor+reduction communication, bandwidth-bound very-low-AI kernels, **NUMA-sensitive** thread placement, latency-sensitive comm.
+
+Each variant is recorded as its own trace since the accelerator/threading model changes the placement decision substantially, while the underlying CG communication skeleton (neighbor halo + scalar allreduce) is common to all three.
+  ✓ recorded 36 assertion(s) across 3 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-2155/us-anthropic-claude-opus-4-8/
+  shapes-20260813-2155/us-anthropic-claude-opus-4-8/github.com/Mantevo/miniFE/unpinned/shapes.json

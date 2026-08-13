@@ -1,0 +1,51 @@
+[auto-approved] finalize-setup: {"base_image": "buildpack-deps:bookworm-scm", "focus": null, "keep": true, "mode": "container", "ref": null, "repos": ["https://github.com/LLNL/Kripke"]}
+
+▸ https://github.com/LLNL/Kripke  [1/1]
+[auto-approved] clone: {"effect": "network + write", "repo": "https://github.com/LLNL/Kripke"}
+  · cloning https://github.com/LLNL/Kripke into container
+  · warning: could not resolve commit; rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+  ⚠ unpinned: rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+  → find . * dir
+  → read README.md 1 150
+  → find src CMakeLists.txt file
+  → read README.md 150 160
+  → find CMakeLists.txt *.cmake file
+  → find . CMakeLists.txt file
+  → read CMakeLists.txt 1 200
+  → find src/Kripke/ParallelComm *.cpp file
+  → read cmake/kripke/CMakeLists.txt 1 200
+  → read cmake/kripke/CMakeLists.txt 200 211
+  → search MPI_Isend|MPI_Irecv|MPI_Allreduce|MPI_Waitall|MPI_Comm|MPI_Barrier 3 40
+Good confirmation of MPI point-to-point (sweep, neighbor pattern with wavefront dependency) plus allreduce (reduction). Now let's check GPU-aware MPI, CUDA kernels, and Arch files.
+  → search GPU_AWARE_MPI|cudaMemcpy|__global__|RAJA::cuda|RAJA::hip|forall 3 30
+  → find src/Kripke/Arch * file
+Confirmed CUDA and HIP backends exist via RAJA. Now let's check checkpoint/restart, parallel I/O, and OpenMP usage in code, plus SweepComm for the wavefront structure.
+  → search omp parallel|#pragma omp|checkpoint|restart|HDF5|MPI_File 3 20
+  → read src/Kripke/ParallelComm/SweepComm.cpp 1 80
+  → read src/kripke.cpp 240 60
+  → read src/Kripke/ParallelComm/BlockJacobiComm.cpp 1 60
+  → search mpirun|srun -n|jsrun 3 20
+  → find scripts/gitlab *.sh file
+  → search procs 4|procs 2|--procs 2 10
+I have enough evidence. Now let's record shapes for three variants: cpu-mpi-openmp (general/default), cuda-mpi, rocm-mpi.
+  → record_shape kripke.exe cpu-mpi-openmp Kripke Sn transport mini-app, CPU build with MPI+OpenMP, sweep solver ....
+  → record_shape kripke.exe cpu-mpi-openmp Kripke Sn transport mini-app, CPU build with MPI+OpenMP, sweep solver ....
+  → record_shape kripke.exe cpu-mpi-openmp Kripke Sn transport mini-app, CPU build with MPI+OpenMP, sweep solver ....
+Now the CUDA variant.
+  → record_shape kripke.exe cuda-mpi Kripke Sn transport mini-app, CUDA build with MPI (RAJA cuda backend), sweep ...
+  → record_shape kripke.exe cuda-mpi Kripke Sn transport mini-app, CUDA build with MPI (RAJA cuda backend), sweep ...
+Now the ROCm/HIP variant, similarly.
+  → record_shape kripke.exe rocm-mpi Kripke Sn transport mini-app, ROCm/HIP build with MPI (RAJA hip backend), swe...
+I've now recorded three distinct traces for the Kripke `kripke.exe` subject, corresponding to its major build variants. Summary:
+
+**kripke.exe : cpu-mpi-openmp** — default/Sequential+OpenMP build with optional MPI. Wavefront upwind/downwind sweep communication (`MPI_Isend/Irecv` in `ParallelComm.cpp`) plus `MPI_Allreduce` reductions for source-iteration norms (`Core/Comm.h`). Ordered dependency (sweep is a wavefront algorithm per README and `SweepComm.cpp`). No parallel I/O, no checkpoint/restart, no GPU. OpenMP threading confirmed via `#pragma omp parallel` diagnostic in `kripke.cpp`.
+
+**kripke.exe : mpi-cuda** — `ENABLE_CUDA` build, RAJA `cuda_exec`/`CudaKernel` on-node kernels (`Kripke.h`), same MPI sweep/reduction communication pattern, optional GPU-aware MPI path gated behind CHAI (`ENABLE_GPU_AWARE_MPI`).
+
+**kripke.exe : mpi-rocm** — `ENABLE_HIP` build, RAJA `hip_exec` kernels, structurally identical to the CUDA variant (same sweep/reduction/GPU-aware-MPI options), confirmed by HIP host-config files for MI250X/MI300A.
+
+All three share the same core algorithmic shape (Sn transport source-iteration with an asynchronous MPI wavefront sweep across spatial subdomains, group-sets and direction-sets), differing only in the on-node compute backend (CPU/OpenMP vs CUDA vs HIP). No evidence of shared-memory windows, NUMA pinning, huge pages, or parallel I/O/checkpointing was found in any variant.
+  ✓ recorded 39 assertion(s) across 3 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-1651/us-anthropic-claude-sonnet-5/
+  shapes-20260813-1651/us-anthropic-claude-sonnet-5/github.com/LLNL/Kripke/unpinned/shapes.json

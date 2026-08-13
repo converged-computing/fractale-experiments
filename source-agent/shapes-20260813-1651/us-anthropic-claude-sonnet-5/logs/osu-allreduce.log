@@ -1,0 +1,51 @@
+[auto-approved] finalize-setup: {"base_image": "buildpack-deps:bookworm-scm", "focus": "osu_allreduce MPI_Allreduce collective benchmark", "keep": true, "mode": "container", "ref": null, "repos": ["https://github.com/jwu274/osu-micro-benchmarks"]}
+
+▸ https://github.com/jwu274/osu-micro-benchmarks  [1/1]
+[auto-approved] clone: {"effect": "network + write", "repo": "https://github.com/jwu274/osu-micro-benchmarks"}
+  · cloning https://github.com/jwu274/osu-micro-benchmarks into container
+  · warning: could not resolve commit; rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+  ⚠ unpinned: rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+  → find . *allreduce* file
+  → find . CMakeLists.txt file
+  → read c/mpi/collective/blocking/osu_allreduce.c 1 160
+  → find . Makefile.am file
+  → search mpirun_rsh|mpirun -np|MV2_USE_CUDA|D_D|GPU support|--enable-cuda|--enable-rocm 3 20
+  → read c/mpi/collective/blocking/osu_allreduce.c 160 87
+  → search osu_allreduce 4 10
+  → read README.md 60 50
+Now I have enough evidence to record the trace for osu_allreduce (CPU/MPI variant, the default build).
+  → record_shape osu_allreduce cpu-mpi OSU Micro-Benchmarks: osu_allreduce (MPI_Allreduce blocking latency test) m...
+  → record_shape osu_allreduce cpu-mpi OSU Micro-Benchmarks: osu_allreduce memory/accel characterization mpirun_rs...
+  → search cudaMalloc|hipMalloc|cudaMemcpy|hipMemcpy 2 5
+This confirms CUDA support is gated behind `_ENABLE_CUDA_` macro, guarded by configure's `--enable-cuda` (default no). Good evidence for absence in default build.
+  → record_shape osu_allreduce cpu-mpi osu_allreduce cpu-mpi accelerator absence mpirun_rsh -np N -hostfile hostfi...
+Now let me add remaining fields: topology.placement, topology.co_location, communication.ordered_dependency, io fields.
+  → record_shape osu_allreduce cpu-mpi osu_allreduce cpu-mpi topology/io mpirun_rsh -np N -hostfile hostfile c/mpi...
+These two were judgment calls better recorded differently; let me fix with proper reasoning framed as judgment (they are allowed as judgment fields, but still need evidence, not just absence). I'll rephrase with the positive collective pattern evidence already cited (not absence-only).
+  → record_shape osu_allreduce cpu-mpi osu_allreduce cpu-mpi ordering/colocation mpirun_rsh -np N -hostfile hostfi...
+  → search MPI_Send|MPI_Recv|MPI_Sendrecv 2 5
+Confirmed osu_allreduce.c itself contains no MPI_Send/Recv (those are only in other benchmark files like osu_latency). Good, now record with proper absent evidence.
+  → record_shape osu_allreduce cpu-mpi osu_allreduce cpu-mpi ordering/colocation absence mpirun_rsh -np N -hostfil...
+All assertions recorded successfully. Let me verify the final state of the trace.
+  → seen {}
+I've completed the characterization of `osu_allreduce` from the OSU Micro-Benchmarks repository. Here's a summary of what was recorded:
+
+## Subject: `osu_allreduce` (variant: `cpu-mpi`)
+
+**What it builds**: A single MPI benchmark executable (`c/mpi/collective/blocking/osu_allreduce.c`) that measures `MPI_Allreduce` latency across a sweep of message sizes.
+
+**Key findings**:
+- **Parallelism**: Pure MPI (no threads/OpenMP in this file)
+- **Communication**: Collective-model, dominated by `MPI_Allreduce` calls plus `MPI_Barrier` synchronization and `MPI_Reduce` for stats aggregation — patterns recorded as `{all_to_all, reduction, broadcast}`
+- **Communication intensity**: High — the entire timed loop *is* the collective call plus barriers, with no substantive local compute
+- **Latency and bandwidth sensitive**: Both true — the benchmark sweeps from small to large message sizes specifically to characterize both regimes
+- **Memory**: No shared-memory windows, no NUMA/hugepage tricks; buffers are touched once per iteration (poor cache reuse, very low arithmetic intensity); bound by network rather than local memory bandwidth
+- **Accelerator**: None in the default build — CUDA/ROCm code paths exist elsewhere in the util code but are gated behind `_ENABLE_CUDA_`/configure flags that default to "no" (this repo's evidence: `configure.ac:32-38`, `c/util/osu_util_mpi.c:1150-1157`)
+- **Topology**: Requires ≥2 ranks (`numprocs < 2` check), can run single-node or multi-node (`either`); no ordered dependency (symmetric collective, no Send/Recv chain found in this file)
+- **I/O**: None — no parallel I/O libraries, no checkpoint/restart
+
+I noted that CUDA/ROCm-enabled builds of this same source (via `--enable-cuda`/`--enable-rocm` configure flags, using `options.accel` buffer paths) would constitute a genuinely different variant (`cuda-mpi` or `rocm-mpi`) with different accelerator/gpu_comm characteristics, but I did not fabricate that trace since the user specifically asked about `osu_allreduce` as the MPI_Allreduce collective benchmark and the default/most common build is CPU-only MPI.
+  ✓ recorded 22 assertion(s) across 1 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-1651/us-anthropic-claude-sonnet-5/
+  shapes-20260813-1651/us-anthropic-claude-sonnet-5/github.com/jwu274/osu-micro-benchmarks/unpinned/osu_allreduce_MPI_Allreduce_collective_benchmark/shapes.json

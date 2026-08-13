@@ -1,0 +1,75 @@
+[auto-approved] finalize-setup: {"base_image": "buildpack-deps:bookworm-scm", "focus": null, "keep": true, "mode": "container", "ref": null, "repos": ["https://github.com/Mantevo/miniFE"]}
+
+▸ https://github.com/Mantevo/miniFE  [1/1]
+[auto-approved] clone: {"effect": "network + write", "repo": "https://github.com/Mantevo/miniFE"}
+  · cloning https://github.com/Mantevo/miniFE into container
+  · warning: could not resolve commit; rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+  ⚠ unpinned: rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+  → find . * dir
+  → find . README* file
+  → read ./ref/README 1 120
+  → read README.md 1 150
+  → read README.FIRST 1 80
+  → find ref/src *.hpp file
+  → find ref Makefile* file
+  → read ref/src/Makefile 1 80
+  → read ref/src/exchange_externals.hpp 1 80
+  → read ref/src/exchange_externals.hpp 80 100
+  → search MPI_Allreduce|MPI_Reduce|MPI_Isend|MPI_Irecv|MPI_Wait|MPI_Bcast 2 40
+  → read openmp/src/Makefile 1 40
+  → read cuda/src/Makefile 1 40
+  → search cudaSetDevice|cudaMemcpy|__global__|cudaMalloc 2 30
+  → search GPUDIRECT 2 20
+Good, this confirms cuda variant with MPI+CUDA and GPUDIRECT (gpu-aware MPI) option. Now let's check cg_solve.hpp for reduction pattern (dot products) common to all, and check driver.hpp / main.cpp for OpenMP threading pragmas.
+  → read ref/src/cg_solve.hpp 1 60
+  → search #pragma omp 2 20
+  → search omp parallel 1 10
+  → read ref/src/cg_solve.hpp 100 60
+  → search checkpoint|restart 2 10
+  → search HAVE_MPI 2 10
+Confirmed: no checkpoint/restart, no parallel I/O. Now let's check kokkos variant for GPU (kokkos-cuda) and openmp variant's Makefile for thread count docs, plus check main.cpp for thread setup like omp_set_num_threads.
+  → search omp_set_num_threads|OMP_NUM_THREADS|numthreads 2 10
+  → read kokkos/common/Makefile 1 40
+  → search KOKKOS_DEVICES|CUDA 2 10
+  → search MPI_Init|mpirun|MINIFE_NUM_THREADS 2 10
+  → read ref/src/driver.hpp 1 40
+  → read openmp-opt-knl/basic/run_one_test 1 30
+No fixed rank count stated. I have enough evidence now. Let's record the three variants.
+  → record_shape miniFE mpi miniFE ref (MPI-only) CG solver mpirun -np <N> miniFE.x -nx <X> -ny <Y> -nz <Z>  (ref/...
+  → record_shape miniFE mpi-openmp miniFE OpenMP+MPI hybrid CG solver OMP_NUM_THREADS=<T> mpirun -np <N> miniFE.x ...
+  → record_shape miniFE mpi miniFE ref (MPI-only) CG solver - fixups mpirun -np <N> miniFE.x -nx <X> -ny <Y> -nz <...
+Now let's continue with remaining fields for mpi and mpi-openmp variants, plus record the cuda variant.
+  → record_shape miniFE mpi miniFE ref (MPI-only) CG solver - part2 mpirun -np <N> miniFE.x -nx <X> -ny <Y> -nz <Z...
+  → record_shape miniFE mpi miniFE ref (MPI-only) CG solver - memory judgment mpirun -np <N> miniFE.x -nx <X> -ny ...
+Now let's finish mpi-openmp variant with remaining fields and then cuda variant.
+  → record_shape miniFE mpi-openmp miniFE OpenMP+MPI hybrid CG solver - part2 OMP_NUM_THREADS=<T> mpirun -np <N> m...
+  → record_shape miniFE mpi-openmp miniFE OpenMP+MPI hybrid CG solver - topology OMP_NUM_THREADS=<T> mpirun -np <N...
+Now the CUDA variant.
+  → read cuda/src/cg_solve.hpp 1 50
+  → search cudaStream|cudaEvent|MATVEC_OVERLAP 2 10
+Good, this confirms one GPU per rank (matvec kernel launched per-rank on device), MPI for inter-rank halo exchange with optional GPUDIRECT (gpu-aware MPI), and stream overlap of comm/compute. Now record the cuda variant.
+  → record_shape miniFE mpi-cuda miniFE CUDA+MPI GPU CG solver mpirun -np <N> miniFE.x nx=<X> ny=<Y> nz=<Z> (1 GPU...
+  → record_shape miniFE mpi-cuda miniFE CUDA+MPI GPU CG solver - part2 mpirun -np <N> miniFE.x nx=<X> ny=<Y> nz=<Z...
+I've recorded three distinct traces for miniFE based on solid source evidence. Let me verify coverage and finalize.
+  → seen {}
+I've gathered sufficient evidence and recorded three well-separated traces for the miniFE repository, reflecting the three clearly distinct build/parallelism variants found in the source tree:
+
+## Summary
+
+**Subject**: miniFE (Mantevo mini-application) — an unstructured implicit finite-element proxy app whose core kernel is a Conjugate Gradient (CG) sparse-linear-solver loop (matvec, waxpby, dot) over a 3D structured decomposition.
+
+**Variants recorded** (each with its own trace, since they have materially different scheduling shapes):
+
+1. **`miniFE:mpi`** (ref/ directory) — pure MPI, process parallelism only. Halo exchange (Isend/Irecv/Wait over neighbor list) each matvec + MPI_Allreduce per CG iteration for dot products. Classic sparse-CG {neighbor, reduction} communication set. No threading, no GPU, no parallel I/O, no checkpointing.
+
+2. **`miniFE:mpi-openmp`** (openmp/, openmp-opt/, openmp-opt-knl/, openmp45/ directories) — MPI + OpenMP hybrid. Same halo/reduction communication skeleton as ref, but Vector_functions and SparseMatrix kernels are parallelized with `#pragma omp parallel for` / `reduction(+:...)`, with `#pragma omp atomic` for scatter-add during FE assembly.
+
+3. **`miniFE:mpi-cuda`** (cuda/ directory) — MPI + CUDA, one GPU per rank. ELL sparse matvec run as CUDA kernels (`matvec_ell_kernel<<<>>>`), CUDA streams/events used to overlap the interior matvec with the MPI halo exchange (`MATVEC_OVERLAP`), and an optional `GPUDIRECT` build flag that routes MPI messages directly to/from device pointers — i.e., a gpu-aware MPI communication path.
+
+All three share the same underlying algorithmic communication pattern (structured-grid neighbor halo exchange + small global reductions per CG iteration), which is why `communication.pattern={neighbor,reduction}` and `communication.latency_sensitive=true` appear in all traces, while the differentiators (parallelism set, accelerator fields, gpu_comm) separate them correctly as required.
+
+I did not create separate traces for kokkos/, qthreads/, cilk/, mkl/, nvamg/ since these are either thin recompiles of the same MPI+threads(+CUDA) skeleton with a different node abstraction (Kokkos/TBB/TPI/Qthreads/Cilk backends selecting between the same CPU-parallel-for or CUDA-kernel code paths already captured above) or a substantially different solver (nvamg uses AMG/FGMRES config files, not the CG miniFE kernel) that would need deeper investigation beyond the requested scope; the three recorded variants cover the distinct, evidenced scheduling shapes.
+  ✓ recorded 53 assertion(s) across 3 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-2155/us-anthropic-claude-sonnet-5/
+  shapes-20260813-2155/us-anthropic-claude-sonnet-5/github.com/Mantevo/miniFE/unpinned/shapes.json

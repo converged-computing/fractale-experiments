@@ -1,0 +1,71 @@
+[auto-approved] finalize-setup: {"base_image": "buildpack-deps:bookworm-scm", "focus": null, "keep": true, "mode": "container", "ref": null, "repos": ["https://github.com/Mantevo/miniFE"]}
+
+▸ https://github.com/Mantevo/miniFE  [1/1]
+[auto-approved] clone: {"effect": "network + write", "repo": "https://github.com/Mantevo/miniFE"}
+  · cloning https://github.com/Mantevo/miniFE into container
+  · warning: could not resolve commit; rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+  ⚠ unpinned: rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+I'll analyze the miniFE repository. Let me start by orienting myself with the structure.
+  → find . * dir
+  → find . Makefile* file
+This is the multi-variant miniFE. The `ref/` is the reference implementation. Let me look at the reference Makefile and main source, plus the README.
+  → find ref README* file
+  → read ref/src/Makefile 1 60
+  → find ref/src *.cpp file
+The reference build uses `mpicxx`, `-DHAVE_MPI`. Let me look at the main source, the top-level README, and the compute kernels.
+  → find ref/src *.hpp file
+  → read ref/src/main.cpp 1 100
+This is a conjugate-gradient FE solver. Let me examine the CG solver, the halo exchange, and the vector reduction (dot products), and check for OpenMP in the ref variant.
+  → read ref/src/exchange_externals.hpp 1 120
+  → search MPI_Allreduce|MPI_Reduce|MPI_Bcast|MPI_Isend|MPI_Irecv|MPI_Send|MPI_Recv|MPI_Wait 2 30
+Clear pattern: neighbor exchange (Irecv/Send/Wait) plus Allreduce reductions. Let me confirm the ref variant CG solver and dot product, plus check OpenMP usage in ref and the top-level README for how it's run.
+  → search MPI_Allreduce|#pragma omp 2 15
+  → read ref/basic/optional/README 1 50
+Now let me check the ref variant's CG solver and whether ref uses OpenMP. Let me search for OpenMP pragmas and check the ref Vector_functions dot product, plus the top-level README.
+  → search pragma omp 1 10
+  → find . README* file
+  → read ref/src/cg_solve.hpp 100 40
+The ref variant has no OpenMP pragmas (all pragma omp hits are in openmp-opt-knl and other variants). Ref is pure MPI. Let me read the top-level README.md for run instructions and characterization, and confirm ref has no threading.
+  → read README.md 1 80
+  → search omp|OpenMP|_OPENMP 1 8
+Now let me check the CUDA variant's build/kernels and the openmp variant's Makefile to distinguish variants. Let me also verify the matvec is sparse (SpMV — memory bound). Let me look at the CUDA Makefile and ref matvec.
+  → read cuda/src/Makefile 1 50
+  → read openmp/src/Makefile 1 40
+  → search void matvec_std|struct matvec|operator\(\) 3 4
+I have enough to characterize the main variants. The CUDA variant uses ELL matrix, CUDA kernels, MPI, has GPUDIRECT (GPU-aware MPI) and MATVEC_OVERLAP options. Let me confirm CUDA kernels exist and check GPUDIRECT usage quickly.
+  → search GPUDIRECT|cudaMalloc|__global__|cudaMemcpy 2 6
+  → search GPUDIRECT|__global__|cudaMemcpy 2 8
+Let me check the cuda variant's actual kernel files and GPUDIRECT usage in exchange_externals.
+  → find cuda *.cu* file
+  → search GPUDIRECT 2 5
+I have enough evidence. GPUDIRECT (GPU-aware MPI) is an available option but commented out by default in the cuda Makefile. The cuda variant is single GPU per rank + MPI. Let me record the traces.
+
+First, the reference (cpu-mpi) variant:
+  → record_shape miniFE cpu-mpi miniFE reference: unstructured implicit FE + CG solve, pure MPI mpirun -np N ./min...
+  → record_shape miniFE cpu-mpi miniFE reference: memory/topology characterization mpirun -np N ./miniFE.x nx=... ...
+Let me re-record the bandwidth_sensitive assertion with proper absent-style evidence.
+  → record_shape miniFE cpu-mpi miniFE reference: negative comms/mem/io facts mpirun -np N ./miniFE.x nx=... ny=.....
+Now the OpenMP+MPI hybrid variant:
+  → record_shape miniFE cpu-mpi-openmp miniFE OpenMP+MPI hybrid: threaded SpMV/vector ops per rank OMP_NUM_THREADS...
+Now the CUDA variant:
+  → record_shape miniFE cuda-mpi miniFE CUDA: GPU SpMV/CG, one GPU per MPI rank mpirun -np N ./miniFE.x nx=... ny=...
+  → record_shape miniFE cuda-mpi miniFE CUDA: topology/launch mpirun -np N ./miniFE.x nx=... ny=... nz=...  (one G...
+I've completed the analysis. Here's a summary of what miniFE builds and how each variant wants to run.
+
+## What it builds
+
+miniFE is a Sandia/Mantevo **proxy application for unstructured implicit finite-element codes**: it assembles FE matrices over a partitioned 3D box and solves the linear system with **Conjugate Gradient** (`ref/src/main.cpp`, `ref/src/cg_solve.hpp`). The repo ships the same mini-app in many hand-tuned backend directories (`ref/`, `openmp/`, `cuda/`, `kokkos/`, `mkl/`, `cilk/`, `qthreads/`, `openmp45/`, `nvamg/`, …). Each builds a single `miniFE.x` executable via a plain `Makefile` (no CMake), and every variant is compiled with `mpicxx` and `-DHAVE_MPI`. I traced the three variants that are cleanly separable with real evidence.
+
+## Traces recorded
+
+**`miniFE : cpu-mpi`** (reference) — Pure MPI, no OpenMP pragmas in `ref/`. Communication is `mixed`: neighbor halo exchange (`MPI_Irecv`/`MPI_Send`/`MPI_Wait` in `exchange_externals.hpp`) in the matvec, plus a single-scalar `MPI_Allreduce` dot product per CG iteration. That makes it **latency-sensitive**, not network-bandwidth-sensitive (no all-to-all/allgather). The SpMV-driven CG is **memory-bandwidth bound / very-low arithmetic intensity / poor cache reuse**. No shared memory, no parallel I/O, no checkpointing. Placement: neighbor, co-location preferred.
+
+**`miniFE : cpu-mpi-openmp`** — Same MPI comm pattern, with `#pragma omp parallel for` (and `#pragma vector nontemporal`) over the sparse/vector kernels (`openmp/src/Makefile -fopenmp`; pragmas in the openmp-opt variant). Adds `threaded` parallelism and **NUMA sensitivity**; still memory-bandwidth bound / very-low AI. Runs as `OMP_NUM_THREADS=T mpirun -np N`.
+
+**`miniFE : cuda-mpi`** — `nvcc` `__global__` kernels on an ELL matrix, one GPU per MPI rank. Same neighbor+reduction MPI pattern between ranks. `accelerator.kind=cuda`, `multi_gpu=false`. A `GPUDIRECT` (GPU-aware MPI) macro exists but is **commented out by default** in the Makefile (default builds stage through host `send_buffer`); `MATVEC_OVERLAP` is on to hide comm. Still memory-bandwidth bound / very-low AI.
+
+No launch geometry (node/rank/thread counts) is literally stated anywhere in the repo, so none was recorded. The remaining backends (kokkos, mkl, cilk, qthreads, etc.) are additional threading/task variants of the same CG proxy and could be traced separately if needed.
+  ✓ recorded 35 assertion(s) across 3 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-1651/us-anthropic-claude-opus-4-8/
+  shapes-20260813-1651/us-anthropic-claude-opus-4-8/github.com/Mantevo/miniFE/unpinned/shapes.json

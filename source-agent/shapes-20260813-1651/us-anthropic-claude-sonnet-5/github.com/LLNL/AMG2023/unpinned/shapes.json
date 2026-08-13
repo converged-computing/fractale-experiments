@@ -1,0 +1,411 @@
+{
+  "entry": {
+    "commit": "",
+    "notes": "unpinned: could not resolve commit (rev-parse: rc=128 out='HEAD' err=\"fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr\"; log: rc=128 out='' err=\"fatal: your current branch 'master' does not have any commits yet\"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out='')",
+    "reads": {
+      "budget": {
+        "exhausted": false,
+        "limit": 60000,
+        "remaining": 50974,
+        "spent": 9026
+      },
+      "files": {
+        "CMakeLists.txt": {
+          "lines_read": 110,
+          "span": "1-110",
+          "total_lines": 110
+        },
+        "Makefile": {
+          "lines_read": 120,
+          "span": "1-120",
+          "total_lines": 135
+        },
+        "README.md": {
+          "lines_read": 60,
+          "span": "1-60",
+          "total_lines": 60
+        },
+        "amg-doc.pdf": {
+          "lines_read": 100,
+          "span": "286-4322",
+          "total_lines": 7018
+        },
+        "amg.c": {
+          "lines_read": 704,
+          "span": "1-2944",
+          "total_lines": 3079
+        }
+      }
+    },
+    "repo": "https://github.com/LLNL/AMG2023",
+    "resolved_from": "",
+    "run": {
+      "backend": "aws",
+      "base_image": "buildpack-deps:bookworm-scm",
+      "duration_s": 172.03074838395696,
+      "focus": "",
+      "max_source_tokens": 60000,
+      "mode": "container",
+      "model": "us.anthropic.claude-sonnet-5",
+      "model_max_tokens": 16384,
+      "started": "2026-08-13T17:00:42+00:00",
+      "tool_version": "0.0.12"
+    },
+    "schema_version": "schedule-shape/v2",
+    "skipped": "",
+    "traces": [
+      {
+        "confidence": "medium",
+        "notes": "Sparse algebraic-multigrid workloads (stencil assembly, SpMV, smoothing) are well known to be memory-bandwidth bound with low arithmetic intensity; no explicit statement of this was found in README/docs so this is judgment based on the kernel structure visible in amg.c.",
+        "shapes": [
+          {
+            "assertions": [
+              {
+                "confidence": "high",
+                "evidence": [
+                  "amg.c:181 (hypre_MPI_Init)",
+                  "amg.c:183-184 (Comm_size/Comm_rank)",
+                  "README.md:10 (SPMD code which uses MPI)"
+                ],
+                "field": "parallelism",
+                "value": [
+                  "process",
+                  "mpi"
+                ]
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "amg.c:546,598,623,632,685,735,759,767 (hypre_MPI_Barrier at every setup/solve phase)",
+                  "README.md:11-12 (grid subdivided into logical PxQxR chunks -> neighbor exchange)"
+                ],
+                "field": "communication.model",
+                "value": "mixed"
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "amg.c:978-988 (P,Q,R processor topology, per-rank chunk of global grid)",
+                  "amg.c:1027-1029 (Cx,Cy,Cz neighbor-offset stencil terms computed from P,Q for 27pt Laplacian)",
+                  "amg.c:243-330 (PCG/GMRES solvers imply per-iteration global reductions for dot products/residual norms)"
+                ],
+                "field": "communication.pattern",
+                "value": [
+                  "neighbor",
+                  "reduction",
+                  "broadcast"
+                ]
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "amg.c:546-767 (repeated MPI_Barrier synchronization at every AMG setup/solve phase across V-cycle levels)"
+                ],
+                "field": "communication.intensity",
+                "value": "moderate"
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "amg.c:1027-1029 (fine-grained stencil communication pattern typical of structured 3D decomposition)"
+                ],
+                "field": "communication.latency_sensitive",
+                "value": true
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "amg.c:978-988 (global problem size scales with P*Q*R ranks; 27pt stencil matrix assembly and AMG coarsening involve growing communication volume across levels)"
+                ],
+                "field": "communication.bandwidth_sensitive",
+                "value": true
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "amg.c:943-988 (P,Q,R topology and -n per-process sizing allow arbitrary rank counts across 1..many nodes)"
+                ],
+                "field": "topology.span",
+                "value": "either"
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "amg.c:1027-1029 (logical 3D Cartesian PxQxR decomposition implies stencil/neighbor communication topology)"
+                ],
+                "field": "topology.placement",
+                "value": "neighbor"
+              }
+            ],
+            "label": "AMG2023 driver, MPI-only build (default Makefile/CMake config, no OpenMP, no GPU)",
+            "launch_command": "mpirun -np <N> ./amg -problem 1 -n <nx> <ny> <nz> -P <px> <py> <pz>"
+          },
+          {
+            "assertions": [
+              {
+                "confidence": "high",
+                "evidence": [
+                  "memory.bound_by inferred: sparse 7pt/27pt stencil matrix assembly (amg.c:1010-1029, 2792-2812) and CSR/ParCSR SpMV-based AMG solves are classic low-arithmetic-intensity sparse kernels"
+                ],
+                "field": "memory.bound_by",
+                "value": "memory_bandwidth"
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "amg.c:1010-1029 (7pt/27pt stencil, few flops per nonzero entry touched, values array of 4 constants reused across whole grid)"
+                ],
+                "field": "memory.arithmetic_intensity",
+                "value": "very_low"
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "amg.c:1010-1029 (sparse CSR row-by-row stencil construction, indirect indexing typical of AMG/SpMV, poor spatial locality across levels)"
+                ],
+                "field": "memory.cache_reuse",
+                "value": "poor"
+              },
+              {
+                "confidence": "low",
+                "evidence": [
+                  "absent: pthread_setaffinity|sched_setaffinity|numa in amg.c"
+                ],
+                "field": "memory.numa_sensitive",
+                "value": false
+              },
+              {
+                "confidence": "low",
+                "evidence": [
+                  "absent: shm_open|MPI_Win_allocate_shared|/dev/shm in amg.c"
+                ],
+                "field": "memory.shared_memory",
+                "value": false
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "absent: MPI_File|hdf5|adios|netcdf in amg.c"
+                ],
+                "field": "io.parallel_io",
+                "value": "none"
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "absent: restart|checkpoint|Restart in amg.c (driver builds and solves matrix in a single run, no restart files)"
+                ],
+                "field": "io.checkpoint",
+                "value": false
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "CMakeLists.txt:21 (AMG_WITH_MPI default TRUE, only supported comm layer)",
+                  "Makefile:9 (CC=mpicc default)"
+                ],
+                "field": "launch.launcher",
+                "value": "mpirun"
+              }
+            ],
+            "label": "AMG2023 driver, MPI-only build memory/io characteristics",
+            "launch_command": "mpirun -np <N> ./amg -problem 1 -n <nx> <ny> <nz> -P <px> <py> <pz>"
+          }
+        ],
+        "subject": "amg2023",
+        "unmatched": [],
+        "variant": "cpu-mpi"
+      },
+      {
+        "confidence": "medium",
+        "notes": "No explicit CPU affinity/pinning code found in the driver itself.",
+        "shapes": [
+          {
+            "assertions": [
+              {
+                "confidence": "high",
+                "evidence": [
+                  "CMakeLists.txt:25,81-85 (AMG_WITH_OMP option, find_package(OpenMP REQUIRED), links OpenMP::OpenMP_C)",
+                  "Makefile:81-86 (commented -fopenmp/-qsmp=omp/-qopenmp build flags)",
+                  "amg.c:1030-1048 (HYPRE_USING_OPENMP guarded block, hypre_NumActiveThreads/hypre_GetThreadNum used to split loop over threads)"
+                ],
+                "field": "parallelism",
+                "value": [
+                  "process",
+                  "mpi",
+                  "threaded"
+                ]
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "README.md:10 (uses MPI and OpenMP threading within MPI tasks)"
+                ],
+                "field": "communication.model",
+                "value": "mixed"
+              },
+              {
+                "confidence": "low",
+                "evidence": [
+                  "amg.c:1039-1048 (OpenMP loop-level parallel construction of local stencil sub-blocks per rank, each rank still needs its full local memory near its own NUMA domain)"
+                ],
+                "field": "memory.numa_sensitive",
+                "value": true
+              }
+            ],
+            "label": "AMG2023 driver, MPI+OpenMP build (AMG_WITH_OMP=ON)",
+            "launch_command": "OMP_NUM_THREADS=<T> mpirun -np <N> ./amg -problem 1 -n <nx> <ny> <nz> -P <px> <py> <pz>"
+          },
+          {
+            "assertions": [
+              {
+                "confidence": "low",
+                "evidence": [
+                  "absent: sched_setaffinity|pthread_setaffinity|numactl in amg.c"
+                ],
+                "field": "memory.cpu_exclusive",
+                "value": false
+              }
+            ],
+            "label": "AMG2023 driver, MPI+OpenMP build (AMG_WITH_OMP=ON) affinity",
+            "launch_command": "OMP_NUM_THREADS=<T> mpirun -np <N> ./amg -problem 1 -n <nx> <ny> <nz> -P <px> <py> <pz>"
+          }
+        ],
+        "subject": "amg2023",
+        "unmatched": [],
+        "variant": "cpu-mpi-openmp"
+      },
+      {
+        "confidence": "medium",
+        "notes": "No hugepage usage found in the driver source.",
+        "shapes": [
+          {
+            "assertions": [
+              {
+                "confidence": "high",
+                "evidence": [
+                  "CMakeLists.txt:22,50-58 (AMG_WITH_CUDA option, find_package(CUDAToolkit REQUIRED), links cudart/cusolver/cublas/cusparse/curand)",
+                  "amg.c:142-149 (HYPRE_USING_GPU/HYPRE_USING_CUDA macros select spmv_use_vendor/spgemm_use_vendor)",
+                  "amg.c:371-374 (HYPRE_DeviceInitialize(), HYPRE_PrintDeviceInfo())"
+                ],
+                "field": "parallelism",
+                "value": [
+                  "process",
+                  "mpi",
+                  "gpu"
+                ]
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "CMakeLists.txt:50-57 (CUDA::cudart, cusolver, cublas, cusparse, curand dependencies)"
+                ],
+                "field": "accelerator.kind",
+                "value": "cuda"
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "amg.c:154-155 (single default memory_location/execution policy HYPRE_MEMORY_DEVICE/HYPRE_EXEC_DEVICE per process, one device context per rank)",
+                  "absent: cudaSetDevice with multiple device indices or multi-gpu loop in amg.c"
+                ],
+                "field": "accelerator.multi_gpu",
+                "value": false
+              },
+              {
+                "confidence": "low",
+                "evidence": [
+                  "Makefile:35-41 (comment: MPI options needed for Crusher/Tioga/RZVernal AMD GPU systems, might not be needed elsewhere, implying GPU-aware MPI transport used on those machines)"
+                ],
+                "field": "accelerator.gpu_comm",
+                "value": "gpu_aware_mpi"
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "amg.c:386-430 (Umpire device-memory pool sized by -dev_pool_size / -um_pool_size, GB-sized GPU allocations)",
+                  "amg.c:151 (dev_pool_size = 4, um_pool_size = 4 default GB)"
+                ],
+                "field": "memory.bound_by",
+                "value": "memory_bandwidth"
+              }
+            ],
+            "label": "AMG2023 driver, CUDA GPU build (AMG_WITH_CUDA=ON)",
+            "launch_command": "mpirun -np <N> ./amg -problem 1 -n <nx> <ny> <nz> -P <px> <py> <pz> -exec_device -memory_device"
+          },
+          {
+            "assertions": [
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "absent: hugepage|hugetlb|MAP_HUGETLB in amg.c"
+                ],
+                "field": "memory.hugepages",
+                "value": false
+              }
+            ],
+            "label": "AMG2023 driver, CUDA GPU build hugepages",
+            "launch_command": "mpirun -np <N> ./amg -problem 1 -n <nx> <ny> <nz> -P <px> <py> <pz> -exec_device -memory_device"
+          }
+        ],
+        "subject": "amg2023",
+        "unmatched": [],
+        "variant": "mpi-cuda"
+      },
+      {
+        "confidence": "medium",
+        "notes": "Same driver/solver, targeting AMD GPUs via hypre's HIP backend (Crusher/Tioga/RZVernal per Makefile comments). One rank per GPU is the typical LLNL usage pattern implied by the Makefile comments, not stated as a literal invocation in this repo.",
+        "shapes": [
+          {
+            "assertions": [
+              {
+                "confidence": "high",
+                "evidence": [
+                  "CMakeLists.txt:23,60-69 (AMG_WITH_HIP option, find_package(hip/rocsparse/rocrand REQUIRED), links hip::device, hip::host, roc::rocsparse, roc::rocrand)",
+                  "Makefile:52-56 (HYPRE_HIP_PATH/-lamdhip64 -lrocsparse -lrocrand)",
+                  "amg.c:142-149 (HYPRE_USING_GPU macro path used generically for CUDA or HIP builds)"
+                ],
+                "field": "parallelism",
+                "value": [
+                  "process",
+                  "mpi",
+                  "gpu"
+                ]
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "CMakeLists.txt:60-68 (hip::device, hip::host, roc::rocsparse, roc::rocrand dependencies)"
+                ],
+                "field": "accelerator.kind",
+                "value": "rocm"
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "absent: multiple hipSetDevice calls or multi-device loop in amg.c"
+                ],
+                "field": "accelerator.multi_gpu",
+                "value": false
+              },
+              {
+                "confidence": "low",
+                "evidence": [
+                  "Makefile:35-41 (comment: MPI options needed for Crusher/Tioga/RZVernal AMD GPUs, -lmpi needed for AMD GPUs, implying GPU-aware MPI transport on these systems)"
+                ],
+                "field": "accelerator.gpu_comm",
+                "value": "gpu_aware_mpi"
+              }
+            ],
+            "label": "AMG2023 driver, HIP/ROCm GPU build (AMG_WITH_HIP=ON)",
+            "launch_command": "mpirun -np <N> ./amg -problem 1 -n <nx> <ny> <nz> -P <px> <py> <pz> -exec_device -memory_device"
+          }
+        ],
+        "subject": "amg2023",
+        "unmatched": [],
+        "variant": "mpi-rocm"
+      }
+    ]
+  },
+  "version": "schedule-shape/report/v1"
+}

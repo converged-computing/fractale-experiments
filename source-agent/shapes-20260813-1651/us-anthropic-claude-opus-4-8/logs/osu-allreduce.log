@@ -1,0 +1,46 @@
+[auto-approved] finalize-setup: {"base_image": "buildpack-deps:bookworm-scm", "focus": "osu_allreduce MPI_Allreduce collective benchmark", "keep": true, "mode": "container", "ref": null, "repos": ["https://github.com/jwu274/osu-micro-benchmarks"]}
+
+▸ https://github.com/jwu274/osu-micro-benchmarks  [1/1]
+[auto-approved] clone: {"effect": "network + write", "repo": "https://github.com/jwu274/osu-micro-benchmarks"}
+  · cloning https://github.com/jwu274/osu-micro-benchmarks into container
+  · warning: could not resolve commit; rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+  ⚠ unpinned: rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+I'll analyze the OSU Micro-Benchmarks repository, focusing on the osu_allreduce benchmark.
+  → find . *allreduce* file
+  → find . configure.ac file
+  → read c/mpi/collective/blocking/osu_allreduce.c 1 200
+This is a clear picture. The benchmark does `MPI_Allreduce` in a loop over message sizes, with `MPI_Barrier` and `MPI_Reduce`. Let me check the accelerator support and README for launch details.
+  → search init_accel|CUDA|cudaMalloc|MPIX|GPU 2 15
+  → search mpirun|mpiexec|-np|osu_allreduce 2 15
+I have enough to characterize this. The subject is `osu_allreduce` — a pure MPI collective latency benchmark. It supports CUDA/ROCm accelerator buffers as an optional build variant. Let me record the two main variants.
+
+The launch example uses `mpirun_rsh -np 2`. Let me record the CPU/MPI variant first.
+  → record_shape osu_allreduce cpu-mpi OSU MPI_Allreduce latency micro-benchmark (host buffers) mpirun_rsh -np 2 -...
+  → record_shape osu_allreduce cpu-mpi OSU MPI_Allreduce latency micro-benchmark (host buffers) - launch/topology ...
+Now the CUDA-enabled variant. Let me verify how device buffers are used and whether GPU-aware MPI paths exist.
+  → search MV2_USE_CUDA|D D|device buffer|allocate_device 2 8
+The CUDA variant passes GPU device buffers directly to `MPI_Allreduce` (via `-d cuda` / `D D`), relying on GPU-aware MPI (e.g. `MV2_USE_CUDA=1`). This is a GPU-buffer collective that wants GPU-aware MPI. Let me record it.
+  → record_shape osu_allreduce cuda-mpi OSU MPI_Allreduce latency micro-benchmark with CUDA device buffers mpirun_...
+I've characterized the requested benchmark. Summary:
+
+## Subject: `osu_allreduce`
+
+Built from `c/mpi/collective/blocking/osu_allreduce.c` (OSU Micro-Benchmarks, GNU autotools build via `configure.ac`). It is a **microbenchmark**, not an application — its entire timed inner loop is a single `MPI_Allreduce(..., MPI_SUM, comm)` swept over doubling message sizes, with `MPI_Barrier` synchronization and per-size `MPI_Reduce` to gather min/max/avg latency across ranks. It measures the interconnect, not local compute.
+
+I recorded **two variants** as separate traces:
+
+### `osu_allreduce:cpu-mpi` (high confidence)
+- **Parallelism:** pure MPI (`omb_mpi_init`, `MPI_Comm_rank/size`, `MPI_Allreduce`). No threads/OpenMP/shared memory.
+- **Communication:** collective, pattern `reduction`, high intensity (the loop body *is* the collective), latency-sensitive (small message sizes) and bandwidth-sensitive (large sizes up to `LARGE_MESSAGE_SIZE`).
+- **memory.bound_by = network** — it's a latency test of the interconnect.
+- **Launch:** `mpirun` (docs use `mpirun_rsh -np 2 -hostfile ...`); requires ≥2 ranks. No parallel I/O, no checkpoint. Co-location preferred for latency runs; can span nodes to measure cross-node fabric.
+
+### `osu_allreduce:cuda-mpi` (high confidence)
+- Same collective loop but send/recv buffers are **CUDA device memory** (`-d cuda` / `D D`), enabled with `--enable-cuda` (`configure.ac`).
+- **accelerator.kind = cuda**, **gpu_comm = gpu_aware_mpi** — device buffers are passed straight into `MPI_Allreduce`, relying on GPU-aware MPI (`MV2_USE_CUDA=1`). One GPU per rank per the docs, so multi_gpu across ranks; inter-GPU collective, co-location preferred.
+
+A ROCm build variant also exists (`--enable-rocm`, `MV2_USE_ROCM=1`) with identical structure; I focused on the CUDA variant as it's the primary GPU path documented. The launch counts (`tasks=2`) come only from the literal documented example, not invented.
+  ✓ recorded 22 assertion(s) across 2 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-1651/us-anthropic-claude-opus-4-8/
+  shapes-20260813-1651/us-anthropic-claude-opus-4-8/github.com/jwu274/osu-micro-benchmarks/unpinned/osu_allreduce_MPI_Allreduce_collective_benchmark/shapes.json

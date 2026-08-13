@@ -1,0 +1,63 @@
+[auto-approved] finalize-setup: {"base_image": "buildpack-deps:bookworm-scm", "focus": null, "keep": true, "mode": "container", "ref": null, "repos": ["https://github.com/LLNL/Quicksilver"]}
+
+▸ https://github.com/LLNL/Quicksilver  [1/1]
+[auto-approved] clone: {"effect": "network + write", "repo": "https://github.com/LLNL/Quicksilver"}
+  · cloning https://github.com/LLNL/Quicksilver into container
+  · warning: could not resolve commit; rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+  ⚠ unpinned: rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+  → find . * dir
+  → find src * file
+  → find . *.md file
+  → read README.md 1 150
+  → read src/READ.ME.HOW.TO.RUN 1 150
+Now let's look at Makefile for build variants (CUDA, OpenMP, MPI).
+  → read src/Makefile 1 200
+  → read src/Makefile 200 170
+  → search MPI_(Isend|Irecv|Allreduce|Reduce|Bcast|Waitall|Alltoall|Gather|Barrier) 2 60
+  → search mpiIsend|mpiIrecv|mpiWaitall|mpiAllreduce|mpiIAllreduce 3 30
+  → search cudaMalloc|cudaMemcpy|__global__|cudaSetDevice|hipMalloc|cudaMallocManaged 3 20
+  → search omp parallel|omp_set_num_threads|OMP_NUM_THREADS 3 20
+  → read Examples/CORAL2_Benchmark/Problem1/P1_64t.sh 1 30
+  → read Examples/CTS2_Benchmark/CTS2_scaling.sh 1 30
+  → find Examples *.sh file
+  → search checkpoint|restart|writeRestart|readRestart 2 20
+  → read src/SharedMemoryCommObject.cc 1 80
+  → search MPI_Win|shm_open|/dev/shm 2 10
+  → read src/cudaFunctions.cc 1 86
+  → search cudaSetDevice|cudaGetDeviceCount|MPI_Comm_rank.*Device|deviceId 3 20
+  → search Managed|UnifiedMemory|cudaMallocManaged|hipMallocManaged 3 15
+  → read src/MemoryControl.hh 1 60
+  → search omp parallel for|#pragma omp 3 15
+  → read src/MC_Particle_Buffer.hh 1 50
+Good, that confirms OpenMP target (GPU offload) variant and MPI particle buffer exchange between neighbor domains. Now let's check mc_omp_parallel_for_schedule_static.hh for CPU threading pattern, and check MPI_THREAD_MULTIPLE usage for latency sensitivity.
+  → read src/mc_omp_parallel_for_schedule_static.hh 1 40
+  → search MPI_THREAD_MULTIPLE|mpiThreadMultiple 3 10
+  → search nccl|rccl|NCCL|RCCL 2 10
+  → search memory.*bound|bandwidth.bound|latency.bound|branchy|divergen 3 10
+Good, direct statement: "latency bound table look-ups" -> memory_latency bound, poor cache reuse, low arithmetic intensity. Now I have sufficient evidence. Let's record shapes.
+  → record_shape qs cpu-mpi-openmp Quicksilver Monte Carlo transport proxy app (CPU, MPI+OpenMP build) srun -N<nod...
+  → record_shape qs cpu-mpi-openmp Quicksilver CPU MPI+OpenMP launch geometry and I/O srun -N24576 -n24576 ./qs -i...
+  → record_shape qs cpu-mpi-openmp Quicksilver CPU co-location correction srun -N24576 -n24576 ./qs -i Coral2_P1.i...
+Now let's add the accelerator=none field for this CPU variant, then move to GPU (CUDA) variant.
+  → record_shape qs cpu-mpi-openmp Quicksilver CPU build has no accelerator srun -N24576 -n24576 ./qs -i Coral2_P1...
+Now the CUDA GPU variant.
+  → record_shape qs cuda Quicksilver CUDA GPU build (MPI + CUDA, unified memory) nvcc-built qs launched like: srun...
+Now add remaining shared fields for CUDA variant not yet covered (communication.intensity, latency_sensitive, bandwidth_sensitive, shared_memory, numa_sensitive, hugepages, cpu_exclusive, launch, io, topology, ordered_dependency, arithmetic_intensity, cache_reuse).
+  → record_shape qs cuda Quicksilver CUDA GPU build memory/comm/topology details srun -n<ranks> ./qs -i <input>.in...
+Now the ROCm/HIP variant, since Makefile shows an active (uncommented) HIP build block distinct from CUDA.
+  → record_shape qs rocm Quicksilver ROCm/HIP GPU build (MPI + HIP, unified memory) mpicxx(HIP)-built qs launched ...
+This is sufficient coverage. Let me do a final check of `seen` to confirm budget usage and wrap up.
+  → seen {}
+I have gathered sufficient evidence and recorded three well-separated traces for the Quicksilver proxy app (`qs` executable, built from `src/Makefile`):
+
+1. **qs / cpu-mpi-openmp** — the default/CPU build (MPI ranks over a domain-decomposed structured mesh + OpenMP threads per rank). Communication is mixed: point-to-point neighbor exchange of particles/facet data between adjacent mesh-partition ranks (`MpiCommObject.cc`), plus periodic global `Allreduce`/`Bcast` for tallies and termination checks. Documented as latency-bound with poor cache/vectorization behavior (README).
+
+2. **qs / cuda** — GPU build enabled via `-DHAVE_CUDA`/`nvcc` in the Makefile, using `cudaMallocManaged` (unified memory) for shared host/device state, same MPI neighbor/reduction communication skeleton as the CPU build, no NCCL/GPU-direct path found.
+
+3. **qs / rocm** — the currently active HIP/AMD build block in the Makefile (`-DHAVE_HIP --offload-arch=gfx90a`, cray-mpich), functionally the same neighbor-exchange/reduction MPI pattern with HIP-based unified memory instead of CUDA.
+
+All three share the domain-decomposition neighbor-exchange + reduction communication pattern and the documented memory-latency-bound, poor-cache-reuse, very-low-arithmetic-intensity performance profile, differing mainly in accelerator kind. Evidence for each assertion was cited from the actual Makefile build blocks, MPI wrapper/usage code, particle-buffer/communication object source, and the README's explicit performance-bound statement.
+  ✓ recorded 53 assertion(s) across 3 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-2155/us-anthropic-claude-sonnet-5/
+  shapes-20260813-2155/us-anthropic-claude-sonnet-5/github.com/LLNL/Quicksilver/unpinned/shapes.json

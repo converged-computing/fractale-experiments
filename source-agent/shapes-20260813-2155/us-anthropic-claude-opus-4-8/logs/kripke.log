@@ -1,0 +1,83 @@
+[auto-approved] finalize-setup: {"base_image": "buildpack-deps:bookworm-scm", "focus": null, "keep": true, "mode": "container", "ref": null, "repos": ["https://github.com/LLNL/Kripke"]}
+
+▸ https://github.com/LLNL/Kripke  [1/1]
+[auto-approved] clone: {"effect": "network + write", "repo": "https://github.com/LLNL/Kripke"}
+  · cloning https://github.com/LLNL/Kripke into container
+I'll start by exploring the repository structure to understand what Kripke builds.
+  → find . * file
+  → find . CMakeLists.txt file
+Kripke is a discrete-ordinates (Sn) transport mini-app. Let me read the build system and README.
+  → read CMakeLists.txt 1 200
+  → read README.md 1 150
+This confirms Kripke is an Sn transport mini-app using RAJA, MPI, OpenMP, and CUDA/HIP. Let me read the rest of the README for launch geometry and the kripke CMakeLists for build variants.
+  → read README.md 150 160
+  → read cmake/kripke/CMakeLists.txt 1 200
+Now I have a clear picture of the variants: MPI, OpenMP, CUDA, HIP(ROCm), and GPU-aware MPI. Let me continue reading the CMakeLists for architecture handling, and examine the communication code (the sweep/ParallelComm).
+  → read cmake/kripke/CMakeLists.txt 200 120
+  → read src/Kripke/ParallelComm/SweepComm.cpp 1 200
+This is the wavefront sweep — upwind/downwind dependency, neighbor plane exchange. Let me look at ParallelComm.cpp for the actual MPI calls, and the Comm.h core for collectives.
+  → read src/Kripke/ParallelComm.cpp 1 250
+  → search MPI_(Isend|Irecv|Send|Recv|Allreduce|Reduce|Bcast|Waitany|Wait|Test) 2 40
+I have solid evidence: point-to-point Isend/Irecv neighbor plane exchange with Testany (async wavefront sweep), plus Allreduce reductions. Let me check the SweepSolver for the wavefront/iteration structure and how threads/RAJA/GPU are dispatched. Let me also check the BlockJacobiComm and confirm affinity/shared memory absence.
+  → read src/Kripke/SweepSolver.cpp 1 120
+  → search shm_open|/dev/shm|MPI_Win|sched_setaffinity|hugepage|numa_ 2 20
+No shared-memory windows, no affinity pinning in the compute code (the /dev/shm hit is only for CI build directory). Let me check the RAJA execution policies for GPU/OpenMP and any launch examples in CI/host-configs. Let me also check the ArchLayout for arch selection and look at a kernel to gauge arithmetic intensity.
+  → search cuda_exec|hip_exec|omp_parallel|OMP_NUM_THREADS|mpirun|srun|jsrun|--procs 2 15
+  → read src/Kripke/ParallelComm/BlockJacobiComm.cpp 1 60
+I have enough for the main picture. Let me quickly check the SteadyStateSolver for the allreduce usage per iteration (Population/convergence check) and confirm no checkpoint/parallel I/O. Then record.
+  → search MPI_File|hdf5|adios|netcdf|restart|checkpoint|allReduce 2 10
+No parallel I/O, no checkpoint/restart. Now I have enough evidence to record. The subject is `kripke` (kripke.exe). I'll record separate variants:
+
+1. **mpi** (CPU MPI+sweep) — the core distributed variant
+2. **cuda** — GPU offload via RAJA cuda_exec
+3. **rocm** — GPU offload via RAJA hip_exec
+4. **gpu_aware_mpi** — the direct GPU pointer path
+
+Let me record the main MPI variant first.
+  → record_shape kripke mpi Kripke Sn transport, MPI sweep on CPU srun kripke --procs npx,npy,npz --pmethod sweep ...
+  → record_shape kripke mpi Kripke MPI sweep - memory/io/topology srun kripke --procs npx,npy,npz --pmethod sweep ...
+Now let me add memory-bound characterization for the MPI variant. Kripke's whole purpose (per README) is studying data-layout/memory-system effects on sparse-ish transport kernels — this is memory-bandwidth bound with low arithmetic intensity. Let me confirm by peeking at a kernel.
+  → read src/Kripke/Kernel/LTimes.cpp 1 70
+This is a classic streaming kernel: `phi += ell * psi` — one multiply-add per element loaded, low reuse, layout-dependent. The whole codebase's stated purpose is studying memory-system/data-layout effects. This supports memory_bandwidth bound, low arithmetic intensity. Let me record that for the MPI variant.
+  → record_shape kripke mpi Kripke MPI sweep - memory bound characterization srun kripke --procs npx,npy,npz --pme...
+Now the CUDA variant. It uses RAJA cuda_exec (one GPU per process). Let me record it. Note multi_gpu is per-process false (one device per rank), and gpu_comm is none unless GPU-aware MPI is enabled.
+  → record_shape kripke cuda Kripke Sn transport, RAJA CUDA offload srun kripke --arch CUDA --procs npx,npy,npz me...
+Let me re-record the gpu_comm=none for cuda with proper absent evidence, plus topology fields.
+  → record_shape kripke cuda Kripke CUDA - comm/memory/topology srun kripke --arch CUDA --procs npx,npy,npz medium...
+Now the ROCm/HIP variant, analogous to CUDA.
+  → record_shape kripke rocm Kripke Sn transport, RAJA HIP/ROCm offload srun kripke --arch HIP --procs npx,npy,npz...
+Now the GPU-aware MPI variant, which is a distinct build path (ENABLE_GPU_AWARE_MPI + CHAI) that passes device pointers directly to MPI.
+  → record_shape kripke gpu_aware_mpi Kripke Sn transport, GPU-aware MPI sweep srun kripke --arch CUDA --procs npx...
+Let me also record the OpenMP threaded variant briefly (a distinct on-node build: RAJA omp_parallel), since it's enabled independently and controlled by OMP_NUM_THREADS.
+  → record_shape kripke threaded Kripke Sn transport, OpenMP threaded on CPU OMP_NUM_THREADS=N srun kripke --arch ...
+I've traced all the meaningful variants. Let me verify my coverage and budget.
+  → seen {}
+I have thorough coverage and recorded five distinct traces. Here's my characterization summary.
+
+## Summary
+
+**Subject:** `kripke` (`kripke.exe`) — a 3D Sn deterministic particle-transport mini-app / proxy for LLNL's ARDRA, built via BLT/CMake on top of RAJA (loop abstraction) with optional CHAI/Umpire.
+
+The core is a **source-iteration solver** whose dominant cost is an **asynchronous parallel sweep** (wavefront) with a Block-Jacobi alternative. I separated it into five build/config variants — a scheduler treats these very differently:
+
+### `kripke:mpi` (CPU MPI, high confidence)
+- **Wavefront sweep**: `MPI_Isend`/`MPI_Irecv` of face-plane data to upwind/downwind neighbors on a 3D structured grid, driven by a `MPI_Testany` ready-queue → **ordered dependency chain** (a slow rank stalls the sweep front).
+- Plus small `MPI_Allreduce` reductions. Pattern set = **{neighbor, reduction, wavefront}**, model = mixed.
+- **Latency-sensitive** (many small plane messages), not bandwidth-sensitive (no all-to-all/bulk transfers).
+- **Memory-bandwidth bound / low arithmetic intensity** — kernels like `phi += ell*psi` are one FMA per streamed element; the code's whole stated purpose is studying data-layout/memory-system effects.
+- No shared memory, no affinity, no parallel I/O, no checkpointing. Placement = neighbor, co-location preferred.
+
+### `kripke:threaded` (MPI + OpenMP)
+- RAJA `omp_parallel_for` kernels, `OMP_NUM_THREADS`-controlled; same sweep/reduction comms; same memory-bandwidth-bound streaming kernels. No built-in pinning.
+
+### `kripke:cuda` and `kripke:rocm` (GPU offload)
+- RAJA `cuda_exec<256>` / `hip_exec<256>`, **one device per MPI rank** (not multi-GPU per process). Sweep comm still MPI; default path **stages device planes through host buffers** → `gpu_comm=none`. No NCCL/RCCL.
+
+### `kripke:mpi-gpu-aware` (ENABLE_GPU_AWARE_MPI + CHAI)
+- Distinct build passing **device pointers directly to `MPI_Isend`/`Irecv`** (with a device sync before send) → `gpu_comm=gpu_aware_mpi`; wants co-located GPUs on a fast link.
+
+**Launch geometry:** decomposition is `--procs npx,npy,npz` (default 1,1,1) — no fixed rank/node counts are stated in any real invocation, so I recorded none.
+  ✓ recorded 54 assertion(s) across 5 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-2155/us-anthropic-claude-opus-4-8/
+  shapes-20260813-2155/us-anthropic-claude-opus-4-8/github.com/LLNL/Kripke/1b35d13af69b/shapes.json

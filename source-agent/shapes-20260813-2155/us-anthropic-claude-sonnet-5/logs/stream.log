@@ -1,0 +1,33 @@
+[auto-approved] finalize-setup: {"base_image": "buildpack-deps:bookworm-scm", "focus": null, "keep": true, "mode": "container", "ref": null, "repos": ["https://github.com/jeffhammond/STREAM"]}
+
+▸ https://github.com/jeffhammond/STREAM  [1/1]
+[auto-approved] clone: {"effect": "network + write", "repo": "https://github.com/jeffhammond/STREAM"}
+  · cloning https://github.com/jeffhammond/STREAM into container
+  → find . * file
+  → read Makefile 1 100
+  → read README 1 150
+  → find . *.c file
+  → read stream.c 1 120
+  → search omp parallel|pragma omp|numthreads|Number of Threads 3 30
+  → search bandwidth|memory-bound|memory bound|bytes/sec 2 20
+Now I have enough evidence. This is a memory bandwidth microbenchmark, single-node, OpenMP-threaded, no MPI in this snapshot (stream_mpi.c mentioned in README is not present in this repo tree). Let's record the trace.
+  → record_shape stream_c.exe threaded-openmp STREAM C benchmark (OpenMP threaded, single process) OMP_NUM_THREADS...
+  → record_shape stream_c.exe threaded-openmp STREAM C benchmark (OpenMP threaded, single process) OMP_NUM_THREADS...
+Now recording the MPI variant referenced in README (not present in this snapshot's file tree, so lower confidence, based on documentation description).
+  → record_shape stream_mpi mpi stream_mpi (documented variant, source file not present in this repo snapshot) mpi...
+  → record_shape stream_mpi mpi stream_mpi (documented variant, source file not present in this repo snapshot) mpi...
+Both traces are now recorded:
+
+**1. `stream_c.exe` (variant: `threaded-openmp`)** — the actual buildable subject in this repo (`Makefile` → `gcc -fopenmp stream.c -o stream_c.exe`, also `stream_f.exe` from `stream.f`). High confidence, based on directly-read source:
+- OpenMP threaded, single process, no network communication
+- Shared-memory across threads within one process, wants exclusive cores for peak bandwidth
+- Memory-bandwidth bound, very low arithmetic intensity, poor cache reuse (arrays sized ≥4× cache so every access misses cache — this is the whole point of STREAM)
+- Single-node, co-located threads required, no accelerator, no checkpointing
+
+**2. `stream_mpi` (variant: `mpi`)** — mentioned in `README.txt` as living in a `Versions/` subdirectory, but that file is **not actually present** in this repository snapshot (confirmed via `find`). Recorded with low confidence, evidence drawn only from the README's description (distributes arrays across ranks, uses `MPI_Barrier` for timer sync, gathers timing/error data to rank 0, expects linear scaling with cluster size, explicitly *not* the preferred implementation for measuring bandwidth).
+
+Both traces respect the required separation since they differ fundamentally in `parallelism` (threaded-only vs. threaded+mpi) and `communication.model` (none vs. collective).
+  ✓ recorded 24 assertion(s) across 2 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-2155/us-anthropic-claude-sonnet-5/
+  shapes-20260813-2155/us-anthropic-claude-sonnet-5/github.com/jeffhammond/STREAM/6703f7504a38/shapes.json

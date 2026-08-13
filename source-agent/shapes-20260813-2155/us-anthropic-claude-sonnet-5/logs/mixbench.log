@@ -1,0 +1,64 @@
+[auto-approved] finalize-setup: {"base_image": "buildpack-deps:bookworm-scm", "focus": null, "keep": true, "mode": "container", "ref": null, "repos": ["https://github.com/ekondis/mixbench"]}
+
+▸ https://github.com/ekondis/mixbench  [1/1]
+[auto-approved] clone: {"effect": "network + write", "repo": "https://github.com/ekondis/mixbench"}
+  · cloning https://github.com/ekondis/mixbench into container
+  · warning: could not resolve commit; rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+  ⚠ unpinned: rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+  → find . * dir
+  → find mixbench-cuda * file
+  → find mixbench-hip * file
+  → find mixbench-opencl * file
+  → find mixbench-sycl * file
+  → find mixbench-cpu * file
+  → find include * file
+  → find . README.md file
+  → read mixbench-cuda/main-cuda.cpp 1 150
+Good, single GPU, single device selection. Let's check top-level README and mix_kernels_cuda.cu for kernel launch pattern, and check other variants briefly.
+  → read README.md 1 120
+  → search MPI|omp|pthread|thread 2 40
+Good confirmation: single process, single GPU, no MPI. Let's check the CPU/OpenMP variant for thread details, and check other variant mains for GPU selection args (single device, no multi-gpu).
+  → read mixbench-cpu/main.cpp 1 100
+  → read mixbench-cpu/mix_kernels_cpu.cpp 1 60
+  → read mixbench-cpu/README.md 1 40
+  → search device_id|platform|DeviceID|gpu_id 3 20
+  → read mixbench-opencl/README.md 1 60
+This confirms single-device selection across all GPU variants. Now I have enough evidence to record traces for each variant: cuda, hip, opencl, sycl, cpu.
+  → record_shape mixbench-cuda cuda mixbench CUDA GPU roofline microbenchmark ./mixbench-cuda [GPU_ID] high Single...
+  → record_shape mixbench-hip rocm mixbench HIP GPU roofline microbenchmark ./mixbench-hip [GPU_ID] high Same desi...
+  → record_shape mixbench-opencl opencl mixbench OpenCL GPU roofline microbenchmark ./mixbench-opencl [device_inde...
+  → record_shape mixbench-sycl sycl mixbench SYCL GPU roofline microbenchmark ./mixbench-sycl [device_index] high ...
+  → record_shape mixbench-cpu cpu mixbench CPU/OpenMP roofline microbenchmark ./mixbench-cpu [array_size_in_MiB_un...
+Now let me fix the rejected `accelerator.multi_gpu` assertions with proper absent-pattern evidence.
+  → record_shape mixbench-cuda cuda mixbench CUDA GPU roofline microbenchmark ./mixbench-cuda [GPU_ID] high follow...
+  → record_shape mixbench-opencl opencl mixbench OpenCL GPU roofline microbenchmark ./mixbench-opencl [device_inde...
+  → record_shape mixbench-sycl sycl mixbench SYCL GPU roofline microbenchmark ./mixbench-sycl [device_index] high ...
+Now let's add memory/topology/bound_by judgments per variant, which are key for scheduler decisions given this is explicitly a roofline/compute-vs-memory-intensity benchmark.
+  → read mixbench-cuda/mix_kernels_cuda.h 1 40
+  → record_shape mixbench-cuda cuda mixbench CUDA topology/memory judgment ./mixbench-cuda [GPU_ID] medium Benchma...
+  → record_shape mixbench-cpu cpu mixbench CPU topology/memory judgment ./mixbench-cpu [array_size_in_MiB_units] m...
+The bound_by=unknown assertion needing evidence rejection makes sense since it's a positive-style claim of "unknown" with README documentation — but the tool requires absent-pattern for negatives. Since I have direct README quote evidence, let me just drop that one; it's a minor field and already explained in notes.
+
+I have now recorded solid traces for all 5 variants (cuda, rocm/hip, opencl, sycl, cpu). Let me verify final coverage state.
+  → seen {}
+I have gathered sufficient evidence and recorded traces for all five build variants of mixbench (mixbench-cuda, mixbench-hip, mixbench-opencl, mixbench-sycl, mixbench-cpu). Summary of findings:
+
+**Subject**: mixbench — a GPU/CPU micro-benchmark suite that sweeps a "compute-to-memory-access ratio" (mixed operational intensity) to build a roofline model of a device.
+
+**Common pattern across all variants**:
+- Single-process, single-device execution (no MPI, no multi-node, no multi-GPU coordination found in any variant)
+- No inter-process communication of any kind
+- Purpose-built to sweep the compute:memory ratio (per top-level README), so arithmetic intensity/bound_by is deliberately variable rather than fixed at one point — recorded as unknown/noted rather than forced
+
+**Per-variant specifics recorded**:
+1. **mixbench-cuda (cuda)**: CUDA kernels, single GPU selected via `cudaSetDevice(gpu_id)`, launched as `./mixbench-cuda [GPU_ID]`
+2. **mixbench-hip (rocm)**: HIP/ROCm kernels via `hipExtLaunchKernelGGL`, same single-device design
+3. **mixbench-opencl (opencl)**: OpenCL, selects one `cl_device_id` by index across platforms
+4. **mixbench-sycl (sycl)**: SYCL, enumerates and selects one device
+5. **mixbench-cpu (cpu)**: OpenMP-threaded, uses `omp_get_max_threads()` for thread count (no MPI, no accelerator), README explicitly notes the compute loop is "inherently sequential" per thread and depends on compiler unrolling — treated as wanting exclusive cores to avoid noisy-neighbor effects on the measurement.
+
+All traces recorded with evidence citations; negative claims backed by `absent:` pattern searches per the tool's requirements.
+  ✓ recorded 47 assertion(s) across 5 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-2155/us-anthropic-claude-sonnet-5/
+  shapes-20260813-2155/us-anthropic-claude-sonnet-5/github.com/ekondis/mixbench/unpinned/shapes.json

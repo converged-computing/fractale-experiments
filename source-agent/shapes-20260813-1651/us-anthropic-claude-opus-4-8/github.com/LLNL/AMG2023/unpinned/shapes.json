@@ -1,0 +1,336 @@
+{
+  "entry": {
+    "commit": "",
+    "notes": "unpinned: could not resolve commit (rev-parse: rc=128 out='HEAD' err=\"fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr\"; log: rc=128 out='' err=\"fatal: your current branch 'master' does not have any commits yet\"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out='')",
+    "reads": {
+      "budget": {
+        "exhausted": false,
+        "limit": 60000,
+        "remaining": 55797,
+        "spent": 4203
+      },
+      "files": {
+        "CMakeLists.txt": {
+          "lines_read": 110,
+          "span": "1-110",
+          "total_lines": 110
+        },
+        "Makefile": {
+          "lines_read": 53,
+          "span": "4-117",
+          "total_lines": 135
+        },
+        "README.md": {
+          "lines_read": 60,
+          "span": "1-60",
+          "total_lines": 60
+        },
+        "amg-doc.pdf": {
+          "lines_read": 40,
+          "span": "734-3226",
+          "total_lines": 7018
+        },
+        "amg.c": {
+          "lines_read": 239,
+          "span": "41-2724",
+          "total_lines": 3079
+        }
+      }
+    },
+    "repo": "https://github.com/LLNL/AMG2023",
+    "resolved_from": "",
+    "run": {
+      "backend": "aws",
+      "base_image": "buildpack-deps:bookworm-scm",
+      "duration_s": 97.40376287896652,
+      "focus": "",
+      "max_source_tokens": 60000,
+      "mode": "container",
+      "model": "us.anthropic.claude-opus-4-8",
+      "model_max_tokens": 16384,
+      "started": "2026-08-13T17:29:50+00:00",
+      "tool_version": "0.0.12"
+    },
+    "schema_version": "schedule-shape/v2",
+    "skipped": "",
+    "traces": [
+      {
+        "confidence": "medium",
+        "notes": "No shared-memory windows. Launcher not pinned in source; README calls it a SPMD MPI code so mpirun/srun-class launcher assumed.",
+        "shapes": [
+          {
+            "assertions": [
+              {
+                "confidence": "high",
+                "evidence": [
+                  "README.md:10 (SPMD code using MPI and OpenMP threading within MPI tasks)",
+                  "amg.c:181-184 (hypre_MPI_Init/Comm_size/Comm_rank)",
+                  "Makefile:79-86 (OpenMP -fopenmp/-qsmp=omp options)"
+                ],
+                "field": "parallelism",
+                "value": [
+                  "mpi",
+                  "threaded"
+                ]
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "amg.c:546 (hypre_MPI_Barrier collectives)",
+                  "amg.c:488 (distributed ParCSR matrix/vector -> neighbor point-to-point in SpMV plus reductions in Krylov)"
+                ],
+                "field": "communication.model",
+                "value": "mixed"
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "README.md:11-12 (data decomposition into PxQxR grid chunks -> neighbor halo exchange in sparse matvec)",
+                  "amg.c:329-330 (AMG-PCG / AMG-GMRES need per-iteration dot-product reductions)",
+                  "amg.c:546 (Barrier); AMG coarse-grid setup/redistribution incurs all_to_all-like comm"
+                ],
+                "field": "communication.pattern",
+                "value": [
+                  "neighbor",
+                  "reduction",
+                  "all_to_all"
+                ]
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "amg.c:329-330 (Krylov solvers do frequent small reductions per iteration)",
+                  "README.md:11-12 (neighbor exchange on decomposed grid)"
+                ],
+                "field": "communication.latency_sensitive",
+                "value": true
+              }
+            ],
+            "label": "AMG2023 algebraic multigrid solver (CPU: MPI + OpenMP)",
+            "launch_command": "mpirun -np <P*Q*R> ./amg -problem 1 -n <nx> <ny> <nz> -P <px> <py> <pz>"
+          },
+          {
+            "assertions": [
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "amg.c:62-65 (BuildIJLaplacian 7pt/27pt sparse matrices -> sparse matvec dominates AMG)",
+                  "amg.c:44 (HYPRE_parcsr_ls AMG solve)"
+                ],
+                "field": "memory.bound_by",
+                "value": "memory_bandwidth"
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "amg.c:62-65 (7pt/27pt sparse Laplacian; sparse matvec ~1-2 flops per byte)"
+                ],
+                "field": "memory.arithmetic_intensity",
+                "value": "very_low"
+              },
+              {
+                "confidence": "low",
+                "evidence": [
+                  "amg.c:62-65 (sparse matrix operations with irregular access, poor cache reuse)"
+                ],
+                "field": "memory.cache_reuse",
+                "value": "poor"
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "README.md:11-12 (grid decomposition, halo exchange of ParCSR off-diagonal blocks)"
+                ],
+                "field": "communication.bandwidth_sensitive",
+                "value": true
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "absent: MPI_File|hdf5|adios|netcdf in amg.c",
+                  "amg.c:62-65 (system built in-memory via BuildIJLaplacian, not read from file)"
+                ],
+                "field": "io.parallel_io",
+                "value": "none"
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "absent: checkpoint|restart in amg.c"
+                ],
+                "field": "io.checkpoint",
+                "value": false
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "amg.c:183 (num_procs arbitrary via MPI); scales from 1 rank to many nodes"
+                ],
+                "field": "topology.span",
+                "value": "either"
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "README.md:11-12 (logical PxQxR grid decomposition with nearest-neighbor exchange)"
+                ],
+                "field": "topology.placement",
+                "value": "neighbor"
+              }
+            ],
+            "label": "AMG2023 algebraic multigrid solver (CPU: MPI + OpenMP)",
+            "launch_command": "mpirun -np <P*Q*R> ./amg -problem 1 -n <nx> <ny> <nz> -P <px> <py> <pz>"
+          },
+          {
+            "assertions": [
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "README.md:11-12 (comm-heavy grid decomposition benefits from co-located ranks)"
+                ],
+                "field": "topology.co_location",
+                "value": "preferred"
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "Makefile:79-86 (OpenMP threading within ranks -> NUMA-aware placement matters)"
+                ],
+                "field": "memory.numa_sensitive",
+                "value": true
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "amg.c:546 (per-iteration barriers/reductions occupy a notable share of runtime in AMG)"
+                ],
+                "field": "communication.intensity",
+                "value": "moderate"
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "absent: shm_open|MPI_Win|/dev/shm in amg.c"
+                ],
+                "field": "memory.shared_memory",
+                "value": false
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "README.md:10 (SPMD MPI code); no launcher hardcoded in source, run via system MPI launcher"
+                ],
+                "field": "launch.launcher",
+                "value": "mpirun"
+              }
+            ],
+            "label": "AMG2023 algebraic multigrid solver (CPU: MPI + OpenMP)",
+            "launch_command": "mpirun -np <P*Q*R> ./amg -problem 1 -n <nx> <ny> <nz> -P <px> <py> <pz>"
+          }
+        ],
+        "subject": "amg",
+        "unmatched": [],
+        "variant": "cpu-mpi-openmp"
+      },
+      {
+        "confidence": "medium",
+        "notes": "One GPU per rank model, not multiple devices per process.",
+        "shapes": [
+          {
+            "assertions": [
+              {
+                "confidence": "high",
+                "evidence": [
+                  "README.md:13 (can be used on NVIDIA GPUs via CUDA)",
+                  "CMakeLists.txt:22,50-58 (AMG_WITH_CUDA links cudart/cusparse/cublas/curand)",
+                  "amg.c:154-155 (default memory HYPRE_MEMORY_DEVICE, exec HYPRE_EXEC_DEVICE)"
+                ],
+                "field": "parallelism",
+                "value": [
+                  "mpi",
+                  "gpu"
+                ]
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "CMakeLists.txt:50-58 (CUDAToolkit, cusparse/cublas/curand)",
+                  "amg.c:438-440 (HYPRE_USING_GPU SpMV/SpGemm vendor)"
+                ],
+                "field": "accelerator.kind",
+                "value": "cuda"
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "amg.c:357-360 (per-rank device binding; hypre uses GPU-aware MPI for ParCSR halo exchange when available)",
+                  "README.md:36-41 (Makefile MPI libs configured for AMD GPU systems, -lmpi needed for AMD GPUs)"
+                ],
+                "field": "accelerator.gpu_comm",
+                "value": "gpu_aware_mpi"
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "amg.c:62-65 (sparse Laplacian matvec on GPU is bandwidth bound / very low intensity)"
+                ],
+                "field": "memory.bound_by",
+                "value": "memory_bandwidth"
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "README.md:11-12 (neighbor halo exchange plus Krylov reductions on decomposed grid)",
+                  "amg.c:329-330"
+                ],
+                "field": "communication.pattern",
+                "value": [
+                  "neighbor",
+                  "reduction",
+                  "all_to_all"
+                ]
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "amg.c:357-360 (one GPU per rank -> ranks want to be co-located with their device, fast GPU-GPU link preferred)"
+                ],
+                "field": "topology.co_location",
+                "value": "preferred"
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "absent: MPI_File|hdf5|adios|checkpoint|restart in amg.c"
+                ],
+                "field": "io.checkpoint",
+                "value": false
+              }
+            ],
+            "label": "AMG2023 algebraic multigrid solver (GPU: CUDA + MPI)",
+            "launch_command": "srun -n <P*Q*R> --gpus-per-task=1 ./amg -problem 1 -n <nx> <ny> <nz> -P <px> <py> <pz> -exec_device"
+          },
+          {
+            "assertions": [
+              {
+                "confidence": "high",
+                "evidence": [
+                  "absent: cudaSetDevice.*loop|for.*device|multi.*gpu in amg.c",
+                  "amg.c:357-360 (hypre_bind_device binds exactly one device per rank by myid; no per-process multi-device coordination)"
+                ],
+                "field": "accelerator.multi_gpu",
+                "value": false
+              }
+            ],
+            "label": "AMG2023 algebraic multigrid solver (GPU: CUDA + MPI)",
+            "launch_command": "srun -n <P*Q*R> --gpus-per-task=1 ./amg -problem 1 -n <nx> <ny> <nz> -P <px> <py> <pz> -exec_device"
+          }
+        ],
+        "subject": "amg",
+        "unmatched": [],
+        "variant": "mpi-cuda"
+      }
+    ]
+  },
+  "version": "schedule-shape/report/v1"
+}

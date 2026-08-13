@@ -1,0 +1,54 @@
+[auto-approved] finalize-setup: {"base_image": "buildpack-deps:bookworm-scm", "focus": "osu_bw bandwidth benchmark", "keep": true, "mode": "container", "ref": null, "repos": ["https://github.com/jwu274/osu-micro-benchmarks"]}
+
+▸ https://github.com/jwu274/osu-micro-benchmarks  [1/1]
+[auto-approved] clone: {"effect": "network + write", "repo": "https://github.com/jwu274/osu-micro-benchmarks"}
+  · cloning https://github.com/jwu274/osu-micro-benchmarks into container
+  · warning: could not resolve commit; rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+  ⚠ unpinned: rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+I'll start by orienting myself in the repository structure.
+  → find . *.txt file
+  → search osu_bw 2 20
+This is the OSU Micro-Benchmarks. Let me find the osu_bw source file and read the README section about it.
+  → find . osu_bw.c file
+  → read README.md 170 20
+Now let me read the osu_bw.c source itself.
+  → read c/mpi/pt2pt/standard/osu_bw.c 1 200
+Let me read the main communication loop.
+  → read c/mpi/pt2pt/standard/osu_bw.c 200 120
+This confirms the core pattern: 2-process point-to-point ping-pong bandwidth with MPI_Isend/Irecv/Waitall (window of back-to-back messages). Let me check the build system and the CUDA/ROCm accelerator support, plus launcher docs.
+  → find . configure.ac file
+  → search mpirun.*osu_bw|mpirun -np 2 1 10
+  → search CUDA|ROCM|enable-cuda|enable-rocm 2 8
+I have enough to characterize the standard CPU/MPI osu_bw and a CUDA/ROCm accelerator variant. Let me check the GPU-aware/device buffer path and how buffers are sent (whether it's GPU-aware MPI directly).
+  → search cudaMalloc|hipMalloc|MPI_File|checkpoint|omp_ 2 6
+I have enough evidence. The osu_bw is a 2-process point-to-point MPI bandwidth benchmark; the standard variant is pure CPU-MPI, and there's an accelerator variant (CUDA/ROCm device buffers, sent directly via MPI = GPU-aware MPI). Let me record both traces.
+  → record_shape osu_bw cpu-mpi OSU MPI point-to-point bandwidth benchmark (host buffers) mpirun -np 2 -hostfile h...
+  → record_shape osu_bw cpu-mpi OSU MPI point-to-point bandwidth benchmark (host buffers) mpirun -np 2 -hostfile h...
+Two assertions were rejected as negative claims needing absent-evidence. Let me fix those and record the CUDA/ROCm accelerator variant.
+  → record_shape osu_bw cpu-mpi OSU MPI point-to-point bandwidth benchmark (host buffers) mpirun -np 2 -hostfile h...
+  → record_shape osu_bw cuda-mpi OSU MPI point-to-point bandwidth benchmark (GPU device buffers) mpirun_rsh -np 2 ...
+Let me fix the multi_gpu assertion and add a couple more evidence-backed fields for the CUDA variant.
+  → record_shape osu_bw cuda-mpi OSU MPI point-to-point bandwidth benchmark (GPU device buffers) mpirun_rsh -np 2 ...
+I've completed the analysis. Here's the summary.
+
+## What the repo builds
+
+This is the **OSU Micro-Benchmarks (OMB)** suite from Ohio State's NBCL. It builds a family of small MPI benchmark executables via an autotools build (`configure.ac`). The subject asked about is **`osu_bw`**, built from `c/mpi/pt2pt/standard/osu_bw.c` — a standalone uni-directional point-to-point bandwidth benchmark.
+
+## How `osu_bw` wants to run
+
+**Core behavior** (from the source): it is a strict **2-process** test — it aborts if `numprocs != 2` (`osu_bw.c:116`). Rank 0 fires a window of 64 back-to-back non-blocking sends (`MPI_Isend` + `MPI_Waitall`, `osu_bw.c:236-247`), rank 1 posts matching `MPI_Irecv`s and replies once with a single message. There is **no computation** — buffers are just filled — so it is a pure network measurement whose stated objective is "the maximum sustained data rate that can be achieved at the network level" (`README.md:178-179`).
+
+I recorded **two variants**:
+
+- **`osu_bw:cpu-mpi`** — host `malloc` buffers. Parallelism = MPI only; point-to-point, neighbor pattern, bandwidth-sensitive (not latency-sensitive, since the 64-message window amortizes latency); `bound_by=network`, arithmetic intensity very_low; 2 tasks via `mpirun`/`mpirun_rsh`, spread across nodes; no shared memory, no checkpoint, no accelerator.
+
+- **`osu_bw:cuda-mpi`** — built with `--enable-cuda` (or `--enable-rocm`, the ROCm analogue). Device buffers (`D`/`H`/`M`) are handed straight to `MPI_Isend`/`Recv`, so it relies on **GPU-aware MPI** (`accelerator.gpu_comm=gpu_aware_mpi`); one device per rank (`multi_gpu=false`), 2 ranks, still network/link-bandwidth bound. Launch example: `mpirun_rsh -np 2 -hostfile hostfile MV2_USE_CUDA=1 osu_bw D H` (`README.md:1046`).
+
+**Scheduling takeaway:** a two-rank, network-bandwidth-bound probe. It should be **spread across two nodes** (co-location would just measure intra-node/shared-memory transport, not the interconnect), and its result quality depends on interconnect bandwidth (and, in the CUDA/ROCm variant, on GPU-aware MPI over a fast GPU-to-GPU link).
+
+Note: the repo also contains Python (`python/`) and Java (`java/`) benchmark drivers, but those are separate subjects from the C `osu_bw` executable and weren't part of the request.
+  ✓ recorded 27 assertion(s) across 2 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-1651/us-anthropic-claude-opus-4-8/
+  shapes-20260813-1651/us-anthropic-claude-opus-4-8/github.com/jwu274/osu-micro-benchmarks/unpinned/osu_bw_bandwidth_benchmark/shapes.json

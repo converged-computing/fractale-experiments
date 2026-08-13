@@ -1,0 +1,67 @@
+[auto-approved] finalize-setup: {"base_image": "buildpack-deps:bookworm-scm", "focus": null, "keep": true, "mode": "container", "ref": null, "repos": ["https://github.com/ekondis/mixbench"]}
+
+▸ https://github.com/ekondis/mixbench  [1/1]
+[auto-approved] clone: {"effect": "network + write", "repo": "https://github.com/ekondis/mixbench"}
+  · cloning https://github.com/ekondis/mixbench into container
+  · warning: could not resolve commit; rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+  ⚠ unpinned: rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+  → find . * dir
+  → find . * file
+  → find . README* file
+  → read README.md 1 120
+  → read mixbench-cuda/README.md 1 80
+  → read mixbench-cpu/README.md 1 100
+  → search omp_set_num_threads|#pragma omp|OMP_NUM_THREADS 3 30
+Good. Now let's check other variants: hip, opencl, sycl READMEs, and check for MPI presence (should be absent across all), multi-gpu support, checkpoint, etc.
+  → read mixbench-hip/README.md 1 60
+  → read mixbench-opencl/README.md 1 60
+  → read mixbench-sycl/README.md 1 60
+  → search MPI_Init|mpi.h|MPI_ 2 20
+  → search cudaSetDevice|hipSetDevice|cudaMemcpy|hipMemcpy 3 20
+  → read mixbench-cuda/main-cuda.cpp 1 60
+Confirmed single-GPU, single-device selection (no multi-GPU coordination), no MPI, no checkpoint/IO. Let's peek at the kernel structure briefly to confirm compute pattern (single kernel launch loop, no host-device round trips per iter) and threaded aspects for CPU variant's memory-boundedness statement.
+  → read mixbench-cuda/mix_kernels_cuda.h 1 40
+  → search bandwidth bound|memory bound|memory-bound|operational intensity 3 10
+  → read mixbench-cuda/mix_kernels_cuda.cu 1 60
+This confirms streaming global-memory access with configurable compute-per-load ratio (roofline sweep), poor cache reuse (streaming, block-strided), single kernel per config, no inter-thread/block communication beyond independent work. Now recording shapes for each variant.
+  → record_shape mixbench-cuda cuda mixbench-cuda GPU roofline microbenchmark ./mixbench-cuda [GPU_ID] high Single...
+  → record_shape mixbench-cuda cuda mixbench-cuda GPU roofline microbenchmark (memory/accel details) ./mixbench-cu...
+  → search device_count|for.*device_id|multi.?gpu 2 10
+This confirms cudaSetDevice is called only once with a single gpu_id (no loop over devices for benchmarking). Good enough evidence for absence of multi-gpu usage.
+  → record_shape mixbench-cuda cuda mixbench-cuda GPU roofline microbenchmark (fix negatives) ./mixbench-cuda [GPU...
+  → search compute_iterations|TOTAL_REDUCED_BLOCKS|unroll_count 3 10
+I'll drop the memory.bound_by=unknown assertion (schema tool requires absent-evidence for negative claims, but "unknown" isn't well-suited here) and instead note the variability only in notes, without forcing a field value.
+
+Now let's continue with other variants: hip, opencl, sycl, cpu.
+  → read mixbench-hip/main-hip.cpp 1 40
+  → read mixbench-opencl/main-ocl.cpp 1 50
+  → read mixbench-sycl/main-sycl.cpp 1 50
+All consistent single-device, single-process GPU microbenchmarks. Now record shapes for hip, opencl, sycl, cpu variants.
+  → record_shape mixbench-hip rocm mixbench-hip GPU roofline microbenchmark ./mixbench-hip high Single-process, si...
+  → record_shape mixbench-hip rocm mixbench-hip GPU roofline microbenchmark (memory/topology) ./mixbench-hip high ...
+  → record_shape mixbench-opencl opencl mixbench-opencl GPU roofline microbenchmark ./mixbench-opencl [device_inde...
+  → record_shape mixbench-opencl opencl mixbench-opencl GPU roofline microbenchmark (memory/topology) ./mixbench-o...
+  → record_shape mixbench-sycl sycl mixbench-sycl GPU roofline microbenchmark ./mixbench-sycl [device_index] [wg_s...
+  → record_shape mixbench-opencl opencl mixbench-opencl multi_gpu fix ./mixbench-opencl [device_index] [wg_size] [...
+  → record_shape mixbench-sycl sycl mixbench-sycl multi_gpu fix ./mixbench-sycl [device_index] [wg_size] [array_si...
+Now let's add the remaining opencl/sycl memory/topology assertions and finish with mixbench-cpu.
+  → record_shape mixbench-sycl sycl mixbench-sycl GPU roofline microbenchmark (memory/topology) ./mixbench-sycl [d...
+  → read mixbench-cpu/main.cpp 1 60
+This confirms mixbench-cpu uses OpenMP threading scaled to `omp_get_max_threads()`, single process, multithreaded. Now record the cpu variant.
+  → record_shape mixbench-cpu cpu-openmp mixbench-cpu OpenMP roofline microbenchmark ./mixbench-cpu [array_size] h...
+  → record_shape mixbench-cpu cpu-openmp mixbench-cpu OpenMP roofline microbenchmark (memory/topology) ./mixbench-...
+  → search numa|sched_setaffinity|pthread_setaffinity|hwloc 2 10
+  → record_shape mixbench-cpu cpu-openmp mixbench-cpu numa fix ./mixbench-cpu [array_size] high follow-up
+All five variants (mixbench-cuda, mixbench-hip, mixbench-opencl, mixbench-sycl, mixbench-cpu) have been characterized and recorded as separate traces. Summary:
+
+- **mixbench-cuda (cuda)**: single-process, single-GPU CUDA microbenchmark, no MPI/network communication, streaming memory-access kernel with configurable compute intensity (roofline sweep), no multi-GPU, no checkpoint/IO.
+- **mixbench-hip (rocm)**: same design ported to HIP/ROCm, single device (index 0 fixed), single process.
+- **mixbench-opencl (opencl)**: same design, single OpenCL device selected via CLI arg, single process.
+- **mixbench-sycl (sycl)**: same design, single SYCL device selected via CLI arg (can target CPU/GPU/FPGA backends but only one per run), single process.
+- **mixbench-cpu (cpu-openmp)**: OpenMP-threaded CPU version, runs benchmark first at full thread count then at half thread count, no MPI, no accelerator, streaming access pattern over a large buffer per thread.
+
+All variants share: no MPI, no network communication (model=none), no shared-memory windows, no parallel I/O, no checkpointing, single-node topology, no ordered dependency between execution units (embarrassingly parallel streaming kernels). The defining characteristic across all variants is that the benchmark deliberately sweeps operational/arithmetic intensity from memory-bound to compute-bound configurations to build a roofline model, so `memory.bound_by`/`arithmetic_intensity` are not fixed properties of the code but swept parameters — this is noted in each trace rather than forced into a single enum value.
+  ✓ recorded 74 assertion(s) across 5 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-1651/us-anthropic-claude-sonnet-5/
+  shapes-20260813-1651/us-anthropic-claude-sonnet-5/github.com/ekondis/mixbench/unpinned/shapes.json

@@ -1,0 +1,49 @@
+[auto-approved] finalize-setup: {"base_image": "buildpack-deps:bookworm-scm", "focus": null, "keep": true, "mode": "container", "ref": null, "repos": ["https://github.com/jeffhammond/STREAM"]}
+
+▸ https://github.com/jeffhammond/STREAM  [1/1]
+[auto-approved] clone: {"effect": "network + write", "repo": "https://github.com/jeffhammond/STREAM"}
+  · cloning https://github.com/jeffhammond/STREAM into container
+I'll analyze the STREAM benchmark repository. Let me start by orienting myself.
+  → find . * file
+The classic STREAM memory bandwidth benchmark. Let me read the key files.
+  → read Makefile 1 60
+  → read README 1 80
+Two subjects build: `stream_c.exe` and `stream_f.exe`, both OpenMP. There's an MPI version too. Let me examine the C source's kernels and OpenMP usage.
+  → search #pragma omp|omp_get|OMP|MPI_|posix_memalign|memory bandwidth|arithmetic 2 40
+I have a clear picture. STREAM builds two OpenMP executables (`stream_c.exe`, `stream_f.exe`). There's an MPI version referenced but not in this tree (in a Versions directory that isn't checked out — let me confirm no MPI file exists). Let me check the docstring for the explicit memory-bandwidth statement and array-size rules.
+  → read stream.c 60 40
+  → search stream_mpi|include.*mpi 1 5
+Confirmed: the MPI version isn't present in this tree (only referenced as being in a "Versions directory" that isn't checked out). The buildable subjects are the two OpenMP executables. They're essentially identical in behavior (C and Fortran). Let me record traces.
+
+The key facts: `-fopenmp`, `#pragma omp parallel for` over four streaming kernels (Copy, Scale, Add, Triad), explicit memory-bandwidth benchmark, arrays sized ~3.8× cache to defeat cache, no MPI/comm in this tree. Let me record both.
+  → record_shape stream_c.exe threaded STREAM C benchmark (OpenMP) OMP_NUM_THREADS=N ./stream_c.exe high Classic S...
+  → record_shape stream_c.exe threaded STREAM C benchmark (OpenMP) - memory/placement OMP_NUM_THREADS=N ./stream_c...
+  → record_shape stream_c.exe threaded STREAM C benchmark (OpenMP) - topology OMP_NUM_THREADS=N ./stream_c.exe hig...
+Now the Fortran executable — same behavior, separate subject.
+  → record_shape stream_f.exe threaded STREAM Fortran benchmark (OpenMP) OMP_NUM_THREADS=N ./stream_f.exe high For...
+I've characterized the repository. Summary:
+
+## What it builds
+The `Makefile` produces **two executables**, both OpenMP-parallel:
+- **`stream_c.exe`** — from `stream.c` (`gcc -O2 -fopenmp`)
+- **`stream_f.exe`** — from `stream.f` + `mysecond.c` (`gfortran -O2 -fopenmp`)
+
+There is no MPI or GPU code in this checked-out tree. The README mentions a `stream_mpi.c` "in the Versions directory," but that file is not present, so I did not fabricate an MPI variant.
+
+## How it wants to run (both subjects, `threaded` variant)
+STREAM is the canonical **sustained-memory-bandwidth benchmark**. It runs four streaming kernels — Copy, Scale, Add, Triad — as `#pragma omp parallel for` / `!$OMP PARALLEL DO` loops over large arrays. Launched as a single process with `OMP_NUM_THREADS` controlling thread count.
+
+Key scheduling shape:
+- **parallelism = threaded** (OpenMP only, no ranks)
+- **communication = none** — no MPI, no collectives, no network sensitivity
+- **memory.bound_by = memory_bandwidth**, **arithmetic_intensity = very_low** (~0–2 flops per element) — stated directly in the source/README
+- **cache_reuse = poor** — arrays are deliberately sized ≥ ~3.8× cache to defeat caching
+- **numa_sensitive = true**, **cpu_exclusive = true** — it wants whole cores and NUMA-aware binding to saturate the memory subsystem; a cache-sharing co-tenant is maximally damaging here
+- **topology = single_node / pack / co_location required** — shared-memory threads must land together on one node's cores/sockets
+- **no accelerator, no parallel I/O, no checkpointing** (output is a stdout timing report)
+
+The two executables (C and Fortran) share an identical scheduling profile and are recorded as separate subjects (`stream_c.exe`, `stream_f.exe`), each under the `threaded` variant, with high confidence.
+  ✓ recorded 27 assertion(s) across 2 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-2155/us-anthropic-claude-opus-4-8/
+  shapes-20260813-2155/us-anthropic-claude-opus-4-8/github.com/jeffhammond/STREAM/6703f7504a38/shapes.json

@@ -1,0 +1,55 @@
+[auto-approved] finalize-setup: {"base_image": "buildpack-deps:bookworm-scm", "focus": null, "keep": true, "mode": "container", "ref": null, "repos": ["https://github.com/LLNL/AMG2023"]}
+
+▸ https://github.com/LLNL/AMG2023  [1/1]
+[auto-approved] clone: {"effect": "network + write", "repo": "https://github.com/LLNL/AMG2023"}
+  · cloning https://github.com/LLNL/AMG2023 into container
+  · warning: could not resolve commit; rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+  ⚠ unpinned: rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+  → find . * dir
+  → find . * file
+  → read README.md 1 200
+  → read Makefile 1 150
+Now let's look at amg.c for MPI usage, argument parsing (P,Q,R decomposition), OpenMP, GPU, checkpoint, etc.
+  → search MPI_Init|MPI_Comm_rank|MPI_Comm_size|MPI_Allreduce|MPI_Reduce|MPI_Bcast|MPI_Barrier|MPI_Send|MPI_...
+  → search -P |-Q |-R |num_procs|SetNumThreads|omp_set_num_threads|-print|-solver 2 40
+Good—confirms P x Q x R domain decomposition. Now let's check GPU binding, device pool, threading options, and CMakeLists for GPU variants.
+  → read amg.c 340 80
+This confirms one process binds to one GPU device (`hypre_bind_device`). Let's check CMakeLists.txt for GPU build options and OpenMP.
+  → read CMakeLists.txt 1 150
+  → search SYCL|sycl 2 20
+  → search hypre_bind_device 3 20
+  → search fopen|fwrite|checkpoint|restart|HDF5|MPI_File 2 20
+No checkpoint/restart, no parallel I/O found. Now let's check hypre_NumThreads/OpenMP usage more, and BoomerAMG stencil-based communication assumption (neighbor exchange, reductions in PCG/GMRES).
+  → search omp parallel|pragma omp|hypre_NumThreads 2 20
+This confirms OpenMP threading within matrix generation. Now I have enough evidence to record shapes for variants: cpu (mpi+openmp), cuda, hip.
+  → read amg-doc.pdf 1 40
+  → search GPU-aware|gpu-aware|GDR|CUDA_AWARE|MPI_GPU|NCCL 2 20
+  → record_shape amg cpu AMG2023 driver (MPI+OpenMP, no GPU) mpirun -np <P*Q*R> ./amg -P <px> <py> <pz> -n <nx> <n...
+  → record_shape amg cuda AMG2023 driver (MPI+CUDA GPU) mpirun -np <P*Q*R> --gpus-per-task 1 ./amg -P <px> <py> <p...
+  → record_shape amg cuda AMG2023 driver (MPI+CUDA GPU) supplemental mpirun -np <P*Q*R> --gpus-per-task 1 ./amg -P...
+  → record_shape amg rocm AMG2023 driver (MPI+HIP GPU) mpirun -np <P*Q*R> --gpus-per-task 1 ./amg -P <px> <py> <pz...
+  → record_shape amg rocm AMG2023 driver (MPI+HIP GPU) supplemental mpirun -np <P*Q*R> --gpus-per-task 1 ./amg -P ...
+Now let's add common memory/topology/IO fields across variants, and finalize cpu variant with additional fields (bound_by, cache_reuse, topology, io.checkpoint absence).
+  → record_shape amg cpu AMG2023 driver memory/IO/topology (CPU) mpirun -np <P*Q*R> ./amg -P <px> <py> <pz> -n <nx...
+Now let's add analogous topology/IO fields for cuda and rocm variants, and communication.ordered_dependency=false (symmetric neighbor, not wavefront).
+  → record_shape amg cuda AMG2023 driver memory/IO/topology (CUDA) mpirun -np <P*Q*R> --gpus-per-task 1 ./amg -P <...
+  → record_shape amg cuda AMG2023 driver ordered_dependency (CUDA) supplemental mpirun -np <P*Q*R> --gpus-per-task...
+  → record_shape amg rocm AMG2023 driver memory/IO/topology (HIP) mpirun -np <P*Q*R> --gpus-per-task 1 ./amg -P <p...
+I've captured three variants of the AMG2023 solver (`amg` executable): cpu (MPI+OpenMP), cuda, and rocm (HIP). Summary of findings:
+
+**Subject**: `amg` — a parallel algebraic multigrid (BoomerAMG via hypre) linear-solver driver, SPMD, built by Makefile or CMake (`AMG_WITH_MPI/OMP/CUDA/HIP/UMPIRE/CALIPER` options).
+
+**Key evidence-based findings**:
+- MPI is mandatory (`amg.c:181-184`), domain decomposed as P×Q×R logical grid chunks (`amg.c:926-968`, README.md:11-12).
+- OpenMP threading is optional (`AMG_WITH_OMP`), used in matrix-generation loops (`amg.c:1031,1703,1721`).
+- CUDA and HIP builds exist via CMake options / Makefile HYPRE_CUDA_*/HYPRE_HIP_* vars, linking cusparse/cublas/curand or rocsparse/rocrand.
+- Each MPI rank binds exactly one GPU device before `HYPRE_Init()` (`amg.c:360`, `hypre_bind_device`).
+- No checkpoint/restart or parallel I/O library found in the driver.
+- Communication pattern (neighbor exchange + reductions) is inferred from the AMG/PCG/GMRES algorithm structure and P×Q×R decomposition, since actual MPI halo-exchange/collective calls live inside the external hypre library, not in this repo — flagged with medium/low confidence accordingly.
+- SYCL support is mentioned in README but has no corresponding build option in this repo's CMakeLists/Makefile, so I did not record a separate sycl variant.
+
+All three traces (`amg:cpu`, `amg:cuda`, `amg:rocm`) have been recorded with evidence-backed assertions.
+  ✓ recorded 39 assertion(s) across 3 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-2155/us-anthropic-claude-sonnet-5/
+  shapes-20260813-2155/us-anthropic-claude-sonnet-5/github.com/LLNL/AMG2023/unpinned/shapes.json

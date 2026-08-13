@@ -1,0 +1,66 @@
+[auto-approved] finalize-setup: {"base_image": "buildpack-deps:bookworm-scm", "focus": "BoomerAMG algebraic multigrid solver", "keep": true, "mode": "container", "ref": null, "repos": ["https://github.com/hypre-space/hypre"]}
+
+▸ https://github.com/hypre-space/hypre  [1/1]
+[auto-approved] clone: {"effect": "network + write", "repo": "https://github.com/hypre-space/hypre"}
+  · cloning https://github.com/hypre-space/hypre into container
+  · warning: could not resolve commit; rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+  ⚠ unpinned: rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+I'll analyze the hypre repository, focusing on the BoomerAMG algebraic multigrid solver.
+  → find . CMakeLists.txt file
+  → find . *.md file
+  → read README.md 1 60
+  → search HYPRE_USING_CUDA|HYPRE_USING_HIP|HYPRE_USING_GPU|HYPRE_USING_SYCL 2 20
+Hypre is a library. The subject that runs is typically driver programs (test/examples). Let me look at what parcsr_ls (BoomerAMG) uses for parallelism and communication.
+  → find src/parcsr_ls *par_amg* file
+  → search MPI_Allreduce|hypre_MPI_Allreduce 2 10
+  → search OpenMP|omp parallel|HYPRE_USING_OPENMP 2 10
+BoomerAMG uses MPI, OpenMP, and GPU backends. Let me look at the communication in the ParCSR matvec (the core of AMG) and the setup phase for collectives.
+  → search hypre_MPI_Irecv|hypre_MPI_Isend|CommPkg 2 10
+  → search pragma omp parallel 3 6
+  → search cudaMalloc|hipMalloc|nccl|cusparse|rocsparse 2 6
+There's GPU support with cusparse/rocsparse, gpu-aware-mpi. Let me look at the ParCSR matvec communication (the core AMG operation) and confirm the neighbor exchange pattern.
+  → search hypre_ParCSRCommHandle|MPI_Irecv|MPI_Isend 3 8
+  → search gpu-aware-mpi|GPU_AWARE_MPI|gpu_aware 3 6
+Confirmed: point-to-point neighbor exchange (Isend/Irecv via CommPkg), plus Allreduce reductions, GPU-aware MPI option. Let me check the ParCSR matvec directly and look at what the driver `ij` test does and how it's launched, plus the assumed partition (all-to-all in setup).
+  → find src/parcsr_mv par_csr_matvec* file
+  → search MPI_Allgather|MPI_Alltoall 2 6
+  → search mpirun|mpiexec|-np 3 4
+Let me check the ij driver (the standard BoomerAMG test driver) and example invocations, plus a look at examples for launch geometry.
+  → search mpirun -np|mpiexec -n 3 6
+  → find src/test ij.c file
+The `ij` driver is the standard BoomerAMG solver driver. Let me look at example 5 (BoomerAMG) invocation and the memory-bound nature (sparse matvec). Let me check the examples README and ex5.
+  → search BoomerAMG 4 4
+  → read src/examples/ex5.c 1 30
+I have enough evidence. Let me record the traces. BoomerAMG has CPU (MPI+OpenMP) and GPU variants. Let me record the CPU/MPI variant first.
+  → record_shape ij mpi BoomerAMG algebraic multigrid (CPU/MPI ParCSR) mpirun -np 4 ex5   (or mpirun -np N ij -sol...
+  → record_shape ij mpi BoomerAMG memory/topology (CPU/MPI) mpirun -np 4 ex5 high Sparse-matvec-dominated multigri...
+  → record_shape ij mpi BoomerAMG comm/io detail (CPU/MPI) mpirun -np 4 ex5 medium Symmetric neighbor exchange (no...
+Now let me record the GPU/CUDA variant. Let me confirm the GPU matvec and gpu-aware-mpi path used in AMG.
+  → read src/parcsr_mv/par_csr_matvec_device.c 1 40
+  → search HYPRE_USING_GPU_AWARE_MPI|hypre_GetGpuAwareMPI|device aware MPI 2 5
+GPU-aware MPI is used to communicate directly from device buffers. Let me record the CUDA variant.
+  → record_shape ij cuda BoomerAMG algebraic multigrid (GPU/CUDA ParCSR) mpirun -np 4 ij -solver ... (one GPU per ...
+I've characterized how hypre's BoomerAMG solver wants to run. Here's the summary.
+
+## What the repo builds
+
+HYPRE is a **library** of parallel preconditioners/solvers (`README.md:11-13`). It does not ship a single application binary; the runnable subjects are its **driver programs** under `src/test/` (notably `ij`, the standard BoomerAMG driver via the IJ interface) and `src/examples/` (e.g. `ex5`, a BoomerAMG solve). BoomerAMG itself lives in `src/parcsr_ls/` and operates on distributed ParCSR matrices (`src/parcsr_mv/`). Build is CMake (`src/CMakeLists.txt`) or autotools (`src/configure`), with configurable CPU (MPI+OpenMP) and GPU (CUDA/HIP/SYCL) backends.
+
+## Traces recorded
+
+**`ij` / `mpi` (CPU BoomerAMG)** — high confidence
+- Parallelism: **MPI + OpenMP threads** (`par_csr_pmvcomm.c` Isend/Irecv; `#pragma omp parallel for`; CHANGELOG notes OpenMP added to BoomerAMG).
+- Communication: **mixed** — point-to-point **neighbor** halo exchange in the sparse matvec *plus* **reduction** (Allreduce) for inner products each iteration. Symmetric (no wavefront/ordered dependency). Setup uses Allgather to build partitions. Latency-sensitive (many small messages, worse on coarse levels).
+- Memory: **memory-bandwidth bound**, **very-low arithmetic intensity**, **poor cache reuse** — classic sparse-matvec-dominated multigrid. NUMA-sensitive (OpenMP). No shared-memory windows, no parallel-IO library.
+- Topology: **neighbor** placement, **co-location preferred**, span **either** (`ex5.c:15` runs `mpirun -np 4`; library targets massively parallel machines).
+
+**`ij` / `cuda` (GPU BoomerAMG)** — high confidence
+- Parallelism: **MPI + GPU** (`par_csr_matvec_device.c` device matvec under `HYPRE_USING_GPU`).
+- Accelerator: **CUDA** with cuSPARSE SpMV; **multi-GPU** (one device per rank, coordinated over MPI); **GPU-aware MPI** path keeps buffers in device memory (`struct_communication.c:1475,1655`).
+- Same neighbor+reduction pattern, memory-bandwidth bound. Co-location preferred (wants fast device interconnect). HIP/rocm and SYCL are analogous variants noted in `src/CMakeLists.txt:169-170`.
+
+The only rejected assertion was a `communication.bandwidth_sensitive=false` claim I initially backed with a line reference instead of an absence pattern — I left it out rather than mis-evidence it; BoomerAMG's traffic is dominated by small neighbor messages and reductions, so it is latency- rather than network-bandwidth-driven.
+  ✓ recorded 22 assertion(s) across 2 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-2155/us-anthropic-claude-opus-4-8/
+  shapes-20260813-2155/us-anthropic-claude-opus-4-8/github.com/hypre-space/hypre/unpinned/BoomerAMG_algebraic_multigrid_solver/shapes.json

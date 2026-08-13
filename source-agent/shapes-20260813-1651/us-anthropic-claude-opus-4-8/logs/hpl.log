@@ -1,0 +1,60 @@
+[auto-approved] finalize-setup: {"base_image": "buildpack-deps:bookworm-scm", "focus": null, "keep": true, "mode": "container", "ref": null, "repos": ["https://github.com/icl-utk-edu/hpl"]}
+
+▸ https://github.com/icl-utk-edu/hpl  [1/1]
+[auto-approved] clone: {"effect": "network + write", "repo": "https://github.com/icl-utk-edu/hpl"}
+  · cloning https://github.com/icl-utk-edu/hpl into container
+  · warning: could not resolve commit; rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+  ⚠ unpinned: rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+I'll analyze this HPL (High-Performance Linpack) repository. Let me start by orienting myself.
+  → find . * dir
+  → find . Makefile* file
+  → find . *.txt file
+  → read testing/Makefile.am 1 60
+  → find . *.dat file
+  → find . README* file
+The subject is `xhpl`. Let me look at the README, build config, and how MPI/BLAS are used.
+  → read README 1 80
+  → read testing/ptest/HPL.dat 1 40
+  → search MPI_(Send|Recv|Isend|Irecv|Bcast|Allreduce|Reduce|Barrier|Comm_split|Sendrecv) 1 40
+This is classic HPL 2.3. MPI point-to-point with ring/tree broadcast patterns. Let me check for collectives (reductions for pivoting), BLAS usage, OpenMP/CUDA, and the launch geometry (P×Q grid).
+  → search MPI_Allreduce|MPI_Reduce|MPI_Allgather|MPI_Alltoall|MPI_Scan 1 20
+  → search omp |openmp|_OPENMP|cuda|cublas|CUDA 1 15
+  → search dgemm|HPL_dgemm|cblas_dgemm 1 10
+No native MPI collectives — HPL implements its own reductions/broadcasts over point-to-point. BLAS (dgemm) is the compute kernel — external library (OpenBLAS/MKL/ATLAS/ESSL). Sequential BLAS in the linked examples. Let me confirm HPL's reduction pattern (used for pivot max) and the grid init, plus check any threaded BLAS notes in TUNING/INSTALL.
+  → search HPL_all_reduce|HPL_reduce|MPI_Op|HPL_pdmxswp 2 6
+  → search MPI_Comm_split|grid_init|Comm_size 2 4
+  → find . INSTALL file
+I have a clear picture. HPL: 2D process grid (P×Q), MPI point-to-point with custom ring/tree broadcasts along rows and custom reductions (HPL_all_reduce/HPL_reduce) for pivot max and residual — logarithmic tree over point-to-point. Compute is dgemm (DGEMM-dominated, dense BLAS3, high arithmetic intensity, compute bound). Let me quickly check the launch invocation docs and threaded BLAS mention.
+  → search mpirun|mpiexec|xhpl 2 6
+I have enough evidence. HPL builds a single MPI executable `xhpl` linked against an external BLAS (sequential BLAS in the linked examples). No OpenMP/CUDA in the source (parallelism from threaded BLAS is external, not the code's own). Let me record the trace.
+  → record_shape xhpl cpu-mpi HPL High-Performance Linpack (dense LU on 2D MPI process grid, BLAS dgemm) mpirun -n...
+  → record_shape xhpl cpu-mpi HPL comm intensity / memory characteristics mpirun -np <P*Q> ./xhpl high Compute is ...
+Let me fix the rejected negative claim and record the remaining fields (accelerator, io, launcher, topology, memory placement).
+  → search MPI_File|hdf5|adios|netcdf|fopen|restart|checkpoint 1 6
+  → search shm_open|/dev/shm|MPI_Win|sched_setaffinity|hugepage 1 6
+No parallel I/O, no shared memory, no affinity, no checkpoint. Recording remaining fields.
+  → record_shape xhpl cpu-mpi HPL accelerator / io / launch negatives mpirun -np <P*Q> ./xhpl high Pure CPU MPI co...
+  → record_shape xhpl cpu-mpi HPL topology judgment mpirun -np <P*Q> ./xhpl medium Benchmark scales to fill availa...
+I've completed the analysis. Here's the summary of how the ICL HPL application wants to run:
+
+## Subject: `xhpl` (variant `cpu-mpi`)
+
+**What it builds:** A single MPI executable `xhpl` (`testing/Makefile.am:6`) that solves a random dense double-precision linear system via LU factorization — the classic High-Performance Linpack benchmark (HPL 2.3). It links against an external BLAS library (OpenBLAS/MKL/ATLAS/ESSL, resolved via `dgemm_` in `configure.ac:31` / `acinclude.m4`) and requires an MPI implementation (`README:12-14`).
+
+**Parallelism & communication:**
+- **MPI process parallelism** only in the source itself. Ranks are laid out on a logical **P×Q 2D process grid** (`HPL.dat` Ps/Qs, `HPL_pddriver.c`).
+- **Point-to-point model** — HPL builds its *own* broadcasts and reductions on top of `MPI_Send`/`MPI_Recv`/`MPI_Irecv`; there are **no native MPI collectives** in the source.
+- **Pattern set:** `neighbor` (panel roll/spread of the U matrix between grid neighbors, `HPL_rollT.c`), `broadcast` (ring/tree panel broadcast along rows, `HPL_1ring.c`), and `reduction` (pivot-max / residual via `HPL_all_reduce`, `HPL_pdtest.c`).
+- Both **latency-sensitive** (small frequent pivot reductions, 0-byte syncs) and **bandwidth-sensitive** (large `lengthR*LDU` double panel transfers).
+
+**Memory:** **Compute-bound** with **high arithmetic intensity** — dominated by cache-blocked BLAS3 `dgemm` (O(N³) flops / O(N²) data, NB-blocked → good cache reuse). This is the field that most distinguishes HPL from a memory-bound stencil code. No shared memory, no affinity pinning in the source.
+
+**Accelerator/I/O:** None — pure CPU code; no CUDA/HIP/SYCL, no parallel I/O (only `fopen` of HPL.dat/HPL.out), no checkpoint/restart.
+
+**Launch/topology:** Started with `mpirun -np <P*Q> ./xhpl` (docs note starting on ≥16 nodes for a 6×8/2×8 grid example, `TUNING:126-130`). Judged **multi_node**, **pack** placement, co-location **preferred** for interconnect bandwidth — but not *required*, since there's no shared-memory dependency. I recorded no concrete launch counts because the repo only gives them as illustrative examples, not a single real invocation.
+
+Only one meaningful build variant exists at the source level (CPU + MPI + external BLAS), so a single trace `xhpl:cpu-mpi` captures it. (Threaded BLAS would add intra-rank threading, but that comes from the linked library, not this code.)
+  ✓ recorded 18 assertion(s) across 1 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-1651/us-anthropic-claude-opus-4-8/
+  shapes-20260813-1651/us-anthropic-claude-opus-4-8/github.com/icl-utk-edu/hpl/unpinned/shapes.json

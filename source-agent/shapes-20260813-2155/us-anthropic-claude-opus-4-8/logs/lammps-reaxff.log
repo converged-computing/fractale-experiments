@@ -1,0 +1,155 @@
+[auto-approved] finalize-setup: {"base_image": "buildpack-deps:bookworm-scm", "focus": "reaxff", "keep": true, "mode": "container", "ref": null, "repos": ["https://github.com/lammps/lammps"]}
+
+▸ https://github.com/lammps/lammps  [1/1]
+[auto-approved] clone: {"effect": "network + write", "repo": "https://github.com/lammps/lammps"}
+  · cloning https://github.com/lammps/lammps into container
+  · warning: could not resolve commit; rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+  ⚠ unpinned: rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+I'll analyze the LAMMPS repository, focusing on the ReaxFF variant. Let me start by orienting myself.
+  → find . CMakeLists.txt file
+  → find src *REAXFF* dir
+  → find . * dir
+The repo appears to only have a git structure. Let me look deeper.
+  → find . * file
+The repository seems to be mid-clone (there's a `shallow.lock` and a temp pack file). The working tree isn't checked out. Let me try searching directly to see if any content is accessible.
+  → search reaxff 2 10
+  → find . *.cpp file
+Search works but `find` for source files returns empty—the working tree isn't materialized, but the search index has content. Let me search for the ReaxFF source files.
+  → search src/REAXFF/pair_reaxff 3 20
+  → search class PairReaxFF 3 10
+  → search PairReaxFF 3 10
+Some queries error. Let me retry.
+  → search PairReaxFF 3 10
+  → search pair_reaxff 2 10
+The index seems to be still being populated (the pack is a tmp file). Let me wait by trying a different simple search.
+  → search REAXFF 2 10
+  → search reaxff 2 10
+Transient errors — the same query worked earlier. Let me retry the same one that succeeded.
+  → search reaxff 2 10
+  → seen {}
+The budget/seen works. The search errors are likely transient (server-side, possibly the pack is being indexed). Let me retry with a pause via a find call first.
+  → find src *.h file
+The tree is now materialized. Let me find the REAXFF sources and build files.
+  → find src/REAXFF *reaxff* file
+  → find cmake *.cmake file
+Now let me examine the ReaxFF pair style and the key computation/communication. Let me read the pair_reaxff files and check the QEq fix (which is central to ReaxFF - charge equilibration requires solving a linear system with reductions).
+  → search MPI_Allreduce|MPI_Allgather|MPI_Reduce|MPI_Bcast 3 30
+  → search comm->forward_comm|comm->reverse_comm 3 20
+Search still erroring intermittently. Let me retry.
+  → search MPI_Allreduce 3 30
+  → search MPI_Allreduce 3 30
+Search consistently errors now while find works. Let me read the QEq fix directly, since that's where the CG solver (reductions) lives.
+  → read src/REAXFF/fix_qeq_reaxff.cpp 1 60
+Let me find the CG solver in this file (parallel_vector_acc / dot products = reductions) and communication.
+  → search MPI_Allreduce 3 30
+Search remains broken. I'll navigate by reading. Let me look for the CG solver and comm functions in the qeq file.
+  → read src/REAXFF/fix_qeq_reaxff.cpp 700 80
+This confirms a CG (conjugate gradient) solver for QEq. It builds a sparse H matrix from the neighbor list, does sparse matvec + reverse_comm, and the CG iteration has dot products (reductions). Let me read the CG loop.
+  → read src/REAXFF/fix_qeq_reaxff.cpp 780 80
+Now let me confirm parallel_dot/parallel_norm use MPI_Allreduce (reductions), and check the forward/reverse comm (neighbor halo exchange).
+  → search parallel_dot 4 10
+Search still down. Let me read the parallel_dot function - it's likely near the vector operations. Let me search by reading a range.
+  → read src/REAXFF/fix_qeq_reaxff.cpp 890 70
+  → read src/REAXFF/fix_qeq_reaxff.cpp 975 80
+Confirmed: `MPI_Allreduce` (MPI_SUM) in `parallel_norm` and `parallel_dot`, called once per CG iteration. So the QEq CG solver does small global reductions + neighbor halo exchange every iteration — classic sparse-solver pattern. Let me record the base MPI variant now, then look at the pair_reaxff force computation and Kokkos/GPU variants.
+  → record_shape lmp mpi LAMMPS ReaxFF (pair reaxff + fix qeq/reaxff), MPI build mpirun -np N lmp -in in.reaxff hi...
+Now let me look at the ReaxFF force computation to characterize compute intensity / memory behavior, and check for OpenMP/threading. Let me read pair_reaxff.cpp key parts and check the nonbonded/bond kernels.
+  → read src/REAXFF/pair_reaxff.cpp 1 50
+Let me check the compute function in pair_reaxff to see the workflow (neighbor list, bond orders, forces, reverse_comm for forces).
+  → search reverse_comm 3 10
+Search still errors. Let me read the compute() region of pair_reaxff.
+  → read src/REAXFF/pair_reaxff.cpp 380 70
+Now let me check the compute() function for the force comm pattern.
+  → read src/REAXFF/pair_reaxff.cpp 490 80
+ReaxFF is a bond-order potential — many-body terms (bonds, valence angles, torsions, hydrogen bonds, nonbonded vdW/coulomb). This is compute-heavy per neighbor pair (unlike Lennard-Jones). Let me record memory/compute characterization and topology. Let me first check docs for any characterization statements about ReaxFF cost.
+  → find doc *reaxff* file
+  → search OpenMP|omp 2 15
+Let me read the pair_reaxff doc for scaling/cost/threading notes.
+  → read doc/src/pair_reaxff.rst 1 80
+This confirms three variants: `reaxff` (plain MPI), `reaxff/omp` (OpenMP), and `reaxff/kk` (Kokkos: GPU or OpenMP). Let me record memory/topology for the base MPI variant, then investigate omp and kk variants.
+  → record_shape lmp mpi LAMMPS ReaxFF MPI: memory/topology mpirun -np N lmp -in in.reaxff medium ReaxFF is a many...
+Now let me examine the OpenMP variant and Kokkos variant. Let me find those files.
+  → find src/OPENMP *reaxff* file
+  → find src/KOKKOS *reaxff* file
+Let me check the OpenMP variant threading and pin behavior.
+  → search pragma omp parallel 3 10
+  → read src/OPENMP/pair_reaxff_omp.cpp 1 40
+Let me confirm actual OpenMP pragmas in the omp forces file.
+  → read src/OPENMP/reaxff_forces_omp.cpp 1 30
+  → search pragma omp 2 10
+Search is persistently broken this run. Let me grep by reading a middle chunk where the parallel region likely appears.
+  → read src/OPENMP/reaxff_forces_omp.cpp 120 40
+Confirmed OpenMP threading with `#pragma omp for` and thread-local force reduction arrays. This is MPI+OpenMP hybrid. Let me record the omp variant.
+  → record_shape lmp threaded LAMMPS ReaxFF OpenMP hybrid (pair reaxff/omp) mpirun -np N lmp -sf omp -pk omp Nt -i...
+Now the Kokkos variant. Let me check the KOKKOS pair_reaxff and the KOKKOS cmake to understand backends (CUDA/HIP/SYCL) and GPU-aware MPI.
+  → read cmake/presets/kokkos-cuda.cmake 1 50
+  → read src/KOKKOS/pair_reaxff_kokkos.cpp 1 40
+Kokkos ReaxFF explicitly targets GPUs (NVIDIA CUDA + AMD HIP mentioned). Kokkos backends: CUDA, HIP, SYCL. Let me check the KOKKOS cmake for backend options and GPU-aware MPI, and check hip/sycl presets.
+  → read cmake/presets/kokkos-hip.cmake 1 30
+  → search gpu_direct|GPU-aware|gpu-aware 3 10
+Let me check the Kokkos comm / GPU-aware MPI handling. Let me look at the KOKKOS doc for GPU-aware MPI and the kokkos comm code.
+  → find doc Speed_kokkos* file
+  → find src/KOKKOS comm_kokkos* file
+  → search gpu/aware|gpu_aware|cuda-aware|CUDA-aware 2 15
+Search is unavailable. Let me read the relevant part of Speed_kokkos.rst for GPU-aware MPI mentions.
+  → read doc/src/Speed_kokkos.rst 1 60
+Let me search the doc for GPU-aware MPI and multi-GPU / one-gpu-per-rank guidance.
+  → read doc/src/Speed_kokkos.rst 280 50
+This confirms: one MPI task per physical GPU, GPU-aware MPI highly recommended (`-pk kokkos gpu/aware`). Let me read the GPU example invocations.
+  → read doc/src/Speed_kokkos.rst 329 40
+I have solid evidence for the Kokkos CUDA variant. Let me record the Kokkos CUDA variant.
+  → record_shape lmp kokkos-cuda LAMMPS ReaxFF Kokkos CUDA (pair reaxff/kk on NVIDIA GPUs) mpirun -np 2 lmp -k on ...
+Now let me add communication + topology for the Kokkos CUDA variant, and check the Kokkos QEq to confirm the same CG reduction pattern applies.
+  → search MPI_Allreduce 3 10
+Search still down. Let me read the Kokkos QEq CG section directly.
+  → find src/KOKKOS fix_qeq_reaxff_kokkos.cpp file
+  → read src/KOKKOS/fix_qeq_reaxff_kokkos.cpp 1 1
+Let me find the CG loop with Allreduce in the Kokkos qeq file (around similar area). Let me read a chunk near where "cg_solve" is likely defined.
+  → read src/KOKKOS/fix_qeq_reaxff_kokkos.cpp 560 60
+Same CG structure on the GPU (sparse matvec via Kokkos kernels). The dot products/Allreduce and forward/reverse comm apply the same way. Let me record communication/topology for the Kokkos CUDA variant.
+  → record_shape lmp kokkos-cuda LAMMPS ReaxFF Kokkos CUDA: comm/topology mpirun -np 32 -ppn 2 lmp -k on g 2 -sf k...
+Now let me record the Kokkos HIP (ROCm/AMD) variant, which the presets and code explicitly support. Let me check the HIP FFT/comm and confirm gpu/aware applies (docs are generic).
+  → record_shape lmp kokkos-rocm LAMMPS ReaxFF Kokkos HIP (pair reaxff/kk on AMD GPUs) srun -n 32 lmp -k on g 8 -s...
+Now let me check for checkpoint/restart and parallel I/O, which apply across variants. Let me look at the fix_reaxff_species / bonds output and restart handling. First check for write_restart in reaxff and general LAMMPS restart.
+  → read src/write_restart.h 1 1
+  → find src/MPIIO *.cpp file
+LAMMPS has restart (`write_restart`), and QEq stores history arrays that participate in restart (fix stores s_hist/t_hist). MPIIO package exists but not present here. Restart is a general LAMMPS feature triggered by the input script's `restart` command, not intrinsic to reaxff. Let me note checkpoint on the mpi trace as a general LAMMPS capability, and check whether reaxff fix restart is written.
+
+The QEq fix has pack_exchange/unpack_exchange and grow_arrays — those are for restart/exchange. This is a real checkpoint capability. Let me record checkpoint for the base variant with the write_restart evidence.
+  → read src/REAXFF/fix_qeq_reaxff.cpp 61 40
+Note `imax = 200` is the default CG iteration cap. The `pack_exchange`/`unpack_exchange` in the QEq fix handle atom migration during domain rebalancing (part of restart/exchange). LAMMPS restart is a general, script-driven capability. I'll record checkpoint as true on the mpi variant with the write_restart evidence plus the fix's exchange packing.
+
+Let me also verify there's no parallel I/O library baked into ReaxFF (io.parallel_io=none). The fix_reaxff_species writes species/bonds output — let me confirm it's serial text output.
+  → record_shape lmp mpi LAMMPS ReaxFF MPI: I/O mpirun -np N lmp -in in.reaxff medium LAMMPS supports restart file...
+Let me check my budget and coverage, then finalize with communication intensity judgment on the mpi variant.
+  → seen {}
+Good coverage. Let me add final judgment fields on the mpi variant: communication intensity and cache reuse. The QEq CG solver dominates communication with per-iteration reductions (up to imax=200 iterations, though typically fewer). I'll record moderate communication intensity, and note memory placement (numa) for the base MPI variant.
+  → record_shape lmp mpi LAMMPS ReaxFF MPI: judgment fields mpirun -np N lmp -in in.reaxff medium Communication is...
+I've completed the analysis. Here's a summary of what I found and recorded.
+
+## Subject: `lmp` (the LAMMPS executable), ReaxFF configuration
+
+ReaxFF in LAMMPS = **pair style `reaxff`** (a reactive bond-order force field: bonds, valence angles, torsions, hydrogen bonds, vdW, Coulomb) + **`fix qeq/reaxff`** charge equilibration, which solves a linear system each timestep with a **conjugate-gradient solver**. That solver structure is what dominates the scheduling shape.
+
+I separated four traces, since each build/config is a genuinely different application to a scheduler:
+
+### `lmp:mpi` — plain MPI build (`reaxff`)
+- Parallelism: **MPI** (spatial domain decomposition).
+- Communication: **mixed** — per-CG-iteration **neighbor** halo exchange (`comm->forward_comm`/`reverse_comm`) **+ reduction** (`MPI_Allreduce`/`MPI_SUM` in `parallel_dot`/`parallel_norm`). CG iterates up to `imax=200`, so intensity is **moderate** and **latency-sensitive** (small frequent messages).
+- Memory: **compute-bound**, moderate arithmetic intensity/cache reuse (many-body force terms dominate; sparse matvec has irregular access).
+- Topology: neighbor placement, co-location preferred. Restart supported (`io.checkpoint=true`), no parallel-I/O library.
+
+### `lmp:threaded` — MPI+OpenMP hybrid (`reaxff/omp`)
+- **MPI + threaded**, `#pragma omp for` with per-thread force-reduction arrays → **shared memory** within a rank, **NUMA-sensitive**, co-location preferred.
+
+### `lmp:cuda-kokkos` — Kokkos CUDA (`reaxff/kk` on NVIDIA)
+- **MPI + GPU**, `accelerator.kind=cuda`, **one GPU per rank** (`launch.gpus_per_task=1`), **multi_gpu=true**, **`gpu_aware_mpi`** (docs strongly recommend it). Same {neighbor, reduction} CG pattern executed on-device.
+
+### `lmp:rocm-kokkos` — Kokkos HIP (`reaxff/kk` on AMD)
+- Same shape with `accelerator.kind=rocm`; HIP preset (VEGA90A), Cray GTL/HSA GPU-aware MPI transport.
+
+**Evidence notes:** Launch geometries are only recorded where the docs literally state them (`mpirun -np 2 ... -k on g 2`, "one MPI task per physical GPU"). The `search` tool was intermittently failing this run, so I navigated by `find` + targeted `read` and cited exact file:line locations. One negative claim (bandwidth_sensitive) was refused because I lacked search evidence for it, so I left it out.
+  ✓ recorded 36 assertion(s) across 4 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-2155/us-anthropic-claude-opus-4-8/
+  shapes-20260813-2155/us-anthropic-claude-opus-4-8/github.com/lammps/lammps/unpinned/reaxff/shapes.json

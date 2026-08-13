@@ -1,0 +1,64 @@
+[auto-approved] finalize-setup: {"base_image": "buildpack-deps:bookworm-scm", "focus": null, "keep": true, "mode": "container", "ref": null, "repos": ["https://github.com/LLNL/AMG2023"]}
+
+▸ https://github.com/LLNL/AMG2023  [1/1]
+[auto-approved] clone: {"effect": "network + write", "repo": "https://github.com/LLNL/AMG2023"}
+  · cloning https://github.com/LLNL/AMG2023 into container
+  · warning: could not resolve commit; rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+  ⚠ unpinned: rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+I'll analyze the AMG2023 repository. Let me start by orienting myself.
+  → find . * file
+  → find . README* file
+A small repo. Let me read the key files.
+  → read README.md 1 200
+  → read CMakeLists.txt 1 200
+The subject is `amg` (single executable built from amg.c). It's a hypre-based algebraic multigrid solver. Let me examine amg.c for the parallelism, communication, and launch details.
+  → search MPI_|hypre_MPI|comm 2 30
+  → search CUDA|HIP|SYCL|cuda|device|GPU 2 30
+This confirms MPI + OpenMP + optional GPU (CUDA/HIP/SYCL) via hypre. The actual solve is in hypre's ParCSR BoomerAMG. Let me look at the GPU device binding, OpenMP usage, and the problem setup / partitioning details, plus command-line launch examples in docs.
+  → read amg.c 142 40
+  → search omp|OpenMP|OMP|num_threads|P\[|Q\[|R\[|P, Q, R|P x Q 2 15
+The PDF is binary. Let me look at the partitioning (P/Q/R), device binding, and how the matrix is generated (Laplacian 27pt stencil), plus command-line usage help text in amg.c.
+  → search -P |px|py|pz|nx|ny|nz|GenerateLaplacian|7pt|27pt 3 20
+  → search mpirun|mpiexec|srun|Usage|usage|printf.*-n  3 10
+This confirms the standard hypre AMG driver: `-n nx ny nz` problem size per MPI process, `-P px py pz` processor topology (3D domain decomposition). Let me read the usage block and the device binding, and check the matrix generation stencil.
+  → read amg.c 326 40
+  → search GenerateLaplacian|BuildParLaplacian|27point|hypre_bind_device 3 6
+`hypre_bind_device` binds each MPI rank to a GPU (round-robin by local rank) — that's the multi-GPU-per-node pattern (one GPU per rank). Let me check the matrix generation function and confirm the 7-point/27-point stencil, and look at how P*Q*R must equal num_procs.
+  → search Laplacian|GenerateSysLaplacian|BuildParFromFile|num_procs !=|P\*Q\*R|values\[ 3 10
+I have a clear picture. This is a 3D structured-grid AMG solver (7pt/27pt Laplacian), domain-decomposed P×Q×R across MPI ranks. AMG is well-known to be memory-bandwidth bound (sparse matvec, halo exchange + reductions for the Krylov solver). Let me check the P*Q*R vs num_procs relationship briefly to confirm the neighbor exchange decomposition.
+  → read amg.c 905 30
+This confirms weak-scaling structured decomposition, threads via `hypre_NumThreads()` (OpenMP within ranks). I have enough evidence. Let me record traces. I'll create two variants: the CPU (mpi + openmp) build and the GPU (cuda) build, since they differ meaningfully for a scheduler.
+  → record_shape amg mpi AMG2023 CPU: MPI + OpenMP algebraic multigrid (hypre BoomerAMG-PCG/GMRES) mpirun -np <P*Q...
+  → record_shape amg mpi AMG2023 CPU: memory/comm characteristics mpirun -np <P*Q*R> ./amg -problem 1 -n <nx> <ny>...
+Let me fix the ordered_dependency with proper negative-search evidence, and add the remaining fields (topology, memory, io).
+  → search shm_open|MPI_Win|dev/shm|hugepage|MPI_File|hdf5|adios|Restart|checkpoint 1 8
+No shared memory, no parallel I/O, no checkpoint in the driver. Let me record these negatives and topology fields.
+  → record_shape amg mpi AMG2023 CPU: memory/IO negatives mpirun -np <P*Q*R> ./amg -problem 1 -n <nx> <ny> <nz> -P...
+  → record_shape amg mpi AMG2023 CPU: topology/placement mpirun -np <P*Q*R> ./amg -problem 1 -n <nx> <ny> <nz> -P ...
+Now the GPU (CUDA) variant. Same algorithm but with device execution and one GPU per rank via `hypre_bind_device`. Let me record that as a separate trace.
+  → record_shape amg cuda AMG2023 GPU (CUDA): hypre BoomerAMG on device, one GPU per MPI rank mpirun -np <ngpus> ....
+  → record_shape amg cuda AMG2023 GPU (CUDA): comm/memory characteristics mpirun -np <ngpus> ./amg -problem 1 -n <...
+I've completed the analysis. Here's a summary of how AMG2023 wants to run.
+
+## Subject
+The repo builds a single executable, **`amg`** (from `amg.c`, linked against **hypre ≥ 2.27.0**), via either a Makefile or CMake. It's a benchmark driver that assembles 3D Laplacian linear systems (7-point or 27-point stencils) and solves them with hypre's **BoomerAMG-preconditioned PCG** (problem 1) or **AMG-GMRES(100)** (problem 2). Real invocation form: `./amg -problem <id> -n <nx ny nz> -P <px py pz>`, where `-n` is per-rank problem size and `-P` is the P×Q×R rank topology (weak scaling, `px*py*pz` must equal the rank count).
+
+## Variants recorded (kept separate)
+
+**`amg:mpi` — CPU (MPI + OpenMP)**  — README:10 states "SPMD code which uses MPI and OpenMP threading within MPI tasks."
+- parallelism: `{mpi, threaded}`; communication: `mixed`, pattern `{neighbor, reduction}` — structured-stencil halo exchange + per-iteration `Allreduce` dot products.
+- Latency- and bandwidth-sensitive; reductions on coarse AMG levels dominate.
+- **memory.bound_by = memory_bandwidth, arithmetic_intensity = very_low, cache_reuse = poor** — classic sparse SpMV / Krylov profile.
+- No shared memory, hugepages, parallel I/O, or checkpoint (all evidenced by negative searches).
+- topology: span `either`, placement `neighbor`, co_location `preferred`; NUMA-sensitive (low conf, from the hybrid model).
+
+**`amg:cuda` — GPU (CUDA)**  — README:13 + CMake `AMG_WITH_CUDA` (links cusparse/cublas/curand), `HYPRE_USING_CUDA` paths in `amg.c`.
+- parallelism `{mpi, gpu}`, accelerator `cuda`, **multi_gpu = true** (`hypre_bind_device` pins one GPU per rank; default exec/memory = device).
+- gpu_comm `gpu_aware_mpi` (low confidence — traffic flows through MPI, driver has no explicit NCCL; searched: absent).
+- Same `{neighbor, reduction}` pattern, HBM-bandwidth bound, very-low arithmetic intensity; prefers co-located GPUs and neighbor placement.
+
+Note HIP/SYCL are also supported by the same code (README:13, CMake `AMG_WITH_HIP`); I recorded CUDA as the concrete GPU variant since it's the one with full dependency evidence — a `rocm` variant would share the `cuda` trace's shape with `accelerator.kind=rocm`/`gpu_comm=rccl`.
+  ✓ recorded 28 assertion(s) across 2 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-2155/us-anthropic-claude-opus-4-8/
+  shapes-20260813-2155/us-anthropic-claude-opus-4-8/github.com/LLNL/AMG2023/unpinned/shapes.json

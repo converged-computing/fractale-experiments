@@ -1,0 +1,41 @@
+[auto-approved] finalize-setup: {"base_image": "buildpack-deps:bookworm-scm", "focus": null, "keep": true, "mode": "container", "ref": null, "repos": ["https://github.com/LLNL/AMG"]}
+
+▸ https://github.com/LLNL/AMG  [1/1]
+[auto-approved] clone: {"effect": "network + write", "repo": "https://github.com/LLNL/AMG"}
+  · cloning https://github.com/LLNL/AMG into container
+  · warning: could not resolve commit; rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+  ⚠ unpinned: rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+  → find . * file
+  → read README 1 150
+  → read docs/amg.README 1 200
+Excellent, this gives very direct evidence. Let's read more of the doc, especially "Running the Code" section for launch invocation examples.
+  → read docs/amg.README 200 150
+  → read Makefile.include 1 120
+  → search MPI_Allreduce|MPI_Alltoall|MPI_Isend|MPI_Irecv|MPI_Waitall 2 30
+  → search omp parallel|HYPRE_USING_OPENMP 2 15
+  → search MPI_File|hdf5|checkpoint|restart 2 10
+No checkpoint/restart I/O in the persistence sense (no file I/O). No CUDA/GPU code found in this repo (this is the classic MPI+OpenMP AMG benchmark, not AMG2013's CUDA branch). Let me confirm absence of GPU code.
+  → search cuda|CUDA|__global__|hip_runtime 1 10
+Confirmed: no GPU code. Now record the shape trace for subject "amg" variant "mpi-openmp" (the built default), and possibly a "mpi" only variant note. I'll record one primary trace with high confidence since the source clearly documents MPI+OpenMP hybrid usage.
+  → record_shape amg cpu-mpi-openmp LLNL AMG (hypre-derived parallel algebraic multigrid benchmark), MPI+OpenMP bu...
+  → record_shape amg cpu-mpi-openmp LLNL AMG additional topology/io/accelerator assertions mpirun -np 4 amg -P 2 2...
+  → record_shape amg cpu-mpi-openmp LLNL AMG negative memory-affinity assertions mpirun -np 4 amg -P 2 2 1 -n 50 5...
+I've characterized the LLNL AMG benchmark. Summary:
+
+**Subject**: `amg` — the AMG driver built from `test/amg.c`, linking `krylov`, `parcsr_ls`, `parcsr_mv`, `IJ_mv`, `seq_mv`, `utilities` libraries (this is the classic hypre-derived algebraic multigrid mini-app/benchmark).
+
+**Variant recorded**: `cpu-mpi-openmp` (the only meaningfully distinguishable build variant — the Makefile.include toggles pure-MPI vs MPI+OpenMP vs additional optimization flags, but it's the same code path/shape; no CUDA/ROCm/SYCL code exists in this repo).
+
+Key findings baked into the trace:
+- **Parallelism**: SPMD MPI across a logical P×Q×R process grid, with optional OpenMP threading per rank (`#pragma omp parallel for` in matvec/setup code), confirmed by README and Makefile.include defaults (`-fopenmp -DHYPRE_USING_OPENMP`).
+- **Communication**: point-to-point `Isend/Irecv/Waitall` neighbor halo exchange (`par_csr_communication.c`) plus global `MPI_Allreduce` reductions (norms, nnz counts) — classic `{neighbor, reduction}` sparse-solver pattern.
+- **Memory**: explicitly documented as memory-access bound (~1-2 ops per memory access), poor cache reuse expected even after optimization — direct quotes from `docs/amg.README`.
+- **No accelerator**: no CUDA/HIP/SYCL kernels found anywhere in the tree.
+- **No parallel I/O/checkpointing**: the driver generates its own synthetic matrix in-memory; no HDF5/MPI-IO/restart-to-disk found.
+- **Launch geometry**: documented example invocation `mpirun -np 4 amg -P 2 2 1 -n 50 50 50 -printstats` with `OMP_NUM_THREADS=3`, and historical runs cited up to 1,000,000+ MPI processes on BG/Q with 4 OpenMP threads/task — confirming this is designed to span many nodes with modest per-rank thread counts.
+
+All assertions recorded with evidence citations under `amg:cpu-mpi-openmp` (19 total across 3 calls).
+  ✓ recorded 19 assertion(s) across 1 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-1651/us-anthropic-claude-sonnet-5/
+  shapes-20260813-1651/us-anthropic-claude-sonnet-5/github.com/LLNL/AMG/unpinned/shapes.json
