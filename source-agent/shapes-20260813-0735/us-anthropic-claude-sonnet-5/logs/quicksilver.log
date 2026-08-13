@@ -1,0 +1,75 @@
+
+[confirm] about to run action 'finalize-setup' with:
+{
+  "repos": [
+    "https://github.com/LLNL/Quicksilver"
+  ],
+  "mode": "container",
+  "base_image": "buildpack-deps:bookworm-scm",
+  "ref": null,
+  "keep": true,
+  "focus": null
+}
+proceed? [y/N] 
+▸ https://github.com/LLNL/Quicksilver  [1/1]
+
+[confirm] about to run action 'clone' with:
+{
+  "repo": "https://github.com/LLNL/Quicksilver",
+  "effect": "network + write"
+}
+proceed? [y/N]   · cloning https://github.com/LLNL/Quicksilver into container
+  · warning: could not resolve commit (HEAD)
+  ⚠ unpinned: HEAD
+  → find . * dir
+  → find / *Quicksilver* dir
+  → find / *uicksilver* file
+Found it. Let's explore the repo root.
+  → find /tmp/artifact-secretary/repo * file
+This confirms Quicksilver's classic layout. Let's read Makefile, README, and how-to-run doc, plus MPI/particle buffer/CUDA code.
+  → read /tmp/artifact-secretary/repo/src/Makefile 1 150
+  → read /tmp/artifact-secretary/repo/src/READ.ME.HOW.TO.RUN 1 150
+Good overview. Now let's look at MPI communication patterns, CUDA/HIP, particle buffer (neighbor exchange), and example launch scripts.
+  → search MPI_Allreduce|MPI_Isend|MPI_Irecv|MPI_Bcast|MPI_Alltoall|MPI_Waitall 3 40
+  → read /tmp/artifact-secretary/repo/Examples/Homogeneous/quicksilver_slurm_rzgenie_01.sh 1 60
+  → read /tmp/artifact-secretary/repo/Examples/Homogeneous/quicksilver_aprun_trinity_01.sh 1 60
+  → search cudaMalloc|cudaMemcpy|__global__|hipMalloc|cudaSetDevice 3 20
+  → read /tmp/artifact-secretary/repo/src/cudaFunctions.cc 1 86
+  → search neighbor|sendQueue|SendQueue|faceNbr 3 20
+This confirms the domain decomposition neighbor exchange pattern with particle send buffers (Isend/Irecv to neighbors) and a global test-for-done Allreduce. Let's check main.cc for the test-for-done and OpenMP loop pragma usage, plus check CORAL2 benchmark scripts for GPU launch geometry.
+  → search Test_Done_New|iAllreduce|reduceInt 4 15
+  → read /tmp/artifact-secretary/repo/Examples/CORAL2_Benchmark/Problem1/P1_64t.sh 1 70
+This confirms strong-scaling weak-scaling MPI runs, 1 rank per node, 64 OMP threads per rank, up to 24576 nodes. Now I have enough evidence for both CPU (MPI+OpenMP) and GPU (CUDA/HIP) variants. Let's check checkpoint/restart and I/O briefly.
+  → search checkpoint|restart|hdf5|HDF5 2 10
+  → search GPU_NATIVE|HAVE_CUDA|HAVE_HIP 2 10
+No checkpoint/restart, no parallel I/O library. Good, confirmed absence. Now I have sufficient evidence to record two variants: CPU (MPI+OpenMP) and GPU (CUDA/HIP with MPI). Let's check gpu device count per rank (single GPU per MPI rank typically).
+  → search cudaSetDevice|SetDevice|ngpus|gpu_id|deviceCount 3 10
+This confirms rank%Ngpus GPU assignment — 1 GPU per MPI rank typically. Now I have enough evidence to record both variants.
+  → record_shape qs cpu-mpi-openmp Quicksilver CPU build (MPI + OpenMP threads, domain-decomposed Monte Carlo part...
+  → record_shape qs gpu-cuda-hip Quicksilver GPU build (CUDA/HIP kernels + MPI domain decomposition) srun -n<N> ./...
+Both traces recorded. Let me add a few remaining fields (topology, memory shared, checkpoint, io) to round out each trace.
+  → record_shape qs cpu-mpi-openmp Quicksilver CPU build - topology/memory/io fields srun -N1024 -n1024 ./qs -i Co...
+  → record_shape qs gpu-cuda-hip Quicksilver GPU build - topology/memory/io fields srun -n<N> ./qs -i <deck>.inp -...
+I've characterized Quicksilver's two build variants with evidence-backed scheduling shapes:
+
+## Summary
+
+**Subject**: `qs` — Quicksilver (LLNL), a single executable built from `src/Makefile`, a Monte Carlo particle-transport proxy app.
+
+**Variant 1: `cpu-mpi-openmp`** (default/typical build)
+- MPI ranks arranged in a 3D domain decomposition (I×J×K), each rank optionally multithreaded via OpenMP (`OMP_NUM_THREADS`)
+- Communication: neighbor-exchange of particles crossing domain boundaries each cycle (`MPI_Isend`/`Irecv` via `SendQueue`/`MC_Particle_Buffer`), plus periodic small `MPI_Allreduce`/`Iallreduce` for tallies and a distributed termination test (`Test_Done_New`)
+- NUMA/affinity-aware: example SLURM/aprun scripts explicitly set `OMP_PROC_BIND`, `OMP_PLACES=cores`, `--mpibind`, `-cc depth`
+- No shared-memory windows, no checkpoint/restart, no parallel I/O library
+- Scales from 1 to 24,576 nodes in CORAL2 benchmark scripts (1 rank/node, 64 threads/rank), so topology span is flexible (single-node to many-node)
+
+**Variant 2: `gpu-cuda-hip`** (built with `-DHAVE_CUDA`/`-DHAVE_HIP`/`GPU_NATIVE`)
+- Same MPI domain-decomposition and neighbor-exchange communication pattern as CPU build
+- Adds GPU offload of the core `CycleTrackingKernel`; one GPU bound per MPI rank via `GPUID = rank % Ngpus; gpuSetDevice(GPUID)` — no evidence of multi-GPU-per-rank or NCCL/RCCL/GPU-aware MPI (particle exchange stays host-side)
+- Requires rank↔GPU co-location; otherwise same neighbor placement and lack of checkpoint/parallel-I/O as CPU build
+
+Both traces recorded with evidence citations; GPU variant confidence is medium since GPU-communication specifics (peer-to-peer, GPU-aware MPI) weren't found explicitly in source.
+  ✓ recorded 28 assertion(s) across 2 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-0735/us-anthropic-claude-sonnet-5/
+  shapes-20260813-0735/us-anthropic-claude-sonnet-5/github.com/LLNL/Quicksilver/unpinned/shapes.json

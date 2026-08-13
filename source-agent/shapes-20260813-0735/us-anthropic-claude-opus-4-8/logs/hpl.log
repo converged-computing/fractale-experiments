@@ -1,0 +1,67 @@
+
+[confirm] about to run action 'finalize-setup' with:
+{
+  "repos": [
+    "https://github.com/icl-utk-edu/hpl"
+  ],
+  "mode": "container",
+  "base_image": "buildpack-deps:bookworm-scm",
+  "ref": null,
+  "keep": true,
+  "focus": null
+}
+proceed? [y/N] 
+▸ https://github.com/icl-utk-edu/hpl  [1/1]
+
+[confirm] about to run action 'clone' with:
+{
+  "repo": "https://github.com/icl-utk-edu/hpl",
+  "effect": "network + write"
+}
+proceed? [y/N]   · cloning https://github.com/icl-utk-edu/hpl into container
+  · warning: could not resolve commit (HEAD)
+  ⚠ unpinned: HEAD
+I'll analyze the HPL (High Performance Linpack) repository. Let me start by orienting myself.
+  → find . * dir
+  → find . Make* file
+The repo is at `/tmp/artifact-secretary/repo`. This is classic HPL. Let me look at the layout and docs.
+  → find /tmp/artifact-secretary/repo *.txt file
+  → read /tmp/artifact-secretary/repo/Makefile.am 1 60
+This is HPL — builds `xhpl` benchmark. Let me look at the testing build (main executable) and the communication layer.
+  → read /tmp/artifact-secretary/repo/testing/Makefile.am 1 40
+  → search MPI_Init|MPI_Comm|MPI_Send|MPI_Recv 2 20
+Confirmed: `xhpl` is the subject, MPI-based, uses a 2D process grid (row_comm/col_comm). Let me examine the grid setup and communication patterns (broadcast, reduce, panel factorization, and any threading/BLAS).
+  → search MPI_Cart|Comm_split|MPI_Bcast|MPI_Allreduce|MPI_Reduce|MPI_Allgather|MPI_Alltoall 2 15
+  → search omp|OpenMP|pthread|OMP_NUM 2 10
+No OpenMP/pthread in HPL itself — parallelism relies on multi-threaded BLAS. Communication uses row/col communicators. Let me check the comm layer (bcast/reduce implementations) and how it launches (docs/README).
+  → search mpirun|mpiexec|-np |srun 2 8
+  → search MPI_Bcast|MPI_Send|MPI_Isend|MPI_Irecv|MPI_Allreduce 3 8
+Good detail. HPL uses point-to-point (Send/Sendrecv/Isend/Irecv) for panel broadcasts and U-swap rolls along row/col communicators, plus reductions for pivot search (HPL_pdmxswp / all_reduce). Let me check the broadcast/reduce implementations and the panel factorization max-swap (latency-sensitive collectives).
+  → search MPI_Allreduce|MPI_Allgatherv|MPI_Op_create 3 6
+  → read /tmp/artifact-secretary/repo/INSTALL 1 30
+No MPI collective calls — HPL implements its own broadcast/reduce on top of point-to-point (that's the tunable "broadcast" algorithms in TUNING). This is fundamentally a point-to-point / neighbor-exchange code within a 2D grid. Let me confirm the reduce/broadcast implementation is point-to-point based.
+  → search HPL_sdrv|HPL_send|HPL_recv 3 6
+I have enough evidence. HPL 2.3: MPI process-parallel LU factorization on a 2D P×Q grid, custom point-to-point broadcast/reduce/roll along row/col communicators, compute in (typically multi-threaded) BLAS dgemm. No GPU, no MPI collectives, no OpenMP in HPL itself. Launched via `mpirun -np N xhpl`. Let me record.
+  → record_shape xhpl general HPL 2.3 Linpack benchmark (reference MPI build) mpirun -np 4 xhpl high HPL builds a ...
+  → record_shape xhpl general HPL 2.3 accelerator/memory/launch mpirun -np 4 xhpl high No CUDA/HIP/SYCL in referen...
+  → record_shape xhpl general HPL 2.3 topology judgment mpirun -np 4 xhpl medium Topology is judgment. HPL is a be...
+## Summary
+
+**Subject: `xhpl`** — the High Performance Linpack benchmark (HPL 2.3, ICL/UTK). The build (`testing/Makefile.am` → `bin_PROGRAMS = xhpl`, linking `src/libhpl.a`) produces a single MPI executable. Docs (`INSTALL:29`) invoke it as `mpirun -np 4 xhpl`, reading parameters from `HPL.dat`.
+
+I recorded one trace, **`xhpl:general`**, because HPL's shape is uniform — it's a single algorithm (distributed LU factorization / linear solve) with tuning knobs, not distinct pair-style-like variants.
+
+### How it wants to run
+- **Parallelism:** `mpi` (process grid) + `threaded` — HPL itself has no OpenMP/pthreads; concurrency within a rank comes from the multi-threaded BLAS `dgemm` it links against.
+- **Grid & communication:** Ranks are split via `MPI_Comm_split` into a 2D P×Q grid with `row_comm`/`col_comm`. All collective-like operations (broadcast, reduce, panel roll, pivot max-swap) are **built on point-to-point** (`MPI_Send`/`Sendrecv`/`Isend`/`Irecv`) — there are **no native MPI collectives** in the code. Pattern is **neighbor** exchange along grid rows/columns.
+- **Intensity/sensitivity:** High comm intensity; both **latency-sensitive** (frequent small panel/pivot messages) and **bandwidth-sensitive** (large U-panel rolls). This drives a **pack** placement and **preferred co-location** judgment.
+- **Accelerator:** none (reference CPU/BLAS build).
+- **Memory:** no MPI shared windows / shm; NUMA sensitivity flagged low-confidence from TUNING's row-major mapping advice.
+- **I/O:** no parallel I/O, no checkpoint/restart.
+- **Launch:** `mpirun`; the only literal count in the repo is `-np 4` (a quick-check example, not a mandated geometry). Topology span = **either** (runs from a single node to full cluster).
+
+Confidence is high on structure (MPI, point-to-point, no GPU, launcher); the topology/intensity fields are marked as my judgment.
+  ✓ recorded 17 assertion(s) across 1 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-0735/us-anthropic-claude-opus-4-8/
+  shapes-20260813-0735/us-anthropic-claude-opus-4-8/github.com/icl-utk-edu/hpl/unpinned/shapes.json

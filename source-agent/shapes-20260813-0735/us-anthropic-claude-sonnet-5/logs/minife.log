@@ -1,0 +1,78 @@
+
+[confirm] about to run action 'finalize-setup' with:
+{
+  "repos": [
+    "https://github.com/Mantevo/miniFE"
+  ],
+  "mode": "container",
+  "base_image": "buildpack-deps:bookworm-scm",
+  "ref": null,
+  "keep": true,
+  "focus": null
+}
+proceed? [y/N] 
+▸ https://github.com/Mantevo/miniFE  [1/1]
+
+[confirm] about to run action 'clone' with:
+{
+  "repo": "https://github.com/Mantevo/miniFE",
+  "effect": "network + write"
+}
+proceed? [y/N]   · cloning https://github.com/Mantevo/miniFE into container
+  · warning: could not resolve commit (HEAD)
+  ⚠ unpinned: HEAD
+  → find . * dir
+  → find / *iniFE* dir
+  → find / *iniFE* file
+Found the repo. There are multiple variants: kokkos, openmp-opt-knl, qthreads, openmp-opt, openmp, cilk, openmp45, mkl, cuda, openmp45-opt, nvamg, ref. Let me explore.
+  → find /tmp/artifact-secretary/repo * dir
+  → find /tmp/artifact-secretary/repo/ref * file
+  → read /tmp/artifact-secretary/repo/ref/README 1 80
+  → find /tmp/artifact-secretary/repo *.md file
+  → read /tmp/artifact-secretary/repo/ref/src/Makefile.gnu.serial 1 60
+  → read /tmp/artifact-secretary/repo/README.md 1 120
+  → find /tmp/artifact-secretary/repo/ref/src Makefile* file
+  → read /tmp/artifact-secretary/repo/ref/src/main.cpp 1 60
+  → read /tmp/artifact-secretary/repo/ref/src/Makefile 1 50
+  → search HAVE_MPI|OPENMP|_OPENMP|MPI_Init|MPI_Allreduce|MPI_Irecv|MPI_Isend|MPI_Reduce 2 40
+  → search MPI_Isend|MPI_Irecv|MPI_Waitall|MPI_Send|MPI_Recv 3 30
+  → find /tmp/artifact-secretary/repo exchange_externals.hpp file
+Good, common pattern confirmed everywhere: MPI point-to-point neighbor exchange (post Irecv, then Send) in `exchange_externals.hpp`, used in matrix-vector multiply (CG solver). Now let's check the OpenMP variant's threading model and CUDA variant specifics.
+  → search omp parallel|OMP_NUM_THREADS|pragma omp 3 20
+  → find /tmp/artifact-secretary/repo/openmp/src Makefile* file
+MPI+OpenMP hybrid confirmed for openmp variant. Let's check the Makefile for openmp variant and cuda variant Makefile/source for GPU specifics.
+  → read /tmp/artifact-secretary/repo/openmp/src/Makefile 1 40
+  → find /tmp/artifact-secretary/repo/cuda/src Makefile* file
+  → read /tmp/artifact-secretary/repo/cuda/src/Makefile 1 60
+  → search cudaMalloc|cudaMemcpy|__global__|cudaSetDevice 3 15
+  → read /tmp/artifact-secretary/repo/README.FIRST 1 122
+  → search checkpoint|restart|fopen.*mtx|ofstream 2 10
+  → find /tmp/artifact-secretary/repo/kokkos/src Makefile* file
+  → read /tmp/artifact-secretary/repo/kokkos/src/Makefile 1 60
+  → search GPUDIRECT 3 10
+Now I have enough evidence for four distinct variants. Let me record them.
+  → record_shape miniFE ref miniFE reference MPI-only implementation (basic/src, no threading) mpirun -np <N> ./mi...
+  → record_shape miniFE openmp miniFE MPI+OpenMP hybrid (openmp/, openmp-opt/, openmp-opt-knl/ variants) OMP_NUM_T...
+  → record_shape miniFE cuda miniFE MPI+CUDA GPU implementation (cuda/ variant) mpirun -np <N> ./miniFE.x -nx <X> ...
+  → record_shape miniFE kokkos miniFE MPI+Kokkos portable-parallel implementation (kokkos/ variant, default OpenMP...
+Now let me add a few more assertions to fill out remaining important fields (memory, topology, io) for each variant, keeping calls small.
+  → record_shape miniFE ref miniFE ref - memory/topology/io fields mpirun -np <N> ./miniFE.x -nx <X> -ny <Y> -nz <...
+  → record_shape miniFE openmp miniFE openmp - memory/topology/io fields OMP_NUM_THREADS=<T> mpirun -np <N> ./mini...
+  → record_shape miniFE cuda miniFE cuda - memory/topology/io fields mpirun -np <N> ./miniFE.x -nx <X> -ny <Y> -nz...
+I've characterized miniFE across its four main distinguishable build/runtime variants:
+
+**Summary of findings:**
+
+1. **`ref`** — the original reference implementation: pure MPI, single-threaded per rank. CG solver's sparse matvec drives a nearest-neighbor halo exchange (`MPI_Isend`/`MPI_Irecv` in `exchange_externals.hpp`) each iteration, plus `MPI_Allreduce` for dot-product reductions. No accelerator, no parallel I/O, no checkpointing.
+
+2. **`openmp`** (and `openmp-opt`/`openmp-opt-knl` sibling variants) — MPI+OpenMP hybrid: same MPI neighbor-exchange communication pattern, but vector/matrix kernels are parallelized with `#pragma omp parallel for` (waxpby, dot, matvec, sparse-matrix assembly). NUMA placement of OpenMP threads matters since they operate on the same contiguous per-rank arrays.
+
+3. **`cuda`** — MPI+CUDA: each rank owns a CUDA device holding the sparse matrix/vectors (`thrust::device_vector`). Halo-exchange data is packed on-device; a `GPUDIRECT` build flag switches between staged host-buffer MPI transfers and direct GPU-resident buffer transfers (GPU-aware MPI), so rank-to-GPU affinity and network GPU-direct capability matter for scheduling.
+
+4. **`kokkos`** — MPI + Kokkos, checked in with `KOKKOS_DEVICES=OpenMP`, functionally equivalent in communication/threading shape to the `openmp` variant (Kokkos is portable and could target Cuda if reconfigured, but the shipped Makefile builds an OpenMP backend).
+
+All variants share the same communication skeleton (box-partitioned structured mesh → nearest-neighbor point-to-point exchange + periodic global reductions), differing mainly in how the per-rank compute kernels get their parallelism (none/threads/GPU). Recorded all four as separate traces with evidence, plus filled in memory/topology/IO judgment fields for each.
+  ✓ recorded 49 assertion(s) across 4 trace(s)
+
+wrote 1 shape report(s) under shapes/us-anthropic-claude-sonnet-5/
+  shapes/us-anthropic-claude-sonnet-5/github.com/Mantevo/miniFE/unpinned/shapes.json

@@ -1,0 +1,50 @@
+
+[confirm] about to run action 'finalize-setup' with:
+{
+  "repos": [
+    "https://github.com/LLNL/AMG2023"
+  ],
+  "mode": "container",
+  "base_image": "buildpack-deps:bookworm-scm",
+  "ref": null,
+  "keep": true,
+  "focus": null
+}
+proceed? [y/N] 
+▸ https://github.com/LLNL/AMG2023  [1/1]
+
+[confirm] about to run action 'clone' with:
+{
+  "repo": "https://github.com/LLNL/AMG2023",
+  "effect": "network + write"
+}
+proceed? [y/N]   · cloning https://github.com/LLNL/AMG2023 into container
+  · warning: could not resolve commit (HEAD)
+  ⚠ unpinned: HEAD
+  → find . * dir
+  → find . CMakeLists.txt file
+  → find /tmp/artifact-secretary/repo * file
+  → read /tmp/artifact-secretary/repo/CMakeLists.txt 1 200
+  → read /tmp/artifact-secretary/repo/README.md 1 200
+  → search MPI_Init|MPI_Comm_size|MPI_Comm_rank|num_procs|P\*Q\*R|-P |-Q |-R  3 40
+  → search omp_set_num_threads|OMP_NUM_THREADS|#pragma omp|num_threads 2 20
+Now let's check GPU device binding, checkpoint/restart, and communication patterns (hypre matrix solve uses halo exchange typically via MPI point-to-point in IJMatrix assembly / PCG solve).
+  → search hypre_bind_device|cudaSetDevice|hipSetDevice|gpu_aware|GPU-aware|MPI_Allreduce|MPI_Reduce 4 20
+  → read /tmp/artifact-secretary/repo/amg.c 280 100
+  → search checkpoint|restart|HDF5|hdf5 2 10
+No checkpoint/IO libs. That's enough evidence for a general trace covering both CPU (MPI+OpenMP) and GPU (CUDA/HIP) build variants, but since these are distinct build configs, I'll record two variants: CPU (mpi+openmp) and GPU (cuda/hip offload).
+  → record_shape amg cpu-mpi-openmp AMG2023 CPU build (MPI+OpenMP, hypre-based algebraic multigrid solver) mpirun ...
+  → record_shape amg gpu-cuda-hip AMG2023 GPU build (MPI + CUDA/HIP, one GPU bound per MPI rank via hypre_bind_dev...
+Both traces recorded. Summary:
+
+**Subject: `amg`** (AMG2023 — hypre-based algebraic multigrid benchmark/solver, built from `amg.c` via CMake or Makefile into a single executable `amg`)
+
+1. **Variant `cpu-mpi-openmp`**: SPMD MPI application with optional OpenMP threading per rank. Domain decomposition is an explicit logical `P x Q x R` processor grid (`-P px py pz`), each rank owning an `nx*ny*nz` subgrid (`-n`). Communication is MPI collectives/point-to-point in a neighbor/halo-exchange pattern typical of multigrid solves, latency- and bandwidth-sensitive. No checkpointing or parallel I/O.
+
+2. **Variant `gpu-cuda-hip`**: Same MPI SPMD/PxQxR structure, but built with `AMG_WITH_CUDA`/`AMG_WITH_HIP`; explicit `hypre_bind_device(myid, num_procs, comm)` call binds each MPI rank to a device before `HYPRE_Init()`, implying one-GPU-per-rank placement and likely GPU-aware MPI for inter-rank exchange. Same neighbor communication pattern, now bandwidth-sensitive across GPU-resident data.
+
+Both variants show no checkpoint/restart or parallel I/O usage in source — this is a compute benchmark/solver driver, not a long-running simulation with restart files.
+  ✓ recorded 16 assertion(s) across 2 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-0735/us-anthropic-claude-sonnet-5/
+  shapes-20260813-0735/us-anthropic-claude-sonnet-5/github.com/LLNL/AMG2023/unpinned/shapes.json

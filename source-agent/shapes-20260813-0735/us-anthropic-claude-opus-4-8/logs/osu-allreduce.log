@@ -1,0 +1,63 @@
+
+[confirm] about to run action 'finalize-setup' with:
+{
+  "repos": [
+    "https://github.com/jwu274/osu-micro-benchmarks"
+  ],
+  "mode": "container",
+  "base_image": "buildpack-deps:bookworm-scm",
+  "ref": null,
+  "keep": true,
+  "focus": "osu_allreduce MPI_Allreduce collective benchmark"
+}
+proceed? [y/N] 
+▸ https://github.com/jwu274/osu-micro-benchmarks  [1/1]
+
+[confirm] about to run action 'clone' with:
+{
+  "repo": "https://github.com/jwu274/osu-micro-benchmarks",
+  "effect": "network + write"
+}
+proceed? [y/N]   · cloning https://github.com/jwu274/osu-micro-benchmarks into container
+  · warning: could not resolve commit (HEAD)
+  ⚠ unpinned: HEAD
+I'll analyze this OSU Micro-Benchmarks repository, focusing on the osu_allreduce MPI_Allreduce collective benchmark.
+  → find . *allreduce* file
+  → find . configure.ac file
+  → read /tmp/artifact-secretary/repo/c/mpi/collective/blocking/osu_allreduce.c 1 200
+This is the classic OSU allreduce benchmark. Let me check the accelerator support and build configuration.
+  → search options.accel|CUDA|cudaMalloc|ROCM|hipMalloc|MPI_IN_PLACE 2 15
+  → search cuda|rocm|openacc|--enable-cuda 2 15
+The benchmark supports optional CUDA/ROCm accelerator buffers (device-to-device allreduce). Let me check how the run is invoked in docs and how buffers are placed on device.
+  → search mpirun.*osu_allreduce|mpirun.*osu_|-np .*osu 1 8
+  → search -d cuda|-d rocm|D D|device buffer 2 6
+I have enough evidence. The subject is `osu_allreduce`, an MPI benchmark that repeatedly calls `MPI_Allreduce` (with `MPI_Barrier` and `MPI_Reduce` for stats), requires ≥2 ranks, and optionally uses CUDA/ROCm device buffers. Let me record the two variants: the default (host/MPI) and the accelerator variant.
+  → record_shape osu_allreduce mpi-host OSU MPI_Allreduce collective latency benchmark (host buffers) mpirun_rsh -...
+  → record_shape osu_allreduce mpi-host launch geometry and topology (host buffers) mpirun_rsh -np 2 -hostfile hos...
+Now the accelerator variant (CUDA/ROCm device buffers, `-d cuda`/`-d rocm`, `D D`), which relies on GPU-aware MPI for device-to-device allreduce.
+  → record_shape osu_allreduce mpi-cuda OSU allreduce with device (CUDA/ROCm) buffers via -d / D D mpirun_rsh -np ...
+  → record_shape osu_allreduce mpi-cuda device variant launch/affinity mpirun_rsh -np 2 -hostfile hostfile MV2_USE...
+I've characterized the OSU allreduce benchmark. Summary of findings:
+
+## Subject: `osu_allreduce`
+
+**What it builds:** An MPI executable (autotools build via `configure.ac` → `osu_allreduce`) in `c/mpi/collective/blocking/`. It's a pure microbenchmark that times `MPI_Allreduce(..., MPI_SUM, comm)` in a tight loop across message sizes (min→max, doubling), with `MPI_Barrier` for sync and `MPI_Reduce` to gather min/max/avg latency. Requires ≥2 ranks (`numprocs < 2` aborts).
+
+I recorded **two variants** as separate traces, because they have distinctly different scheduling shapes:
+
+### 1. `mpi-host` (default, host buffers) — high confidence
+- **Parallelism:** MPI (process). The collective *is* the entire workload.
+- **Communication:** collective / reduction pattern (all-reduce). Latency-sensitive at small sizes (starts at min message size, timing loop dominated by the collective), bandwidth-sensitive at large sizes.
+- **Topology:** either single- or multi-node; placement judged *pack* / co-location *preferred* since it stresses the collective path — packing ranks favors intra-node fast links.
+- No shared memory, no checkpoint, launched via `mpirun`/`mpirun_rsh`.
+
+### 2. `mpi-cuda` (device buffers, `-d cuda`/`-d rocm`, `D D`) — medium confidence
+- **Parallelism:** MPI + GPU. Buffers allocated on-device (`init_accel`, `allocate_memory_coll` with `options.accel`).
+- **Accelerator:** CUDA (ROCm equally supported via `--enable-rocm`), device-to-device allreduce → wants **GPU-aware MPI** (`gpu_comm = gpu_aware_mpi`). A separate `osu_xccl_allreduce` uses NCCL/RCCL directly.
+- **Affinity:** the `get_local_rank` wrapper pins 1 GPU per rank → NUMA/GPU affinity matters.
+
+**Caveats noted in traces:** the `-np 2` in README examples is illustrative — allreduce scales to arbitrary rank counts; `2` is only a hard *minimum*, not a fixed geometry. No launch geometry beyond that minimum is literally fixed by the code.
+  ✓ recorded 25 assertion(s) across 2 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-0735/us-anthropic-claude-opus-4-8/
+  shapes-20260813-0735/us-anthropic-claude-opus-4-8/github.com/jwu274/osu-micro-benchmarks/unpinned/osu_allreduce_MPI_Allreduce_collective_benchmark/shapes.json

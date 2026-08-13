@@ -1,0 +1,72 @@
+
+[confirm] about to run action 'finalize-setup' with:
+{
+  "repos": [
+    "https://github.com/LLNL/Kripke"
+  ],
+  "mode": "container",
+  "base_image": "buildpack-deps:bookworm-scm",
+  "ref": null,
+  "keep": true,
+  "focus": null
+}
+proceed? [y/N] 
+▸ https://github.com/LLNL/Kripke  [1/1]
+
+[confirm] about to run action 'clone' with:
+{
+  "repo": "https://github.com/LLNL/Kripke",
+  "effect": "network + write"
+}
+proceed? [y/N]   · cloning https://github.com/LLNL/Kripke into container
+  · warning: could not resolve commit (HEAD)
+  ⚠ unpinned: HEAD
+I'll start by orienting myself in the repository structure.
+  → find . * file
+  → search MPI_Init|MPI_Comm|add_executable|project\( 2 30
+This is Kripke, a discrete-ordinates (Sn) transport mini-app. It builds `kripke.exe`. Let me examine the CMakeLists and the Comm layer.
+  → read /tmp/artifact-secretary/repo/cmake/kripke/CMakeLists.txt 1 120
+  → read /tmp/artifact-secretary/repo/src/Kripke/Core/Comm.h 110 95
+Now let me look at the point-to-point communication (the sweep uses neighbor exchange) and the RAJA/OpenMP/CUDA architecture options. Let me search for the sweep communication and README docs.
+  → search MPI_Isend|MPI_Irecv|MPI_Send|MPI_Recv|MPI_Wait|SweepComm|ParallelComm 2 30
+  → search OpenMP|ENABLE_OPENMP|ENABLE_CUDA|ENABLE_HIP|KRIPKE_ARCH|omp_num_threads|OMP_NUM_THREADS 1 30
+Kripke uses RAJA backends (Sequential, OpenMP, CUDA, HIP). The comm is neighbor point-to-point (MPI_Isend/Irecv) for the sweep, plus Allreduce/Scan collectives. Let me check the README for launch examples and the GPU-aware MPI / decomposition (procs), and look at the sweep for details.
+  → read /tmp/artifact-secretary/repo/README.md 150 120
+  → search mpirun|mpiexec|srun|--procs|npx|npy|npz 2 15
+I have a strong picture. Kripke is an Sn transport mini-app doing wavefront sweeps with 3D spatial domain decomposition — classic neighbor point-to-point communication (Isend/Irecv on upwind/downwind ranks), plus Allreduce/Scan for norms. RAJA backends: Sequential, OpenMP, CUDA, HIP. GPU-aware MPI is an option. Let me quickly confirm GPU-aware MPI usage and HIP, then look at README run examples for concrete counts.
+  → search GPU_AWARE_MPI|cudaMalloc|hipMalloc|Umpire|DEVICE|nccl 2 12
+  → read /tmp/artifact-secretary/repo/README.md 270 40
+Let me check the GPU-aware MPI code path in ParallelComm.cpp to confirm how it handles GPU buffers, and confirm the checkpoint absence.
+  → read /tmp/artifact-secretary/repo/src/Kripke/ParallelComm.cpp 125 50
+  → search KRIPKE_USE_GPU_AWARE_MPI|checkpoint|restart 1 6
+I now have enough evidence to record the shapes. There's no checkpoint/restart in the code (searches only hit CMake/config). Let me record two variants: a CPU (MPI + OpenMP) variant and a GPU (CUDA/HIP with optional GPU-aware MPI) variant.
+  → record_shape kripke.exe mpi-openmp-cpu Kripke Sn transport sweep, CPU: MPI + RAJA OpenMP srun ... kripke --pro...
+  → record_shape kripke.exe mpi-openmp-cpu Kripke CPU: comm/memory/io detail srun ... kripke --procs npx,npy,npz -...
+Now the GPU variant (CUDA/HIP via RAJA, optional GPU-aware MPI with CHAI).
+  → record_shape kripke.exe mpi-gpu-cuda-hip Kripke Sn transport, GPU: MPI + RAJA CUDA/HIP srun ... kripke --procs...
+  → record_shape kripke.exe mpi-gpu-cuda-hip Kripke GPU: comm/placement detail srun ... kripke --procs npx,npy,npz...
+I've characterized Kripke. Summary of findings:
+
+## Subject: `kripke.exe`
+
+Kripke (LLNL) is an **Sn discrete-ordinates deterministic transport mini-app**. The build system (`cmake/kripke/CMakeLists.txt`, using BLT + RAJA/CHAI/Umpire) produces a single executable, `kripke.exe`, from `src/kripke.cpp`. It's a proxy app for studying data-layout/loop-nesting performance across architectures.
+
+**How it runs (both variants share this):** A 3D spatial domain is decomposed across MPI ranks via `--procs npx,npy,npz`. The core solver is a **wavefront "sweep"** (`--pmethod sweep`, default) that streams flux plane data between upwind/downwind neighbors — implemented with `MPI_Isend`/`MPI_Irecv` (`ParallelComm.cpp`) plus `MPI_Allreduce`/`MPI_Scan` for norms (`Comm.h`). This is a classic **neighbor exchange on a 3D rank grid**, latency-sensitive, with reductions. No parallel-I/O library or checkpoint/restart was found.
+
+I recorded two separate traces because they present different shapes to a scheduler:
+
+### `mpi-openmp-cpu`
+- MPI + RAJA **OpenMP** on-node threading (`OMP_NUM_THREADS`, `--arch OpenMP`).
+- Communication: mixed (neighbor point-to-point + reductions), latency- and bandwidth-sensitive, neighbor/grid placement, spans single- or multi-node.
+- No accelerator, no NUMA pinning in the code itself.
+
+### `mpi-gpu-cuda-hip`
+- MPI + RAJA **CUDA or HIP** device backend (`ENABLE_CUDA`/`ENABLE_HIP`, `--arch CUDA`).
+- Typically **one rank per GPU** (no multi-device coordination or NCCL/RCCL in code).
+- Optional **`ENABLE_GPU_AWARE_MPI`** (requires CHAI + CUDA/HIP): device pointers passed straight into `MPI_Isend`/`Irecv` (`ParallelComm.cpp:164`), so `accelerator.gpu_comm = gpu_aware_mpi` — wants co-located devices with a fast interconnect.
+
+**Launch geometry:** No real invocation states concrete node/rank counts (CI just uses `srun -N 1`), so I recorded the launcher (`srun`, per `src/kripke.cpp:47` usage string and CI) but left node/task counts unasserted rather than invent them.
+  ✓ recorded 26 assertion(s) across 2 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-0735/us-anthropic-claude-opus-4-8/
+  shapes-20260813-0735/us-anthropic-claude-opus-4-8/github.com/LLNL/Kripke/unpinned/shapes.json

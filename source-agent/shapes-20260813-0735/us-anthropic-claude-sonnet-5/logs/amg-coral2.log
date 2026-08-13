@@ -1,0 +1,70 @@
+
+[confirm] about to run action 'finalize-setup' with:
+{
+  "repos": [
+    "https://github.com/LLNL/AMG"
+  ],
+  "mode": "container",
+  "base_image": "buildpack-deps:bookworm-scm",
+  "ref": null,
+  "keep": true,
+  "focus": null
+}
+proceed? [y/N] 
+▸ https://github.com/LLNL/AMG  [1/1]
+
+[confirm] about to run action 'clone' with:
+{
+  "repo": "https://github.com/LLNL/AMG",
+  "effect": "network + write"
+}
+proceed? [y/N]   · cloning https://github.com/LLNL/AMG into container
+  · warning: could not resolve commit (HEAD)
+  ⚠ unpinned: HEAD
+  → find . * file
+  → find / *AMG* dir
+  → find / *amg* dir
+  → find /root * dir
+  → find /home * dir
+  → find /tmp * dir
+  → find /srv * dir
+Found the repo at `/tmp/artifact-secretary/repo`. Let's explore it.
+  → find /tmp/artifact-secretary/repo * file
+This is LLNL's AMG benchmark (based on hypre). Let's check README, Makefile, and test/amg.c (the driver).
+  → read /tmp/artifact-secretary/repo/README 1 150
+  → read /tmp/artifact-secretary/repo/docs/amg.README 1 200
+This is very informative. Let's continue reading the docs for "Running the Code" section and suggested runs, launch geometry.
+  → read /tmp/artifact-secretary/repo/docs/amg.README 200 150
+Good, we have concrete launch example: `mpirun -np 4 amg -P 2 2 1 -n 50 50 50 -printstats`, OMP_NUM_THREADS=3. Let's check the Makefile.include and mpistubs/threading for MPI/OpenMP evidence, and check communication patterns in par_csr_communication.c and exchange_data.c.
+  → search MPI_Isend|MPI_Irecv|MPI_Allreduce|MPI_Alltoall|MPI_Bcast|MPI_Waitall 2 40
+  → read /tmp/artifact-secretary/repo/Makefile.include 1 100
+Good confirmation: default build uses MPI + OpenMP (`-fopenmp -DHYPRE_USING_OPENMP`), point-to-point neighbor communication (Isend/Irecv/Waitall) plus Allreduce/Bcast for global setup. Let's check OpenMP pragma usage and check test/amg.c for MPI_Init/Comm_rank, and checkpoint/restart or I/O in the driver.
+  → search omp parallel|OMP_NUM_THREADS|hypre_NumThreads 2 20
+  → search MPI_Init|MPI_Comm_rank|MPI_Comm_size 3 10
+Confirmed hybrid MPI+OpenMP with generated matrix (no I/O of external files) and no checkpoint/restart. This is a benchmark, single subject `amg`. Let's check for GPU/CUDA (none expected) and check exchange_data.c for communication pattern description.
+  → search cuda|CUDA|hip|HIP|__global__ 2 10
+  → read /tmp/artifact-secretary/repo/utilities/exchange_data.README 1 40
+No GPU code present. This confirms CPU-only MPI+OpenMP. Now let's check persistent communication (HYPRE_USING_PERSISTENT_COMM) briefly for completeness, and confirm no parallel I/O / checkpoint.
+  → search MPI_File|HDF5|checkpoint|restart 2 10
+No I/O; matches "GMRES restart" only. No checkpointing, no file I/O — confirms it's a compute benchmark. Now I have enough evidence to record the shape.
+  → record_shape amg general LLNL AMG (BoomerAMG) parallel algebraic multigrid benchmark, MPI+OpenMP CPU build mpi...
+  → record_shape amg general LLNL AMG (BoomerAMG) parallel algebraic multigrid benchmark, MPI+OpenMP CPU build mpi...
+  → record_shape amg general LLNL AMG (BoomerAMG) parallel algebraic multigrid benchmark, MPI+OpenMP CPU build mpi...
+I've characterized the AMG (LLNL) benchmark, which builds a single executable `amg` (test/amg.c driver linked against the hypre-derived libraries: krylov, parcsr_ls, parcsr_mv, seq_mv, IJ_mv, utilities).
+
+Key findings recorded for `amg:general`:
+
+- **Build/subject**: Single SPMD executable `amg`, compiled via Makefile.include with `mpicc`, default flags `-DTIMER_USE_MPI -DHYPRE_USING_OPENMP -fopenmp -DHYPRE_HOPSCOTCH -DHYPRE_USING_PERSISTENT_COMM -DHYPRE_BIGINT`.
+- **Parallelism**: hybrid MPI + OpenMP (`hypre_MPI_Init`, `#pragma omp parallel` throughout parcsr_mv/parcsr_ls); it's algebraic multigrid on a logical P×Q×R process grid.
+- **Communication**: mixed collective + point-to-point, dominant pattern is neighbor exchange (`hypre_MPI_Isend/Irecv/Waitall` in par_csr_communication.c) for parallel matvec/halo-like ghost updates, plus `MPI_Allreduce`/`MPI_Bcast` for global setup info (nnz counts, partitioning). Docs explicitly call it "highly synchronous" with a "surface-to-volume" communication/computation pattern — latency-sensitive, not bandwidth-heavy.
+- **Memory**: no shared-memory windows/mmap (`memory.shared_memory=false`); memory-access bound per docs, so NUMA/thread pinning matters (cpu_exclusive=true judgment) given production runs pin one thread per core (e.g. BG/Q 4 OpenMP threads/task in doc example).
+- **Accelerator**: none — no CUDA/HIP/SYCL source anywhere in the tree; CPU-only code.
+- **I/O**: none — driver synthesizes its own linear system in-memory (`AMG generates its own linear system`); no checkpoint/restart.
+- **Launch geometry**: only literal example found is `mpirun -np 4 amg -P 2 2 1 -n 50 50 50 -printstats` with `OMP_NUM_THREADS=3`, recorded as tasks=4, threads_per_task=3, launcher=mpirun.
+- **Topology**: docs describe scaling from 512 to 65,536+ MPI ranks (BG/Q up to >1,000,000), i.e. designed to span many nodes with neighbor-preferred placement due to the grid decomposition and point-to-point halo exchange.
+
+Recorded as a single `general` variant since the MPI-only vs MPI+OpenMP vs BIGINT options are just compile-time flags on the same code path/subject, not materially different scheduling shapes, and there's no GPU/alternate build variant in this source tree.
+  ✓ recorded 21 assertion(s) across 1 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-0735/us-anthropic-claude-sonnet-5/
+  shapes-20260813-0735/us-anthropic-claude-sonnet-5/github.com/LLNL/AMG/unpinned/shapes.json

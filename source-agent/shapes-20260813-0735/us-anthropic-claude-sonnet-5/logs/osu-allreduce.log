@@ -1,0 +1,51 @@
+
+[confirm] about to run action 'finalize-setup' with:
+{
+  "repos": [
+    "https://github.com/jwu274/osu-micro-benchmarks"
+  ],
+  "mode": "container",
+  "base_image": "buildpack-deps:bookworm-scm",
+  "ref": null,
+  "keep": true,
+  "focus": "osu_allreduce MPI_Allreduce collective benchmark"
+}
+proceed? [y/N] 
+▸ https://github.com/jwu274/osu-micro-benchmarks  [1/1]
+
+[confirm] about to run action 'clone' with:
+{
+  "repo": "https://github.com/jwu274/osu-micro-benchmarks",
+  "effect": "network + write"
+}
+proceed? [y/N]   · cloning https://github.com/jwu274/osu-micro-benchmarks into container
+  · warning: could not resolve commit (HEAD)
+  ⚠ unpinned: HEAD
+  → find . *allreduce* file
+  → find . CMakeLists.txt file
+  → read /tmp/artifact-secretary/repo/c/mpi/collective/blocking/osu_allreduce.c 1 200
+  → search init_accel|cuda|CUDA_ENABLED|managed_memory 2 20
+  → find . README* file
+  → search mpirun_rsh|mpirun -np|osu_allreduce 3 15
+  → read /tmp/artifact-secretary/repo/README 1 120
+I have sufficient evidence. Now recording the shape for osu_allreduce (MPI blocking collective variant).
+  → record_shape osu_allreduce mpi-blocking OSU Micro-Benchmarks: osu_allreduce (MPI_Allreduce Latency Test, block...
+  → record_shape osu_allreduce mpi-blocking OSU Micro-Benchmarks: osu_allreduce accelerator/topology characteristi...
+I've characterized the `osu_allreduce` benchmark (MPI_Allreduce Latency Test) from the OSU Micro-Benchmarks suite. Summary of findings:
+
+**Subject**: `osu_allreduce` — a pure MPI collective-communication microbenchmark (`c/mpi/collective/blocking/osu_allreduce.c`)
+
+**Key characteristics recorded:**
+- **Parallelism**: MPI-only (no threads by default); optional GPU offload via compile-time flags (`--enable-cuda`/`--enable-rocm`/`--enable-sycl`)
+- **Communication**: Collective, reduction pattern — the core loop calls `MPI_Allreduce` repeatedly across message sizes, bracketed by `MPI_Barrier` for synchronization and `MPI_Reduce` for gathering timing stats at rank 0
+- **Latency AND bandwidth sensitive**: sweeps message sizes from `min_message_size` to `max_message_size`, so small messages stress latency while large messages stress bandwidth-bound allreduce algorithms
+- **Launch**: traditionally via `mpirun_rsh -np N -hostfile hostfile ./osu_allreduce`; requires ≥2 ranks (enforced in code)
+- **Accelerator**: optional CUDA/ROCm/SYCL support, exercised via `D`/`H` buffer-location args and GPU-aware MPI (e.g., `MV2_USE_CUDA=1` with MVAPICH2) — no NCCL/RCCL, relies on MPI library's GPU-direct path
+- **No checkpointing, no parallel I/O, no shared-memory windows** — it's a synchronous, tightly-timed collective loop
+- **Topology**: can span single or multiple nodes (it's meant to measure network/collective performance across whatever topology is given), but co-location of ranks is preferred for lower allreduce latency
+
+Both assertions sets were recorded under a single trace `osu_allreduce:mpi-blocking` (8 assertions each call, split due to the size limit), since the accelerator support is an optional compile/runtime path on the *same* binary rather than a genuinely separate subject.
+  ✓ recorded 16 assertion(s) across 1 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-0735/us-anthropic-claude-sonnet-5/
+  shapes-20260813-0735/us-anthropic-claude-sonnet-5/github.com/jwu274/osu-micro-benchmarks/unpinned/osu_allreduce_MPI_Allreduce_collective_benchmark/shapes.json

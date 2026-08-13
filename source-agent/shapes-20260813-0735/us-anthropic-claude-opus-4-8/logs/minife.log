@@ -1,0 +1,91 @@
+
+[confirm] about to run action 'finalize-setup' with:
+{
+  "repos": [
+    "https://github.com/Mantevo/miniFE"
+  ],
+  "mode": "container",
+  "base_image": "buildpack-deps:bookworm-scm",
+  "ref": null,
+  "keep": true,
+  "focus": null
+}
+proceed? [y/N] 
+▸ https://github.com/Mantevo/miniFE  [1/1]
+
+[confirm] about to run action 'clone' with:
+{
+  "repo": "https://github.com/Mantevo/miniFE",
+  "effect": "network + write"
+}
+proceed? [y/N]   · cloning https://github.com/Mantevo/miniFE into container
+  · warning: could not resolve commit (HEAD)
+  ⚠ unpinned: HEAD
+I'll analyze the miniFE application. Let me start by orienting myself with the build system and layout.
+  → find . * dir
+  → find . Makefile* file
+The repo is at `/tmp/artifact-secretary/repo`. It has multiple variants: `ref`, `openmp`, `openmp-opt`, `openmp-opt-knl`, `cuda`, `kokkos`, `qthreads`, `cilk`, `mkl`, `nvamg`, `openmp45`, etc. Let me look at the top-level structure and README.
+  → find /tmp/artifact-secretary/repo *.md file
+  → find /tmp/artifact-secretary/repo README* file
+  → read /tmp/artifact-secretary/repo/README.md 1 60
+  → read /tmp/artifact-secretary/repo/README.FIRST 1 40
+The subject is `miniFE.x`. There are several variants. Let me focus on the main ones: `ref` (MPI-only), `openmp` (MPI+OpenMP), and `cuda` (MPI+CUDA). Let me read more of README.FIRST and examine the ref Makefile.
+  → read /tmp/artifact-secretary/repo/README.FIRST 41 82
+  → read /tmp/artifact-secretary/repo/ref/src/Makefile 1 60
+The ref version is MPI-only (`-DHAVE_MPI`, `mpicxx`). Now let me examine the source for communication patterns. Let me look at the main source files and MPI usage in ref.
+  → find /tmp/artifact-secretary/repo/ref/src *.?pp file
+  → search MPI_(Allreduce|Reduce|Bcast|Alltoall|Isend|Irecv|Send|Recv|Waitall|Sendrecv) 2 40
+Clear picture: this is a CG solver mini-app. Communication is neighbor exchange (`exchange_externals` with Irecv/Send) plus MPI_Allreduce for dot products (reduction). Let me look at exchange_externals and cg_solve for the ref version, and check OpenMP usage.
+  → read /tmp/artifact-secretary/repo/ref/src/exchange_externals.hpp 100 40
+  → search pragma omp 1 15
+The ref version uses `MPI_Send`/`MPI_Irecv` for neighbor halo exchange (nonblocking recv, blocking send) — classic sparse neighbor exchange in the SpMV. Let me check whether the ref version uses OpenMP/threads at all, and check the CUDA and Kokkos variants. Let me check ref for threading and the openmp Makefile.
+  → search omp|pthread|USE_MPI_PCONTROL|MPI_Init 1 10
+  → read /tmp/artifact-secretary/repo/openmp/src/Makefile.gnu.openmp 1 40
+OpenMP variant uses `-fopenmp`, MPI is optional via `-DHAVE_MPI`. Now let me check the CUDA variant Makefile and the Kokkos variant, plus the cg_solve to confirm the reduction+neighbor pattern. Let me also verify ref uses OpenMP (does the ref src have pragma omp?).
+  → read /tmp/artifact-secretary/repo/cuda/src/Makefile 1 50
+  → search pragma omp 1 6
+The CUDA variant: MPI + CUDA (nvcc, sm_35), ELL matrix, with `-DMATVEC_OVERLAP` (comm/compute overlap) and optional `-DGPUDIRECT` (GPU-aware MPI). Let me confirm the ref version has no OpenMP (only openmp-opt-knl showed up), check ref's cg_solve for the dot/matvec pattern, and verify the CUDA GPUDIRECT usage. Let me also check the kokkos Makefile for the backend.
+  → search GPUDIRECT|cudaMemcpy|multi.*device|num_devices|cudaSetDevice 2 8
+  → read /tmp/artifact-secretary/repo/ref/src/cg_solve.hpp 100 50
+This confirms the CG solve: matvec (SpMV with neighbor halo exchange) + dot (Allreduce) + waxpby, iterated. Kokkos version supports multi-device (`num_devices`, `device`, `skip_device`, `numa` params). Let me check the kokkos Makefile to see the backend and how it's launched, and confirm the CUDA variant's MPI_Init and GPUDIRECT path.
+  → read /tmp/artifact-secretary/repo/kokkos/src/Makefile 1 55
+  → search ifdef GPUDIRECT|GPUDIRECT 2 5
+Now I have enough evidence. GPUDIRECT sends GPU device buffers directly through MPI (GPU-aware MPI). Kokkos default backend is OpenMP (SNB arch), but supports Cuda. Let me verify the CUDA send with GPUDIRECT uses device pointer in MPI_Send, and check the ref version for OpenMP absence. Let me check the cuda exchange_externals.
+  → search GPUDIRECT 3 6
+I have solid evidence. GPUDIRECT uses `d_send_buffer` (a thrust device_vector) directly in MPI — GPU-aware MPI path. Now let me record the traces. Three distinct variants: `ref` (MPI-only), `openmp` (MPI+OpenMP), `cuda` (MPI+CUDA). Let me start with `ref`.
+  → record_shape miniFE.x ref miniFE reference (MPI-only) CG solver mpirun -np N ./miniFE.x -nx <X> -ny <Y> -nz <Z...
+  → record_shape miniFE.x ref miniFE reference comm/topology mpirun -np N ./miniFE.x -nx <X> -ny <Y> -nz <Z> high ...
+Now the OpenMP variant (MPI + OpenMP threads).
+  → record_shape miniFE.x openmp miniFE OpenMP (MPI+threads) CG solver OMP_NUM_THREADS=T mpirun -np N ./miniFE.x -...
+Now the CUDA variant.
+  → record_shape miniFE.x cuda miniFE CUDA (MPI+GPU) CG solver mpirun -np N ./miniFE.x -nx <X> -ny <Y> -nz <Z> hig...
+  → record_shape miniFE.x cuda miniFE CUDA comm/topology mpirun -np N ./miniFE.x -nx <X> -ny <Y> -nz <Z> medium Pe...
+Now the Kokkos variant, which is portable (OpenMP default, Cuda optional) and has explicit multi-device/NUMA params.
+  → record_shape miniFE.x kokkos miniFE Kokkos (MPI + Kokkos backend) CG solver OMP_NUM_THREADS=T mpirun -np N ./m...
+I have characterized the four separable variants. Let me summarize.
+
+## Summary
+
+**Subject:** miniFE builds a single executable, **`miniFE.x`**, an unstructured implicit finite-element proxy app whose hot loop is a **Conjugate Gradient (CG) solver**. It's invoked directly as `./miniFE.x -nx <X> -ny <Y> -nz <Z>` (README.FIRST), run under an MPI launcher. The repo ships the *same* app in several build directories, which are genuinely different applications from a scheduler's view. I recorded four:
+
+### 1. `ref` — MPI-only (baseline)
+- Built with `mpicxx -DHAVE_MPI`; pure process parallelism, no threads.
+- **Communication is mixed**: per-CG-iteration **nearest-neighbor halo exchange** (`exchange_externals`: `MPI_Irecv`/`MPI_Send` to neighbor ranks) plus an **`MPI_Allreduce`** per dot product — small, frequent messages → **latency-sensitive**, neighbor placement, prefer co-location.
+- No parallel I/O / checkpoint (just a YAML report at exit).
+
+### 2. `openmp` — hybrid MPI + OpenMP
+- `-fopenmp` on the kernels (`#pragma omp parallel for`, `reduction(+:...)` on dot); MPI still optional via `-DHAVE_MPI`.
+- Adds **threaded** parallelism → **NUMA-sensitive** (thread-parallel loops over vectors). Same neighbor + reduction comm shape.
+
+### 3. `cuda` — MPI + CUDA
+- `nvcc` (sm_35) kernels + `mpicxx`, ELL matrix, `-DHAVE_MPI`.
+- `-DMATVEC_OVERLAP` overlaps halo comm with SpMV; optional **`-DGPUDIRECT`** sends the thrust `d_send_buffer` device memory straight through MPI → **GPU-aware MPI**. One GPU per rank; multi-GPU is across ranks. Wants co-located GPUs / fast interconnect.
+
+### 4. `kokkos` — MPI + Kokkos backend
+- `mpicxx` + Kokkos (default `KOKKOS_DEVICES=OpenMP`, arch SNB; can be built for Cuda). Runtime `device`/`num_devices`/`skip_device`/`numa` params bind per-rank GPU and NUMA domain. Same neighbor+Allreduce CG pattern; accelerator kind depends on the Kokkos backend chosen at build.
+
+Common to all: the dominant scheduling signature is a **stencil/neighbor halo exchange + global reduction per iteration** — latency-bound small messages, neighbor/pack placement preferred, ranks best co-located, no checkpoint/parallel-I/O. Launch geometry (`-np`, `OMP_NUM_THREADS`) is parameterized in docs but no fixed node/rank counts are stated, so I recorded none.
+  ✓ recorded 37 assertion(s) across 4 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-0735/us-anthropic-claude-opus-4-8/
+  shapes-20260813-0735/us-anthropic-claude-opus-4-8/github.com/Mantevo/miniFE/unpinned/shapes.json

@@ -1,0 +1,85 @@
+
+[confirm] about to run action 'finalize-setup' with:
+{
+  "repos": [
+    "https://github.com/LLNL/Quicksilver"
+  ],
+  "mode": "container",
+  "base_image": "buildpack-deps:bookworm-scm",
+  "ref": null,
+  "keep": true,
+  "focus": null
+}
+proceed? [y/N] 
+▸ https://github.com/LLNL/Quicksilver  [1/1]
+
+[confirm] about to run action 'clone' with:
+{
+  "repo": "https://github.com/LLNL/Quicksilver",
+  "effect": "network + write"
+}
+proceed? [y/N]   · cloning https://github.com/LLNL/Quicksilver into container
+  · warning: could not resolve commit (HEAD)
+  ⚠ unpinned: HEAD
+I'll analyze the Quicksilver repository. Let me start by understanding its structure.
+  → find . * file
+That listed the system. Let me find the actual repo.
+  → find /root Makefile file
+  → find / *uicksilver* dir
+  → find / *.cc file
+  → find / README* file
+The repo is at `/tmp/artifact-secretary/repo`. Let me look at the build files, README, and main.
+  → read /tmp/artifact-secretary/repo/README.md 1 120
+  → find /tmp/artifact-secretary/repo Makefile file
+So it builds a single executable `qs` using MPI + OpenMP, with an optional GPU (CUDA, unified memory) version. Let me read the Makefile.
+  → read /tmp/artifact-secretary/repo/src/Makefile 1 200
+  → read /tmp/artifact-secretary/repo/src/Makefile 200 167
+The subject is `qs`. Variants: CPU (MPI+OpenMP), CUDA, HIP, OpenMP-target GPU. Let me examine MPI usage, communication patterns, OpenMP, CUDA, and shared memory.
+  → search MPI_(Allreduce|Iallreduce|Isend|Irecv|Send|Recv|Bcast|Barrier|Reduce|Alltoall|Win_) 2 40
+  → search omp parallel|#pragma omp|omp_get_num_threads|OMP_NUM_THREADS 2 30
+Rich information. I can see MPI point-to-point (Isend/Irecv), Allreduce (test-for-done), and neighbor exchange for particle transport. There are aprun and srun launches with explicit geometry. Let me look at the communication pattern in the particle buffer/send queue, and check GPU kernel launches and shared memory.
+  → search __global__|cudaMalloc|cudaMemcpy|cudaMallocManaged|<<<|hipMalloc|hipLaunch 3 15
+  → search SharedMemory|shm_open|MPI_Win|MPI_Comm_split_type|shared_memory 3 10
+Note: "SharedMemoryCommObject" here is a single-rank in-process comm (used when nRanks==1), not MPI shared windows. Let me confirm the MPI comm pattern in the actual transport — the SendQueue / MC_Particle_Buffer / MpiCommObject exchange, plus the OpenMP pragma in the kernel and GPU launch details in main.cc.
+  → read /tmp/artifact-secretary/repo/src/main.cc 130 120
+This confirms the execution model clearly. Let me look at the MPI communication section (particle exchange + test-for-done) after this.
+  → read /tmp/artifact-secretary/repo/src/main.cc 249 70
+Clear picture: particles that cross domain boundaries are sent to neighbor ranks (Isend/Irecv via particle buffer), and a test-for-done all-reduce is used. Neighbor exchange + reduction => mixed. Let me confirm the Test_Done uses allreduce and check the launch geometry from CTS2 and CORAL2 examples for GPU (jsrun/lrun).
+  → search mpiIAllreduce|mpiAllreduce|IAllreduce|Test_Done 2 10
+  → find /tmp/artifact-secretary/repo/Examples *.sh file
+Let me look at the CORAL2 P1_64t (a full node launch) and CTS2 scaling to get real launch geometry.
+  → read /tmp/artifact-secretary/repo/Examples/CORAL2_Benchmark/Problem1/P1_64t.sh 1 29
+  → read /tmp/artifact-secretary/repo/Examples/CTS2_Benchmark/CTS2_scaling.sh 1 21
+I have enough evidence. Let me check the MPI init for thread level (thread multiple) briefly, and how GPU device is selected per rank.
+  → search MPI_Init_thread|THREAD_MULTIPLE|cudaSetDevice|gpuSetDevice|use_gpu 2 8
+I have enough to record. Note the GPU version assumes unified memory (one GPU per rank, no NCCL — GPU-to-GPU goes through host MPI). Let me record two variants: the CPU (MPI+OpenMP) variant and the GPU (CUDA/HIP) variant.
+  → record_shape qs cpu-mpi-openmp Quicksilver MC particle transport, CPU build (MPI + OpenMP) srun -N24576 -n2457...
+  → record_shape qs cpu-mpi-openmp Quicksilver CPU build launch geometry srun -N24576 -n24576 qs -i Coral2_P1.inp ...
+  → record_shape qs cpu-mpi-openmp Quicksilver CPU build memory/IO srun -n32 --distribution=cyclic --mpibind qs .....
+Now the GPU variant (CUDA/HIP or OpenMP-target). Unified memory assumed, one GPU per rank, no NCCL/RCCL.
+  → record_shape qs gpu-cuda-hip Quicksilver MC transport, GPU build (CUDA/HIP, unified memory) CUDA/HIP build (ma...
+  → record_shape qs gpu-cuda-hip Quicksilver GPU build placement GPU build launched under srun/jsrun with a GPU bo...
+I've completed the analysis. Here's a summary of what Quicksilver builds and how it wants to run:
+
+## Subject
+The repo builds a **single executable `qs`** (`src/Makefile`, target `Quicksilver_EXE=qs`) — a **proxy application for dynamic Monte Carlo particle transport** (mimics LLNL's Mercury). No external deps except MPI and OpenMP; a GPU version exists. Configuration is via pre-processor macros in the Makefile, giving distinct build variants.
+
+## Variants recorded
+
+**1. `qs:cpu-mpi-openmp` (CPU build, MPI + OpenMP)** — high confidence
+- **Parallelism:** MPI ranks × OpenMP threads. `MPI_Init_thread` defaults to `THREAD_FUNNELED`; the cycle-tracking kernel is an `omp parallel for` over particles (`main.cc:227`).
+- **Communication:** *mixed* — per cycle, particles crossing 3D domain boundaries are sent to **neighbor ranks** via `Isend`/`Irecv` (particle buffer), plus an `Allreduce`/`Iallreduce` "test-for-done" collective (`main.cc:245,264,289`). Latency-sensitive (README: "latency bound table look-ups"), moderate intensity.
+- **Memory:** NUMA/affinity sensitive — examples use `--mpibind`, `-cc depth`, `OMP_PLACES=threads`. The `SharedMemoryCommObject` is only the single-rank in-process path, *not* MPI shared windows.
+- **Launch (literal):** `srun -N24576 -n24576 qs ...` (CORAL2 P1, 1 rank/node, `OMP_NUM_THREADS=64`); also single-node `srun -N1 -n1..36` (CTS2). Also `aprun` examples. Domain grid (X/Y/Z global, I/J/K per-rank) → neighbor topology; scales single-node to thousands of nodes.
+- **I/O:** plain text output (a valid re-runnable input deck); no parallel-I/O library, no explicit checkpoint.
+
+**2. `qs:gpu-cuda-hip` (GPU build, CUDA/HIP, unified memory)** — medium/low confidence
+- **Parallelism:** GPU kernel `CycleTrackingKernel<<<grid,block>>>` per rank (`main.cc:193`); HIP for AMD gfx90a is the active default in the Makefile; OpenMP-target is an alternative path.
+- **Accelerator:** unified/managed memory assumed (README:13); **one device per rank** (single `gpu_id`), and after a device sync the neighbor exchange goes through **host-side MPI — no NCCL/RCCL/GPU-aware path**.
+- **Placement:** requires a GPU co-located with each rank; neighbor placement preferred. No literal GPU launch geometry is stated in the repo (the provided decks are CPU `srun` runs), so `gpus_per_task=1` is inferred, not quoted.
+
+The two variants are kept separate because their scheduler shape differs materially (GPU device binding + host-relayed comm vs. thread-per-core CPU with affinity).
+  ✓ recorded 32 assertion(s) across 2 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-0735/us-anthropic-claude-opus-4-8/
+  shapes-20260813-0735/us-anthropic-claude-opus-4-8/github.com/LLNL/Quicksilver/unpinned/shapes.json

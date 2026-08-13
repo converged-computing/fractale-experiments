@@ -1,0 +1,85 @@
+
+[confirm] about to run action 'finalize-setup' with:
+{
+  "repos": [
+    "https://github.com/LLNL/AMG2023"
+  ],
+  "mode": "container",
+  "base_image": "buildpack-deps:bookworm-scm",
+  "ref": null,
+  "keep": true,
+  "focus": null
+}
+proceed? [y/N] 
+▸ https://github.com/LLNL/AMG2023  [1/1]
+
+[confirm] about to run action 'clone' with:
+{
+  "repo": "https://github.com/LLNL/AMG2023",
+  "effect": "network + write"
+}
+proceed? [y/N]   · cloning https://github.com/LLNL/AMG2023 into container
+  · warning: could not resolve commit (HEAD)
+  ⚠ unpinned: HEAD
+I'll analyze the AMG2023 repository. Let me start by orienting myself with the build files and layout.
+  → find . * file
+  → find . *.md file
+The repo is at `/tmp/artifact-secretary/repo`. Let me explore it.
+  → find /tmp/artifact-secretary/repo * file
+  → read /tmp/artifact-secretary/repo/README.md 1 120
+Single executable `amg` from `amg.c`, using hypre + MPI + OpenMP + optional GPU. Let me look at the build files and the main source.
+  → read /tmp/artifact-secretary/repo/CMakeLists.txt 1 200
+  → read /tmp/artifact-secretary/repo/Makefile 1 80
+Now let me examine the main source. Let me look at amg.c for MPI usage, GPU init, communication patterns, and command-line options.
+  → search MPI_Init|MPI_Comm_size|MPI_Comm_rank|MPI_Finalize|MPI_Allreduce|MPI_Bcast|MPI_Alltoall 2 30
+  → search P x Q|nprocs\[|P, Q, R|-P |-n |px|py|pz|nx|ny|nz 1 30
+The PDF is binary noise. Let me search amg.c specifically for command line options (P, Q, R) and GPU setup.
+  → search P\[0\]|P\[1\]|"-P"|"-n"|"-problem"|"-solver"|arg_index 2 30
+  → search cuda|hip|Device|GPU|HYPRE_MEMORY_DEVICE|SetExecutionPolicy|omp_|OpenMP|#pragma omp 2 20
+Let me look at the process grid options (P, Q, R) and GPU device setup in amg.c. Let me read the args section around problem setup and the GPU init region.
+  → search "-P"|"-b"|"-c"|P\[0\] =|q =|hypre_GenerateLaplacian|DeviceCount|hypre_bind|SetDevice|SetSpGemm|Se...
+  → read /tmp/artifact-secretary/repo/amg.c 186 45
+`hypre_bind_device` at line 360 — that's NUMA/GPU affinity binding. Let me read the P/Q/R grid setup and the usage/help text for launch info.
+  → read /tmp/artifact-secretary/repo/amg.c 943 40
+  → search mpirun|mpiexec|srun|Usage|<P> <Q>|number of processes 2 15
+So `P*Q*R == num_procs` — a 3D process grid decomposition, classic 7-point Laplacian stencil → neighbor communication. Let me confirm the solver (AMG/GMRES) and check the README further for a sample run command and GPU handling. Let me look at the usage block and check README lines beyond 60 (there weren't more). Let me check hypre_bind_device and GPU-related config.
+  → read /tmp/artifact-secretary/repo/amg.c 324 45
+  → search GMRES|BoomerAMG|PCG|solver_id 2 10
+I have a clear picture. This is a hypre BoomerAMG-preconditioned PCG/GMRES solver on a 7-point 3D Laplacian, decomposed on a P×Q×R process grid. AMG involves neighbor halo exchange (SpMV) plus global reductions (dot products in CG/GMRES) — mixed communication, latency-sensitive on coarse grids. GPU via CUDA/HIP/SYCL with device binding.
+
+Let me confirm the Makefile OpenMP flags and GPU build variants, and check the amg-config.h.in.
+  → read /tmp/artifact-secretary/repo/Makefile 80 55
+  → read /tmp/artifact-secretary/repo/amg-config.h.in 1 40
+I have enough evidence. The GPU support is entirely inherited from hypre (build flags select CUDA/HIP), controlled by `-memory_device`/`-exec_device` and `HYPRE_USING_GPU`. Let me record. I'll do a CPU (MPI+OpenMP) variant and a GPU variant.
+  → record_shape amg mpi-openmp AMG2023 hypre BoomerAMG-PCG/GMRES, CPU (MPI + OpenMP) build mpirun -np <P*Q*R> ./a...
+  → record_shape amg mpi-openmp AMG2023 CPU comm/topology characterization mpirun -np <P*Q*R> ./amg -problem 1 -n ...
+Now the GPU variant (CUDA/HIP/SYCL, built with AMG_WITH_CUDA/HIP, per-rank device binding).
+  → record_shape amg gpu-cuda-hip AMG2023 GPU build (CUDA/HIP/SYCL via hypre) mpirun -np <P*Q*R> ./amg -problem 1 ...
+  → record_shape amg gpu-cuda-hip AMG2023 GPU topology/memory mpirun -np <P*Q*R> ./amg -problem 1 -n <nx> <ny> <nz...
+I've completed the analysis. Here's the summary.
+
+## Subject: `amg`
+
+Both the Makefile and CMakeLists build a single executable, `amg`, from `amg.c` (CMake: `add_executable(amg amg.c)`). It's the **AMG2023** benchmark — a driver around **hypre** that solves a 7-point 3D Laplacian with a BoomerAMG-preconditioned **PCG** (problem 1) or **GMRES(100)** (problem 2). It's a C SPMD code using MPI + OpenMP, with optional GPU offload via hypre (CUDA/HIP/SYCL).
+
+I recorded **two variants** because their scheduling shapes differ:
+
+### `amg:mpi-openmp` (CPU build)
+- **Parallelism:** MPI (`hypre_MPI_Init`, `Comm_size/rank`) + OpenMP within ranks (README line 10; Makefile OpenMP flags).
+- **Decomposition:** explicit 3D `P×Q×R` process grid — the code aborts unless `P*Q*R == num_procs` (amg.c:968). This is the key launch geometry: total ranks must factor into the grid.
+- **Communication:** *mixed* — neighbor halo exchange from the sparse matvec on the process grid, **plus** global reductions/barriers from CG/GMRES inner products (amg.c:546). Latency-sensitive (coarse-grid AMG levels) and bandwidth-sensitive (fine-grid SpMV).
+- **Affinity:** `hypre_bind_device(myid, num_procs, comm)` binds per-rank → NUMA-sensitive.
+- **Topology:** neighbor placement preferred, co-location preferred, either single- or multi-node.
+- **Launcher:** `mpirun` (Makefile uses `mpicc`; a real `-np` count is not stated in the repo, so no `launch.tasks` asserted).
+
+### `amg:gpu-cuda-hip` (GPU build)
+- **Parallelism:** MPI + GPU. Enabled by `AMG_WITH_CUDA`/`AMG_WITH_HIP` in CMake (SYCL for Intel per README); GPU behavior is inherited from hypre (`HYPRE_USING_GPU`, `HYPRE_SetSpMVUseVendor`).
+- **Accelerator:** CUDA primary (also ROCm/SYCL). `hypre_bind_device` binds one device per rank *before* `HYPRE_Init` → one GPU per rank, multi-GPU via multiple ranks; rank↔GPU co-location effectively required.
+- **Memory:** device/UVM memory pools via `-dev_pool_size`/`-um_pool_size`; `-memory_device`/`-exec_device` select device execution.
+- **gpu_comm:** likely GPU-aware MPI for halo exchange (marked medium — inferred, not proven in this driver source).
+
+No checkpoint/restart or parallel-I/O library is used (only optional Caliper/Adiak metadata). Launch counts were left unasserted since no concrete invocation with real numbers appears in the repo (the `amg-doc.pdf` is binary and unreadable as text).
+  ✓ recorded 25 assertion(s) across 2 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-0735/us-anthropic-claude-opus-4-8/
+  shapes-20260813-0735/us-anthropic-claude-opus-4-8/github.com/LLNL/AMG2023/unpinned/shapes.json

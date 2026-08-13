@@ -1,0 +1,90 @@
+
+[confirm] about to run action 'finalize-setup' with:
+{
+  "repos": [
+    "https://github.com/ekondis/mixbench"
+  ],
+  "mode": "container",
+  "base_image": "buildpack-deps:bookworm-scm",
+  "ref": null,
+  "keep": true,
+  "focus": null
+}
+proceed? [y/N] 
+▸ https://github.com/ekondis/mixbench  [1/1]
+
+[confirm] about to run action 'clone' with:
+{
+  "repo": "https://github.com/ekondis/mixbench",
+  "effect": "network + write"
+}
+proceed? [y/N]   · cloning https://github.com/ekondis/mixbench into container
+  · warning: could not resolve commit (HEAD)
+  ⚠ unpinned: HEAD
+I'll analyze the mixbench repository. Let me start by orienting myself with the build system and layout.
+  → find . * file
+That's the container filesystem. Let me find the actual repo.
+  → find / *mixbench* file
+  → search mixbench 0 10
+The repo is at `/tmp/artifact-secretary/repo`. There are 5 variants: CUDA, OpenCL, HIP, SYCL, CPU/OpenMP. Let me read the README and explore the structure.
+  → read /tmp/artifact-secretary/repo/README.md 1 120
+  → find /tmp/artifact-secretary/repo * file
+Clear structure: 5 separate subprojects, each building its own single executable, each a GPU/CPU microbenchmark. These are single-device, single-process benchmarks — no MPI. Let me confirm by examining each variant's key files. Let me look at CUDA, HIP, SYCL, OpenCL, CPU main/kernels and CMakeLists.
+  → read /tmp/artifact-secretary/repo/mixbench-cuda/main-cuda.cpp 1 200
+  → read /tmp/artifact-secretary/repo/mixbench-cuda/mix_kernels_cuda.cu 1 100
+  → read /tmp/artifact-secretary/repo/mixbench-cuda/CMakeLists.txt 1 60
+Clear: single-process CUDA benchmark, uses one GPU (selected by GPU_ID arg, default 0), no MPI, no multi-GPU. Let me confirm the CPU/OpenMP variant and check SYCL/HIP/OpenCL briefly for parallelism model and any launcher hints.
+  → read /tmp/artifact-secretary/repo/mixbench-cpu/mix_kernels_cpu.cpp 1 60
+  → read /tmp/artifact-secretary/repo/mixbench-cpu/CMakeLists.txt 1 40
+  → read /tmp/artifact-secretary/repo/mixbench-cpu/README.md 1 60
+CPU variant uses OpenMP (threaded, SIMD, `-march=native`). Let me check the OpenMP parallel_for usage in the CPU kernel and glance at SYCL/HIP/OpenCL mains for device model.
+  → search omp parallel|num_threads|omp_get 1 15
+  → search sycl::queue|get_devices|hipSetDevice|clGetDeviceIDs|selectGPU|SetDevice 1 20
+I have a clear picture. All are single-process, single-device benchmarks:
+- CUDA: single GPU (`cudaSetDevice(gpu_id)`, default 0)
+- HIP: single GPU (`hipSetDevice(0)`)
+- SYCL: single device selected by index
+- OpenCL: single device
+- CPU: OpenMP threaded, single node, NUMA first-touch, `-march=native`
+
+No MPI anywhere. Let me quickly confirm there's no MPI/NCCL usage and check SYCL CMakeLists briefly.
+  → search MPI_|mpi\.h|nccl|rccl|mpirun|srun 0 10
+No MPI/NCCL/launchers anywhere. Now I'll record traces per variant. Let me record each.
+  → record_shape mixbench-cuda cuda mixbench CUDA GPU microbenchmark ./mixbench-cuda [GPU_ID]   (default GPU_ID=0)...
+  → record_shape mixbench-cuda cuda mixbench CUDA topology/io ./mixbench-cuda [GPU_ID] high Runs on one node again...
+  → read /tmp/artifact-secretary/repo/mixbench-hip/main-hip.cpp 1 44
+HIP: single-process, single GPU (device 0), no args. Recording HIP, SYCL, OpenCL, and CPU traces.
+  → record_shape mixbench-hip hip mixbench HIP GPU microbenchmark ./mixbench-hip high Single-process AMD/HIP roofl...
+  → record_shape mixbench-sycl sycl mixbench SYCL device microbenchmark ./mixbench-sycl [device_index] high Single...
+  → record_shape mixbench-opencl opencl mixbench OpenCL device microbenchmark ./mixbench-opencl high Single-proces...
+Now the CPU/OpenMP variant. Let me read the CPU main to confirm it's threaded, single-node, NUMA first-touch.
+  → read /tmp/artifact-secretary/repo/mixbench-cpu/main.cpp 1 79
+CPU variant: OpenMP threaded across all `omp_get_max_threads()` cores, NUMA first-touch init (line 278 in kernels), `-march=native` SIMD. Wants a whole node's cores. Recording.
+  → record_shape mixbench-cpu cpu-openmp mixbench CPU OpenMP microbenchmark ./mixbench-cpu [array_size_MB]   (thre...
+  → record_shape mixbench-cpu cpu-openmp mixbench CPU io/placement ./mixbench-cpu [array_size_MB] medium Prints CS...
+I've characterized all five variants of mixbench. Here's the summary.
+
+## Subject: `mixbench` — GPU/CPU roofline micro-benchmark suite
+
+The repo (`ekondis/mixbench`) builds **five independent single-file executables**, one per CMake subproject. Each measures the compute/memory-bandwidth trade-off of a *single* compute device. None use MPI, NCCL/RCCL, parallel I/O, checkpointing, or any launcher — they all run as a plain single-process binary that prints CSV to stdout. They are distinct applications from a scheduler's view, so I recorded a separate trace for each.
+
+### Traces recorded
+
+| Variant | Executable | Parallelism | Accelerator | Placement notes |
+|---|---|---|---|---|
+| **cuda** | `mixbench-cuda [GPU_ID]` | GPU | CUDA | One GPU (arg default 0); single node; no multi-GPU/gpu_comm |
+| **hip** | `mixbench-hip` | GPU | ROCm/HIP | Hardwired to device 0; single node |
+| **sycl** | `mixbench-sycl [idx]` | GPU | SYCL | One device from `sycl::device::get_devices()` by index |
+| **opencl** | `mixbench-opencl` | GPU | OpenCL | Single selected device |
+| **cpu-openmp** | `mixbench-cpu [size_MB]` | threaded (OpenMP) | none | All cores (`omp_get_max_threads`), SIMD, first-touch → **NUMA-sensitive**, wants a full node (pack) |
+
+### Key evidence
+- **No inter-process communication**: search for `MPI_/mpi.h/nccl/rccl/mpirun/srun` returned zero hits — all `communication.model = none`, `launcher = none`.
+- **GPU variants** each select exactly one device (`cudaSetDevice(gpu_id)` default 0 / `hipSetDevice(0)` / `sycl::device::get_devices().at(index-1)`) → `multi_gpu = false`, `gpu_comm = none`, `topology.span = single_node`.
+- **CPU variant** is OpenMP-threaded (`#pragma omp parallel for`, `omp_get_max_threads`), 64-byte aligned buffer with `#pragma omp simd`, `-march=native`, and a first-touch initialization loop → NUMA-sensitive and effectively wants exclusive cores on one node for peak-bandwidth measurement.
+
+All variants are single-node, no checkpoint, no parallel-I/O library. Confidence is high for the mechanical facts (parallelism model, accelerator kind, single-device, no MPI); the placement/co-location judgments are medium.
+  ✓ recorded 46 assertion(s) across 5 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-0735/us-anthropic-claude-opus-4-8/
+  shapes-20260813-0735/us-anthropic-claude-opus-4-8/github.com/ekondis/mixbench/unpinned/shapes.json

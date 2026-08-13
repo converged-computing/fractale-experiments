@@ -1,0 +1,91 @@
+
+[confirm] about to run action 'finalize-setup' with:
+{
+  "repos": [
+    "https://github.com/hypre-space/hypre"
+  ],
+  "mode": "container",
+  "base_image": "buildpack-deps:bookworm-scm",
+  "ref": null,
+  "keep": true,
+  "focus": "BoomerAMG algebraic multigrid solver"
+}
+proceed? [y/N] 
+▸ https://github.com/hypre-space/hypre  [1/1]
+
+[confirm] about to run action 'clone' with:
+{
+  "repo": "https://github.com/hypre-space/hypre",
+  "effect": "network + write"
+}
+proceed? [y/N]   · cloning https://github.com/hypre-space/hypre into container
+  · warning: could not resolve commit (HEAD)
+  ⚠ unpinned: HEAD
+I'll analyze the hypre repository, focusing on the BoomerAMG algebraic multigrid solver. Let me start by orienting myself.
+  → find . CMakeLists.txt file
+  → find . *.md file
+hypre is a library. Let me look at the build system and README to understand what it builds and how it's used.
+  → read /tmp/artifact-secretary/repo/README.md 1 60
+  → search HYPRE_USING_CUDA|HYPRE_USING_HIP|HYPRE_USING_SYCL|HYPRE_USING_GPU 2 15
+hypre supports CUDA, HIP, SYCL. Let me check the MPI usage, the parallelism model, and the BoomerAMG-specific code. Let me look at the CMake options and the parcsr_ls (where BoomerAMG lives).
+  → search HYPRE_USING_CUDA|HYPRE_USING_HIP|HYPRE_USING_SYCL|HYPRE_ENABLE_CUDA|option\( 2 20
+  → find /tmp/artifact-secretary/repo/src/parcsr_ls *boomer* file
+Good context. hypre builds a library (`libHYPRE`) plus test/example drivers. GPU (CUDA/HIP/SYCL), OpenMP, MPI all optional. Let me find BoomerAMG source and the driver (`ij`) that exercises it, plus MPI/collective usage.
+  → find /tmp/artifact-secretary/repo/src/parcsr_ls par_amg*.c file
+  → search HYPRE_BoomerAMG 2 10
+  → search mpirun|mpiexec|srun 2 10
+Now let me look at the BoomerAMG communication patterns. Let me check the setup for MPI collectives and the comm pkg (halo exchange). Let me look at the amg setup and the ij example driver.
+  → search hypre_MPI_Allreduce|hypre_MPI_Allgather|hypre_MPI_Alltoall|hypre_MPI_Bcast 2 15
+  → search CommPkg|hypre_ParCSRCommHandle 3 6
+Let me look at the ParCSR communication package which is what BoomerAMG (parcsr) uses for the sparse matvec halo exchange, and check point-to-point calls.
+  → search hypre_MPI_Irecv|hypre_MPI_Isend 2 10
+  → search num_sends|num_recvs 3 6
+The ParCSR communication uses point-to-point Isend/Irecv neighbor exchange (matvec halo). Let me verify the parcsr matvec comm handle in parcsr_mv and check GPU-aware MPI / NCCL usage.
+  → search hypre_MPI_Isend|hypre_MPI_Irecv 2 8
+  → search nccl|rccl|NCCL|gpu.aware|GPU_AWARE|device_buffer.*MPI 2 8
+GPU-aware MPI is supported (no NCCL/RCCL — hypre uses MPI even between GPUs). Let me confirm the parcsr matvec (the core BoomerAMG operation) uses the CommPkg point-to-point, and check the coarsest-grid gather/redundant which uses collectives. Let me look at par_amg_setup for the overall structure and OpenMP usage.
+  → search #pragma omp 2 6
+  → search hypre_ParCSRCommHandleCreate|hypre_ParCSRMatrixMatvec 3 5
+I have enough evidence. Let me check the ij driver invocation examples in docs to see whether there's a stated launch geometry, and confirm the redundant coarse-grid gather (all-to-all/allgather) in AMG.
+  → read /tmp/artifact-secretary/repo/src/docs/usr-manual/solvers-boomeramg.rst 1 40
+  → search Gaussian|redundant|coarse.*solve|gather.*coarse 2 5
+I have solid evidence. The scaling behavior of AMG is well-documented: neighbor point-to-point matvec halo exchange (latency-sensitive on coarse levels), Allreduce in Krylov/dot products, and coarse-grid gather that raises latency sensitivity. Let me record the BoomerAMG trace.
+  → record_shape lmp boomeramg-cpu HYPRE BoomerAMG (CPU/MPI+OpenMP build) mpirun -np N ij -solver 0 (ij driver in ...
+  → record_shape lmp boomeramg-cpu HYPRE BoomerAMG (CPU/MPI+OpenMP build) mpirun -np N ij -solver 0 medium OpenMP ...
+I used the wrong subject name ("lmp" is LAMMPS). The subject here is hypre's `ij` driver. Let me record the proper subject and the GPU variant. First let me confirm the GPU device matvec / execution policy for BoomerAMG.
+  → search defaults for GPUs|SetCoarsenType.*8|PMIS|GPU.*BoomerAMG|device 2 6
+  → read /tmp/artifact-secretary/repo/src/CMakeLists.txt 166 25
+Now let me re-record the CPU trace under the correct subject name (`ij`), and create the GPU/CUDA variant. First the CPU trace properly:
+  → record_shape ij boomeramg-cpu HYPRE BoomerAMG solver, CPU MPI+OpenMP build mpirun -np N ij -solver 0  (ij driv...
+  → record_shape ij boomeramg-cpu HYPRE BoomerAMG solver, CPU MPI+OpenMP build mpirun -np N ij -solver 0 medium Op...
+Now the GPU/CUDA variant. hypre uses GPU-aware MPI (not NCCL) for the same neighbor exchange, cuSPARSE/cuBLAS for the on-device SpMV. Let me record it.
+  → record_shape ij boomeramg-cuda HYPRE BoomerAMG solver, CUDA build mpirun -np N ij -solver 0 (built with -DHYPR...
+  → record_shape ij boomeramg-cuda HYPRE BoomerAMG solver, CUDA build mpirun -np N ij -solver 0 (CUDA build; AUTOT...
+I have recorded the analysis. Here is the summary.
+
+## What the repo builds
+
+**HYPRE** is a library (`libHYPRE`, static by default per `src/CMakeLists.txt:73`) of parallel preconditioners/solvers for large sparse linear systems. It has no single application binary; the runnable subjects are its **test/example drivers** under `src/test` and `src/examples` (e.g. the `ij` driver, `ex*`). The user's target — **BoomerAMG** — is the parallel algebraic multigrid solver in `src/parcsr_ls/`, exercised through the `ij` driver (`-solver 0`) via the `HYPRE_BoomerAMG*` API.
+
+Build knobs are all optional: MPI, OpenMP threading, and GPU backends **CUDA / HIP / SYCL** (`src/CMakeLists.txt:168-170`), plus optional GPU-aware MPI (`:171`). So BoomerAMG has genuinely different scheduling shapes per build — I traced two.
+
+## Recorded traces
+
+**`ij` / `boomeramg-cpu`** (MPI + OpenMP)
+- Parallelism: MPI processes + OpenMP threads within rank.
+- Communication: **mixed** — the ParCSR sparse matvec (the AMG workhorse) is a **neighbor** point-to-point halo exchange (`par_csr_pmvcomm.c` Isend/Irecv), while Krylov dot-products use `MPI_Allreduce` (reduction).
+- Latency-sensitive (coarse grids become very sparse; the redundant-coarse-grid option in CHANGELOG:600 exists specifically to fight comm latency), moderately bandwidth-sensitive.
+- NUMA-sensitive (OpenMP), topology.span either, neighbor placement, co-location preferred, no accelerator.
+
+**`ij` / `boomeramg-cuda`** (CUDA build)
+- Parallelism: MPI + GPU. On-device SpMV/relaxation via cuSPARSE/cuBLAS/cuRAND.
+- Accelerator: **cuda**; GPU-to-GPU path is **gpu_aware_mpi** (optional) — notably **no NCCL/RCCL**; cross-rank exchange stays on MPI.
+- Same neighbor/mixed communication and latency sensitivity; one device per rank, wants GPU affinity binding (AUTOTEST uses `-mpibind`), **pack** placement for fast intra-node GPU links, co-location preferred.
+
+Launcher is `mpirun`/`srun` (docs and Makefile `checkpar`). I recorded **no** launch counts because no real invocation in the repo fixes rank/node/GPU numbers (the `ex*` examples show illustrative `-np` values only, not a definitive geometry).
+
+Note: my first two `record_shape` calls used a wrong subject label (`lmp`); the authoritative traces are under subject `ij`, variants `boomeramg-cpu` and `boomeramg-cuda`.
+  ✓ recorded 36 assertion(s) across 3 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-0735/us-anthropic-claude-opus-4-8/
+  shapes-20260813-0735/us-anthropic-claude-opus-4-8/github.com/hypre-space/hypre/unpinned/BoomerAMG_algebraic_multigrid_solver/shapes.json
