@@ -90,6 +90,7 @@ def parse_style(uid):
     parts = clean_uid.split("|")
     # Create a dictionary of {component: style}
     return {p.split(":")[0]: p.split(":")[1] for p in parts if ":" in p}
+    
 
 
 class DispatchSimulationAnalyzer:
@@ -432,6 +433,7 @@ class DispatchSimulationAnalyzer:
 
         analyze_component_styles(self.df)
         analyze_direction(self.df)
+        run_logistic_regression(self.df)
 
     def create_plots(self):
         """
@@ -537,15 +539,15 @@ class DispatchSimulationAnalyzer:
 
         ax.axhline(1, color="red", linestyle="--", linewidth=2, label="Expected (1.0)")
 
-        plt.title("Tool Call Redundancy", fontsize=14)
-        plt.xlabel("Tool Function", fontsize=12)
-        plt.ylabel("Average Number of Calls", fontsize=12)
-        plt.xticks(rotation=45)
+        # plt.title("Tool Call Redundancy", fontsize=14)
+        plt.xlabel("Tool Function", fontsize=14)
+        plt.ylabel("Average Number of Calls", fontsize=14)
+        # plt.xticks(rotation=45)
         plt.legend()
 
         save_path = os.path.join(self.outdir, "dispatch_tool_calls.svg")
         plt.savefig(save_path, bbox_inches="tight")
-        save_path = os.path.join(self.outdir, "dispatch_tool_calls.png")
+        save_path = os.path.join(self.outdir, "dispatch_tool_calls.pdf")
         plt.savefig(save_path, bbox_inches="tight")
         plt.close()
         print(f"Saved: {save_path}")

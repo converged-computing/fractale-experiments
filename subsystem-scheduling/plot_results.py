@@ -641,7 +641,7 @@ def fig_execution(d, out):
     # Outside the axes: with bars reaching 10 there is no interior space that does
     # not sit on top of data.
     ax.legend(loc="lower center", bbox_to_anchor=(0.5, -0.34), ncol=3,
-              frameon=False, columnspacing=1.4, handlelength=1.4)
+              frameon=False, columnspacing=1.4, handlelength=1.4, fontsize=12)
     save(fig, out, "execution")
 
 
