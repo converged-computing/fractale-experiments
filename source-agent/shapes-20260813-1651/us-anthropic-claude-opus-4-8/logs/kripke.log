@@ -1,0 +1,62 @@
+[auto-approved] finalize-setup: {"base_image": "buildpack-deps:bookworm-scm", "focus": null, "keep": true, "mode": "container", "ref": null, "repos": ["https://github.com/LLNL/Kripke"]}
+
+▸ https://github.com/LLNL/Kripke  [1/1]
+[auto-approved] clone: {"effect": "network + write", "repo": "https://github.com/LLNL/Kripke"}
+  · cloning https://github.com/LLNL/Kripke into container
+  · warning: could not resolve commit; rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+  ⚠ unpinned: rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+I'll analyze the Kripke repository. Let me start by orienting myself with the build system and layout.
+  → find . * file
+  → find . CMakeLists.txt file
+Kripke is a discrete-ordinates (Sn) transport mini-app — a wavefront sweep code. Let me read the build files and README.
+  → read CMakeLists.txt 1 200
+  → read README.md 1 150
+This is Kripke — Sn transport mini-app using RAJA/CHAI, MPI, OpenMP, CUDA/HIP. Let me read the rest of the README (running/launch section) and the inner build file, plus check the sweep/comm code.
+  → read README.md 150 160
+  → read cmake/kripke/CMakeLists.txt 1 200
+Clear picture. Executable is `kripke.exe` (target likely `kripke`). Backends: Sequential, OpenMP, CUDA, HIP (via RAJA). MPI optional. GPU-aware MPI option present. Let me confirm the target name and read comm/sweep code.
+  → read cmake/kripke/CMakeLists.txt 200 100
+  → search add_executable|blt_add_executable|kripke\.exe 2 10
+  → search MPI_Isend|MPI_Irecv|MPI_Send|MPI_Recv|MPI_Allreduce|MPI_Wait 3 30
+The subject is `kripke.exe`. Communication: point-to-point Isend/Irecv (neighbor plane exchange for the sweep) plus Allreduce reductions. This is the classic wavefront sweep. Let me look at the SweepComm and the sweep solver to confirm the wavefront/ordered dependency and GPU-aware MPI.
+  → read src/Kripke/ParallelComm/SweepComm.cpp 1 80
+  → search GPU_AWARE_MPI|getDeviceP|readOnly|getHostP 3 10
+Now let me confirm the wavefront/sweep dependency structure in the SweepSolver, and check launch commands in the CI/host-configs for actual invocation geometry.
+  → read src/Kripke/SweepSolver.cpp 1 70
+  → search srun|mpirun|jsrun|lrun|flux|--procs|-n [0-9] 2 15
+I have enough. The sweep is a wavefront: subdomains become ready only after upwind dependencies arrive (ordered dependency along the sweep direction). The launch is `[srun ...] kripke` with `--procs npx,npy,npz`. CI uses `srun -N 1`. Let me check the RAJA forall/kernel usage to confirm OpenMP/CUDA/HIP backend, and check for checkpoint/parallel IO absence.
+  → search MPI_File|hdf5|adios|netcdf|fwrite.*restart|checkpoint 2 6
+  → read src/Kripke/ArchLayout.h 1 40
+I have a complete picture. Kripke is one executable (`kripke.exe`) with selectable backends: Sequential, OpenMP, CUDA, HIP — via RAJA/CHAI. MPI optional but core to the parallel sweep. I'll record variants that a scheduler treats differently: a CPU MPI+OpenMP variant and a CUDA-MPI variant. Let me record them.
+  → record_shape kripke.exe cpu-mpi-openmp Kripke Sn transport sweep, CPU (RAJA Sequential/OpenMP) with MPI srun -...
+  → record_shape kripke.exe cpu-mpi-openmp Kripke Sn transport sweep, CPU comm/memory/launch srun -N <nodes> kripk...
+  → record_shape kripke.exe cpu-mpi-openmp Kripke CPU memory/topology judgment srun -N <nodes> kripke.exe --procs ...
+  → record_shape kripke.exe cuda-mpi Kripke Sn transport sweep, CUDA (RAJA/CHAI) with MPI srun -N <nodes> kripke.e...
+The variant slug got normalized to `mpi-cuda`. Let me add the remaining CUDA judgment fields and fix the multi_gpu evidence, plus record the ROCm/HIP variant.
+  → record_shape kripke.exe mpi-cuda Kripke CUDA topology/memory/io srun -N <nodes> kripke.exe --arch CUDA --procs...
+  → record_shape kripke.exe mpi-rocm Kripke Sn transport sweep, HIP/ROCm (RAJA/CHAI) with MPI srun -N <nodes> krip...
+I've completed the analysis of LLNL/Kripke. Here's a summary of what I found and recorded.
+
+## Subject
+The repo builds a single executable, **`kripke.exe`** (`blt_add_executable` in `cmake/kripke/CMakeLists.txt:407`, from `src/kripke.cpp`). It's a 3D Sn deterministic particle transport **mini-app** (proxy for LLNL's ARDRA), built with a BLT/CMake system on top of RAJA/CHAI/Umpire. It solves the discretized steady-state Boltzmann transport equation via source iteration, whose core is a **parallel wavefront sweep**.
+
+## Backends → variants
+The on-node compute backend is selected at build time through RAJA and chosen at runtime with `--arch`: **Sequential, OpenMP, CUDA, HIP** (`cmake/kripke/CMakeLists.txt:200-261`, `src/Kripke/ArchLayout.h:18-30`). MPI is optional but is what makes it a parallel code. I recorded three scheduler-distinct traces:
+
+- **`cpu-mpi-openmp`** — MPI + OpenMP threading (`OMP_NUM_THREADS`).
+- **`mpi-cuda`** — CUDA GPU backend, one device per rank.
+- **`mpi-rocm`** — HIP/ROCm backend (MI100/MI250X/MI300A host-configs).
+
+## Key scheduling shape (common to all)
+- **Communication is mixed**: point-to-point `MPI_Isend`/`MPI_Irecv` plane exchanges (`ParallelComm.cpp:174-251`) plus `MPI_Allreduce` reductions (`Comm.h:124-176`).
+- **Pattern = {neighbor, wavefront, reduction}** with **ordered_dependency=true**: in `SweepSolver.cpp:52-70` subdomains only become "ready" after their upwind planes arrive — a classic sweep where a slow rank stalls the front. (The alternate `--pmethod bj` Block-Jacobi avoids the wavefront.)
+- **Latency-sensitive**, favors **neighbor placement** and **co-location** (especially with `ENABLE_GPU_AWARE_MPI`, which passes device pointers straight into the sweep buffers — `cmake/kripke/CMakeLists.txt:314-324`).
+- **Memory-bandwidth bound / low arithmetic intensity** — the whole purpose is studying data-layout/nesting effects on memory systems (README:22), and the "future plans" note wanting *more* FLOP-intensive discretizations (README:279), confirming current low intensity.
+- **No parallel I/O and no checkpoint/restart** (searched: no `MPI_File|hdf5|adios|netcdf`, no `checkpoint|restart`).
+- Launcher is **srun**; invocation is `[srun ...] kripke --procs npx,npy,npz`. The only literal node count in the repo is CI's `-N 1` smoke test, so I marked span as `either` (the app is designed to scale across a 3D MPI rank grid).
+
+One note: I recorded `accelerator.multi_gpu=false` because multi-GPU is achieved via multiple MPI ranks (one device per rank) rather than a process coordinating several devices — that's a low-confidence judgment given the CHAI/RAJA abstraction.
+  ✓ recorded 37 assertion(s) across 3 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-1651/us-anthropic-claude-opus-4-8/
+  shapes-20260813-1651/us-anthropic-claude-opus-4-8/github.com/LLNL/Kripke/unpinned/shapes.json

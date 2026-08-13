@@ -1,0 +1,40 @@
+[auto-approved] finalize-setup: {"base_image": "buildpack-deps:bookworm-scm", "focus": "osu_bw bandwidth benchmark", "keep": true, "mode": "container", "ref": null, "repos": ["https://github.com/jwu274/osu-micro-benchmarks"]}
+
+▸ https://github.com/jwu274/osu-micro-benchmarks  [1/1]
+[auto-approved] clone: {"effect": "network + write", "repo": "https://github.com/jwu274/osu-micro-benchmarks"}
+  · cloning https://github.com/jwu274/osu-micro-benchmarks into container
+  · warning: could not resolve commit; rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+  ⚠ unpinned: rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+  → find . *osu_bw* file
+  → find . * dir
+  → read c/mpi/pt2pt/standard/osu_bw.c 1 200
+  → read c/mpi/pt2pt/standard/osu_bw.c 200 120
+  → search mpirun_rsh|mpirun -np|osu_bw 3 20
+  → find . README* file
+This gives enough evidence. Let me check accelerator/CUDA build options briefly.
+  → search with-cuda|with-rocm|_ENABLE_CUDA_ 2 10
+  → read README.md 1 40
+  → search window_size = |options.window_size = |"-W"|min_message_size = |max_message_size = 3 10
+Sufficient evidence gathered. Now record the shape for the C MPI osu_bw variant (the primary one asked about — "osu_bw bandwidth benchmark").
+  → record_shape osu_bw mpi-cpu OSU Micro-Benchmarks osu_bw (C, MPI point-to-point bandwidth test, CPU/host buffer...
+  → search MPI_Wtime 2 5
+I'll re-record the latency_sensitive field with proper absent-search evidence.
+  → record_shape osu_bw mpi-cpu OSU Micro-Benchmarks osu_bw (C, MPI point-to-point bandwidth test, CPU/host buffer...
+Now let's add memory/accelerator/topology fields with proper evidence.
+  → read c/mpi/pt2pt/standard/osu_bw.c 320 40
+Good, that confirms the pattern. Now finalize remaining fields.
+  → record_shape osu_bw mpi-cpu OSU Micro-Benchmarks osu_bw (C, MPI point-to-point bandwidth test, CPU/host buffer...
+  → search cudaSetDevice|MV2_USE_CUDA|gpu_aware|CUDA_VISIBLE 3 10
+This confirms CUDA variant with 1 GPU per rank (device buffers, GPU-aware MPI via MVAPICH2). Let's record a separate cuda variant trace.
+  → record_shape osu_bw mpi-cuda OSU Micro-Benchmarks osu_bw built with CUDA support (MVAPICH2 GPU-aware MPI, devi...
+I'll fix that single rejected assertion.
+  → record_shape osu_bw mpi-cuda OSU Micro-Benchmarks osu_bw built with CUDA support (MVAPICH2 GPU-aware MPI, devi...
+Both traces are now recorded. Summary:
+
+**osu_bw:mpi-cpu** (default host-buffer build) — a 2-rank MPI point-to-point bandwidth benchmark (`c/mpi/pt2pt/standard/osu_bw.c`). Rank 0 fires a window (default 64) of back-to-back `MPI_Isend` for increasing message sizes, `MPI_Waitall`s, then gets a 1-byte ack; rank 1 mirrors with `Irecv`/`Waitall`/`Send`. It's strictly a network-bandwidth-bound, no-compute microbenchmark: `parallelism={process,mpi}`, `communication.model=point_to_point`, `pattern={neighbor}`, `bandwidth_sensitive=true`, `latency_sensitive=false` (throughput over a burst, not RTT), fixed `launch.tasks=2`, no accelerator, no shared memory, `memory.bound_by=network`, `arithmetic_intensity=very_low`.
+
+**osu_bw:mpi-cuda** (same source, `--enable-cuda`/`_ENABLE_CUDA_`) — identical MPI call pattern but buffers can be placed in GPU device memory (`D`/`H` CLI args), relying on GPU-aware MPI (MVAPICH2 `MV2_USE_CUDA=1`) to move data directly from device memory across the network; one GPU per rank via `CUDA_VISIBLE_DEVICES=$MV2_COMM_WORLD_LOCAL_RANK`, still 2 ranks total, no multi-GPU per process.
+  ✓ recorded 24 assertion(s) across 2 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-2155/us-anthropic-claude-sonnet-5/
+  shapes-20260813-2155/us-anthropic-claude-sonnet-5/github.com/jwu274/osu-micro-benchmarks/unpinned/osu_bw_bandwidth_benchmark/shapes.json

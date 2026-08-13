@@ -1,0 +1,98 @@
+[auto-approved] finalize-setup: {"base_image": "buildpack-deps:bookworm-scm", "focus": "reaxff", "keep": true, "mode": "container", "ref": null, "repos": ["https://github.com/lammps/lammps"]}
+
+▸ https://github.com/lammps/lammps  [1/1]
+[auto-approved] clone: {"effect": "network + write", "repo": "https://github.com/lammps/lammps"}
+  · cloning https://github.com/lammps/lammps into container
+  · warning: could not resolve commit; rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+  ⚠ unpinned: rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+I'll analyze the LAMMPS repository focusing on the ReaxFF variant. Let me start by understanding the build system and layout.
+  → find . CMakeLists.txt file
+  → find src *REAXFF* dir
+  → find . * dir
+  → find . *reaxff* file
+The repo appears to only have a .git dir. Let me check the actual layout.
+  → find src * dir
+  → search reaxff 1 5
+The working tree seems empty (bare-ish checkout). Let me search broadly.
+  → search LAMMPS 1 10
+  → find . *.cpp file
+The tree exists but my searches for "reaxff"/"LAMMPS" returned oddly. Let me look at the src directory for REAXFF package files directly.
+  → find src *reaxff* file
+  → find src pair_reax* file
+Now I can see the REAXFF package. There are three variants: base REAXFF (CPU/MPI), OPENMP, and KOKKOS. The search tool seems to need different regex. Let me examine the core files.
+  → read src/REAXFF/pair_reaxff.h 1 60
+  → search MPI_ 2 15
+The search tool errors with certain patterns. Let me look at the communication in the ReaxFF code - the paper cited is "Parallel Reactive Molecular Dynamics". Let me examine the forces and QEq solver which is where communication happens.
+  → search MPI_[A-Za-z]+ 3 20
+  → search MPI_Allreduce 3 20
+The search tool seems broken generally. Let me test with a simpler pattern.
+  → search Allreduce 2 10
+  → search comm 2 10
+Search consistently errors except for the earlier `reaxff`/`LAMMPS` calls that returned empty. Let me rely on `read` and `find`. Let me look at the QEq fix which does the charge equilibration (a CG solver = neighbor + reduction pattern).
+  → read src/REAXFF/fix_qeq_reaxff.cpp 1 80
+Let me find the CG solver in this file which is the communication-heavy part.
+  → search MPI_Allreduce\( 4 30
+Search is unreliable. Let me read the CG solver directly. Let me find where "CG" or "sparse_matvec" is.
+  → read src/REAXFF/fix_qeq_reaxff.cpp 820 120
+This confirms the QEq/CG solver uses `comm->forward_comm` (neighbor halo exchange) plus `parallel_vector_acc` (global reduction). Let me look at the CG iteration and parallel_vector_acc.
+  → read src/REAXFF/fix_qeq_reaxff.cpp 700 80
+  → read src/REAXFF/fix_qeq_reaxff.cpp 780 60
+This is a classic CG solver: per iteration a `forward_comm`/`reverse_comm` (neighbor exchange) plus `parallel_dot` (an MPI_Allreduce reduction). Let me confirm parallel_dot uses MPI_Allreduce.
+  → read src/REAXFF/fix_qeq_reaxff.cpp 960 70
+Let me find parallel_dot to confirm MPI_Allreduce.
+  → read src/REAXFF/fix_qeq_reaxff.cpp 1080 50
+Confirmed: `MPI_Allreduce` per CG iteration. So the QEq solver = neighbor exchange + reduction, latency-sensitive (small frequent messages: many CG iterations, each an allreduce of 1 double). Now let me look at the pair_reaxff.cpp for force computation and any documentation about performance. Let me check the docs and CMake for build/launch info.
+  → find doc *reaxff* file
+  → find doc/src *.rst file
+Let me read the pair_reaxff.rst doc for performance/parallelism notes and check the KOKKOS doc.
+  → read doc/src/pair_reaxff.rst 1 80
+This confirms three variants: `reaxff` (CPU/MPI), `reaxff/omp` (OPENMP), `reaxff/kk` (KOKKOS, GPU-capable). Let me check the Kokkos pair for CUDA/GPU comm details, and the main.cpp for the executable name. Let me also check the pair_reaxff.cpp for MPI comm in force computation.
+  → find src main.cpp file
+  → read src/KOKKOS/pair_reaxff_kokkos.h 1 50
+The executable is `lmp` (main.cpp). Kokkos uses DualView (host/device). Let me check the KOKKOS package docs for GPU-aware MPI and multi-GPU, and check the Speed_kokkos doc. Let me also verify pair_reaxff.cpp uses comm forward/reverse (halo exchange).
+  → read doc/src/Speed_kokkos.rst 1 60
+  → search forward_comm 2 10
+Kokkos supports CUDA (NVIDIA) and HIP (AMD ROCm). Let me look for GPU-aware MPI in the Kokkos docs and typical launch commands.
+  → search GPU-aware 3 10
+The search tool is broken for most patterns. Let me grep the Speed_kokkos doc by reading for the launch and GPU-aware MPI sections.
+  → read doc/src/Speed_kokkos.rst 300 90
+Excellent. This gives concrete launch geometry and GPU-aware MPI evidence. Now I have enough to record. Let me quickly confirm the OPENMP variant threading, and check pair_reaxff.cpp uses forward/reverse comm for the halo. Let me read pair_reaxff.cpp compute for comm.
+  → search reverse_comm 2 15
+  → read src/OPENMP/pair_reaxff_omp.h 14 40
+OPENMP variant uses OpenMP threading (ThrOMP) on top of MPI. Let me confirm the pair_reaxff.cpp uses forward/reverse comm in compute (halo exchange of bond orders). Let me read around compute.
+  → read src/REAXFF/pair_reaxff.cpp 1 70
+I have enough evidence. LAMMPS uses standard spatial-decomposition MD with neighbor/halo comm (via comm->forward_comm/reverse_comm) and reductions. ReaxFF adds the QEq CG solver which is latency-sensitive (allreduce per CG iteration). Let me record the three variants.
+
+First, the base CPU/MPI variant:
+  → record_shape lmp reaxff-cpu-mpi LAMMPS ReaxFF pair style (base MPI build) mpirun -np N lmp -in in.reaxff high ...
+  → record_shape lmp reaxff-cpu-mpi LAMMPS ReaxFF pair style (base MPI build) mpirun -np N lmp -in in.reaxff mediu...
+Now the OPENMP variant (MPI + OpenMP threading):
+  → record_shape lmp reaxff-cpu-mpi-openmp LAMMPS ReaxFF pair style (OPENMP package) mpirun -np N lmp -sf omp -pk ...
+Now the KOKKOS GPU variant. Let me check the Kokkos QEq fix uses GPU-aware MPI paths, then record. I'll check for gpu_aware in the kokkos fix.
+  → read src/KOKKOS/fix_qeq_reaxff_kokkos.h 14 40
+The Kokkos QEq also runs the CG solver (SparseMatvec + reductions) on device. Now record the KOKKOS CUDA variant with the GPU-aware MPI evidence from the docs.
+  → record_shape lmp reaxff-kokkos-cuda-mpi LAMMPS ReaxFF pair style (KOKKOS CUDA) mpirun -np 2 lmp -k on g 2 -sf ...
+  → record_shape lmp reaxff-kokkos-cuda-mpi LAMMPS ReaxFF pair style (KOKKOS CUDA) mpirun -np 2 lmp -k on g 2 -sf ...
+Now let me record the ROCm/HIP sibling variant, since the docs explicitly mention HIP for AMD GPUs.
+  → record_shape lmp reaxff-kokkos-rocm-mpi LAMMPS ReaxFF pair style (KOKKOS HIP/ROCm) mpirun -np Ng lmp -k on g N...
+I've completed the analysis. Here's a summary of what LAMMPS ReaxFF builds and how it wants to run.
+
+## Subject
+The repository builds **`lmp`** (from `src/main.cpp`), the LAMMPS MD engine. ReaxFF is a package (`src/REAXFF/`) providing `pair_style reaxff` plus the `fix qeq/reaxff` charge-equilibration solver, with accelerated variants `reaxff/omp` (`src/OPENMP/`) and `reaxff/kk` (`src/KOKKOS/`).
+
+## The ReaxFF shape (common to all variants)
+ReaxFF is a **reactive many-body potential** (bond-order, valence/torsion angles, hydrogen bonds → `reaxff_bond_orders.cpp`, `reaxff_valence_angles.cpp`, etc.), so it is compute-heavy per atom. Two communication patterns dominate, recorded as a **set `{neighbor, reduction}`**:
+- **Neighbor/halo exchange** via `comm->forward_comm`/`reverse_comm` (`fix_qeq_reaxff.cpp:788-790`), typical of spatial-decomposition MD → neighbor placement preferred.
+- **The QEq CG solver** iterates up to 200 times, doing an `MPI_Allreduce` of a single double (`parallel_dot`) **every iteration** (`fix_qeq_reaxff.cpp:787-806,1095`). That is many tiny, frequent collectives → **latency-sensitive, not bandwidth-sensitive**.
+
+## Four traces recorded
+1. **`reaxff-cpu-mpi`** — plain C++/MPI. `mixed` comm, `{neighbor,reduction}`, latency-sensitive, compute-bound, `either` span, neighbor placement.
+2. **`reaxff-cpu-mpi-openmp`** — `reaxff/omp` adds OpenMP threads within each rank (`ThrOMP`), NUMA-sensitive; same MPI pattern.
+3. **`reaxff-kokkos-cuda-mpi`** — Kokkos CUDA backend, one MPI rank per GPU, **GPU-aware MPI recommended** (`Speed_kokkos.rst:307-317`), multi-GPU, co-location preferred. Launch example: `mpirun -np 2 lmp -k on g 2 -sf kk`.
+4. **`reaxff-kokkos-rocm-mpi`** — the HIP/AMD sibling of the same source.
+
+Notes: The `search` tool errored on nearly every pattern in this sandbox, so evidence was gathered via `find` + direct `read`. A `communication.bandwidth_sensitive=false` assertion was refused because negative claims need `absent:` search evidence, which I couldn't produce given the broken search — I left it unrecorded rather than fabricate it.
+  ✓ recorded 36 assertion(s) across 4 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-1651/us-anthropic-claude-opus-4-8/
+  shapes-20260813-1651/us-anthropic-claude-opus-4-8/github.com/lammps/lammps/unpinned/reaxff/shapes.json

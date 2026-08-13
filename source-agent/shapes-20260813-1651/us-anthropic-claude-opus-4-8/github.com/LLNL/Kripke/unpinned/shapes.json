@@ -1,0 +1,513 @@
+{
+  "entry": {
+    "commit": "",
+    "notes": "unpinned: could not resolve commit (rev-parse: rc=128 out='HEAD' err=\"fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr\"; log: rc=128 out='' err=\"fatal: your current branch 'master' does not have any commits yet\"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out='')",
+    "reads": {
+      "budget": {
+        "exhausted": false,
+        "limit": 60000,
+        "remaining": 50984,
+        "spent": 9016
+      },
+      "files": {
+        ".gitlab-ci.yml": {
+          "lines_read": 10,
+          "span": "86-97",
+          "total_lines": 127
+        },
+        "CMakeLists.txt": {
+          "lines_read": 179,
+          "span": "1-179",
+          "total_lines": 179
+        },
+        "README.md": {
+          "lines_read": 307,
+          "span": "1-307",
+          "total_lines": 307
+        },
+        "cmake/kripke/CMakeLists.txt": {
+          "lines_read": 320,
+          "span": "1-410",
+          "total_lines": 411
+        },
+        "scripts/gitlab/build_and_test.sh": {
+          "lines_read": 4,
+          "span": "123-126",
+          "total_lines": 126
+        },
+        "src/Kripke/ArchLayout.h": {
+          "lines_read": 40,
+          "span": "1-40",
+          "total_lines": 212
+        },
+        "src/Kripke/Core/Comm.h": {
+          "lines_read": 35,
+          "span": "121-178",
+          "total_lines": 207
+        },
+        "src/Kripke/Generate/Data.cpp": {
+          "lines_read": 17,
+          "span": "27-43",
+          "total_lines": 132
+        },
+        "src/Kripke/ParallelComm.cpp": {
+          "lines_read": 21,
+          "span": "171-282",
+          "total_lines": 344
+        },
+        "src/Kripke/ParallelComm/SweepComm.cpp": {
+          "lines_read": 80,
+          "span": "1-80",
+          "total_lines": 84
+        },
+        "src/Kripke/SweepSolver.cpp": {
+          "lines_read": 70,
+          "span": "1-70",
+          "total_lines": 96
+        },
+        "src/KripkeConfig.h.in": {
+          "lines_read": 16,
+          "span": "11-26",
+          "total_lines": 37
+        },
+        "src/kripke.cpp": {
+          "lines_read": 16,
+          "span": "45-331",
+          "total_lines": 575
+        }
+      }
+    },
+    "repo": "https://github.com/LLNL/Kripke",
+    "resolved_from": "",
+    "run": {
+      "backend": "aws",
+      "base_image": "buildpack-deps:bookworm-scm",
+      "duration_s": 119.59777074103476,
+      "focus": "",
+      "max_source_tokens": 60000,
+      "mode": "container",
+      "model": "us.anthropic.claude-opus-4-8",
+      "model_max_tokens": 16384,
+      "started": "2026-08-13T17:25:49+00:00",
+      "tool_version": "0.0.12"
+    },
+    "schema_version": "schedule-shape/v2",
+    "skipped": "",
+    "traces": [
+      {
+        "confidence": "medium",
+        "notes": "Sn transport sweep: low arithmetic intensity, layout/memory-system study is the explicit purpose. Wavefront sweep favors neighbor placement and co-location for low-latency plane exchange.",
+        "shapes": [
+          {
+            "assertions": [
+              {
+                "confidence": "high",
+                "evidence": [
+                  "cmake/kripke/CMakeLists.txt:200-208 (ENABLE_OPENMP sets KRIPKE_ARCH OpenMP)",
+                  "README.md:178 (OMP_NUM_THREADS controls OpenMP threads)",
+                  "src/Kripke/ParallelComm.cpp:174-251 (MPI Isend/Irecv)"
+                ],
+                "field": "parallelism",
+                "value": [
+                  "mpi",
+                  "threaded"
+                ]
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "src/Kripke/ParallelComm.cpp:174-251 (point-to-point Isend/Irecv)",
+                  "src/Kripke/Core/Comm.h:124-176 (MPI_Allreduce reductions)"
+                ],
+                "field": "communication.model",
+                "value": "mixed"
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "src/Kripke/SweepSolver.cpp:49-70 (upwind dependency, ready-list sweep)",
+                  "src/Kripke/ParallelComm/SweepComm.cpp:31-82 (upwind recv / downwind send plane exchange)",
+                  "src/Kripke/Core/Comm.h:124-176 (allreduce)"
+                ],
+                "field": "communication.pattern",
+                "value": [
+                  "neighbor",
+                  "wavefront",
+                  "reduction"
+                ]
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "src/Kripke/SweepSolver.cpp:52-70 (subdomains ready only after upwind planes arrive)",
+                  "README.md:265 (sweep = full up-wind wavefront algorithm)"
+                ],
+                "field": "communication.ordered_dependency",
+                "value": true
+              }
+            ],
+            "label": "Kripke Sn transport sweep, CPU (RAJA Sequential/OpenMP) with MPI",
+            "launch_command": "srun -N <nodes> kripke.exe --procs npx,npy,npz [--pmethod sweep] (OMP_NUM_THREADS for threads)"
+          },
+          {
+            "assertions": [
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "src/Kripke/SweepSolver.cpp:52-70 (sweep progresses subdomain-by-subdomain gated on messages)",
+                  "README.md:26 (message size vs sweep-efficiency tradeoff discussed)"
+                ],
+                "field": "communication.intensity",
+                "value": "high"
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "src/Kripke/ParallelComm/SweepComm.cpp:60-82 (fine-grained per-subdomain plane messages driving the wavefront)"
+                ],
+                "field": "communication.latency_sensitive",
+                "value": true
+              },
+              {
+                "confidence": "low",
+                "evidence": [
+                  "README.md:26 (larger units of work -> larger messages; message size affects sweep)"
+                ],
+                "field": "communication.bandwidth_sensitive",
+                "value": true
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "src/kripke.cpp:47 (Usage: [srun ...] kripke)",
+                  ".gitlab-ci.yml:88 (srun ... -N 1 build_and_test.sh)"
+                ],
+                "field": "launch.launcher",
+                "value": "srun"
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  ".gitlab-ci.yml:88 (srun -t 15 -N 1)",
+                  ".gitlab-ci.yml:95 (srun -p mi60 -t 15 -N 1)"
+                ],
+                "field": "launch.nodes",
+                "value": 1
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "absent: MPI_File|hdf5|adios|netcdf in src/"
+                ],
+                "field": "io.parallel_io",
+                "value": "none"
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "absent: checkpoint|restart in src/"
+                ],
+                "field": "io.checkpoint",
+                "value": false
+              }
+            ],
+            "label": "Kripke Sn transport sweep, CPU comm/memory/launch",
+            "launch_command": "srun -N <nodes> kripke.exe --procs npx,npy,npz"
+          },
+          {
+            "assertions": [
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "README.md:22 (SIMD units, memory systems; data-layout/nesting is the central study)",
+                  "README.md:36 (diamond-difference streaming-collision; low FLOP per unknown, future plans note wanting more FLOP-intensive discretizations README.md:279)"
+                ],
+                "field": "memory.bound_by",
+                "value": "memory_bandwidth"
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "README.md:279 (future plans: 'More FLOP intensive spatial discretizations' implies current low intensity)",
+                  "README.md:36 (diamond-difference, streaming operator)"
+                ],
+                "field": "memory.arithmetic_intensity",
+                "value": "low"
+              },
+              {
+                "confidence": "low",
+                "evidence": [
+                  "README.md:6 (six nestings D/G/Z chosen to study cache/stride behavior)",
+                  "README.md:28 (trading MPI tasks for threads and effects on cache efficiency)"
+                ],
+                "field": "memory.cache_reuse",
+                "value": "moderate"
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "src/Kripke/SweepSolver.cpp:52-70 (wavefront serializes progress along sweep axis)",
+                  "src/Kripke/ParallelComm/SweepComm.cpp:60-82 (neighbor plane exchange)"
+                ],
+                "field": "topology.placement",
+                "value": "neighbor"
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "src/Kripke/ParallelComm.cpp:174-251 (latency-sensitive neighbor sweep messages)"
+                ],
+                "field": "topology.co_location",
+                "value": "preferred"
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "README.md:8 (scalable across MPI tasks; 3D rank grid via --procs)",
+                  ".gitlab-ci.yml:88 (single node is only CI test)"
+                ],
+                "field": "topology.span",
+                "value": "either"
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "absent: shm_open|/dev/shm|MPI_Win in src/"
+                ],
+                "field": "memory.shared_memory",
+                "value": false
+              }
+            ],
+            "label": "Kripke CPU memory/topology judgment",
+            "launch_command": "srun -N <nodes> kripke.exe --procs npx,npy,npz"
+          }
+        ],
+        "subject": "kripke.exe",
+        "unmatched": [],
+        "variant": "cpu-mpi-openmp"
+      },
+      {
+        "confidence": "medium",
+        "notes": "One GPU per rank; scaling is via MPI ranks. Wavefront sweep, neighbor exchange, gpu-aware MPI wants device local to rank.",
+        "shapes": [
+          {
+            "assertions": [
+              {
+                "confidence": "high",
+                "evidence": [
+                  "cmake/kripke/CMakeLists.txt:216-235 (ENABLE_CUDA sets KRIPKE_ARCH CUDA)",
+                  "src/Kripke/ArchLayout.h:24-26 (ArchT_CUDA)",
+                  "README.md:227 (arch backends Sequential/OpenMP/CUDA)"
+                ],
+                "field": "parallelism",
+                "value": [
+                  "gpu",
+                  "mpi"
+                ]
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "cmake/kripke/CMakeLists.txt:216-222 (ENABLE_CUDA, blt::cuda)",
+                  "src/Kripke/ArchLayout.h:24-26"
+                ],
+                "field": "accelerator.kind",
+                "value": "cuda"
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "cmake/kripke/CMakeLists.txt:109 (ENABLE_GPU_AWARE_MPI: pass GPU pointers directly to MPI buffers)",
+                  "cmake/kripke/CMakeLists.txt:314-324",
+                  "src/KripkeConfig.h.in:17-24"
+                ],
+                "field": "accelerator.gpu_comm",
+                "value": "gpu_aware_mpi"
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "src/Kripke/SweepSolver.cpp:52-70 (wavefront)",
+                  "src/Kripke/ParallelComm/SweepComm.cpp:60-82 (neighbor plane exchange)",
+                  "src/Kripke/Core/Comm.h:124-176 (allreduce)"
+                ],
+                "field": "communication.pattern",
+                "value": [
+                  "neighbor",
+                  "wavefront",
+                  "reduction"
+                ]
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "src/Kripke/SweepSolver.cpp:52-70",
+                  "README.md:265"
+                ],
+                "field": "communication.ordered_dependency",
+                "value": true
+              }
+            ],
+            "label": "Kripke Sn transport sweep, CUDA (RAJA/CHAI) with MPI",
+            "launch_command": "srun -N <nodes> kripke.exe --arch CUDA --procs npx,npy,npz"
+          },
+          {
+            "assertions": [
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "cmake/kripke/CMakeLists.txt:314-324 (gpu-aware MPI wants device on the rank; sweep buffers exchanged rank-to-rank)",
+                  "src/Kripke/ParallelComm.cpp:174-251"
+                ],
+                "field": "topology.co_location",
+                "value": "preferred"
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "src/Kripke/SweepSolver.cpp:52-70 (wavefront)",
+                  "src/Kripke/ParallelComm/SweepComm.cpp:60-82 (neighbor plane exchange)"
+                ],
+                "field": "topology.placement",
+                "value": "neighbor"
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "src/Kripke/ParallelComm.cpp:174-251 (per-subdomain plane messages)"
+                ],
+                "field": "communication.latency_sensitive",
+                "value": true
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "README.md:36 (diamond-difference streaming)",
+                  "README.md:279 (future: more FLOP-intensive discretizations)"
+                ],
+                "field": "memory.arithmetic_intensity",
+                "value": "low"
+              },
+              {
+                "confidence": "low",
+                "evidence": [
+                  "absent: cudaSetDevice.*loop|multiple device per rank pattern in src/ (devices used via one-rank-per-GPU, ENABLE_GPU_AWARE_MPI in cmake/kripke/CMakeLists.txt:314-324)"
+                ],
+                "field": "accelerator.multi_gpu",
+                "value": false
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "absent: MPI_File|hdf5|adios|netcdf in src/"
+                ],
+                "field": "io.parallel_io",
+                "value": "none"
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "absent: checkpoint|restart in src/"
+                ],
+                "field": "io.checkpoint",
+                "value": false
+              }
+            ],
+            "label": "Kripke CUDA topology/memory/io",
+            "launch_command": "srun -N <nodes> kripke.exe --arch CUDA --procs npx,npy,npz"
+          }
+        ],
+        "subject": "kripke.exe",
+        "unmatched": [],
+        "variant": "mpi-cuda"
+      },
+      {
+        "confidence": "medium",
+        "notes": "HIP backend via RAJA, targeting AMD MI100/MI250X/MI300A per host-configs. Same wavefront sweep + neighbor exchange + allreduce shape as CUDA; gpu-aware MPI supported. One GPU per rank.",
+        "shapes": [
+          {
+            "assertions": [
+              {
+                "confidence": "high",
+                "evidence": [
+                  "cmake/kripke/CMakeLists.txt:242-248 (ENABLE_HIP sets KRIPKE_ARCH HIP, blt::hip)",
+                  "src/Kripke/ArchLayout.h:28-30 (ArchT_HIP)",
+                  "host-configs/llnl-toss4-MI250X-rocm6-vernal.cmake"
+                ],
+                "field": "parallelism",
+                "value": [
+                  "gpu",
+                  "mpi"
+                ]
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "cmake/kripke/CMakeLists.txt:242-248 (ENABLE_HIP)",
+                  "src/Kripke/ArchLayout.h:28-30"
+                ],
+                "field": "accelerator.kind",
+                "value": "rocm"
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "cmake/kripke/CMakeLists.txt:314-324 (ENABLE_GPU_AWARE_MPI requires CUDA or HIP)",
+                  "src/KripkeConfig.h.in:22-24"
+                ],
+                "field": "accelerator.gpu_comm",
+                "value": "gpu_aware_mpi"
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "src/Kripke/SweepSolver.cpp:52-70 (wavefront)",
+                  "src/Kripke/ParallelComm/SweepComm.cpp:60-82 (neighbor plane exchange)",
+                  "src/Kripke/Core/Comm.h:124-176 (allreduce)"
+                ],
+                "field": "communication.pattern",
+                "value": [
+                  "neighbor",
+                  "wavefront",
+                  "reduction"
+                ]
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "src/Kripke/SweepSolver.cpp:52-70",
+                  "README.md:265"
+                ],
+                "field": "communication.ordered_dependency",
+                "value": true
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "cmake/kripke/CMakeLists.txt:314-324 (gpu-aware MPI wants local device)",
+                  "src/Kripke/ParallelComm.cpp:174-251"
+                ],
+                "field": "topology.co_location",
+                "value": "preferred"
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "src/Kripke/ParallelComm/SweepComm.cpp:60-82"
+                ],
+                "field": "topology.placement",
+                "value": "neighbor"
+              }
+            ],
+            "label": "Kripke Sn transport sweep, HIP/ROCm (RAJA/CHAI) with MPI",
+            "launch_command": "srun -N <nodes> kripke.exe --procs npx,npy,npz (HIP build; MI250X/MI300A host-configs)"
+          }
+        ],
+        "subject": "kripke.exe",
+        "unmatched": [],
+        "variant": "mpi-rocm"
+      }
+    ]
+  },
+  "version": "schedule-shape/report/v1"
+}

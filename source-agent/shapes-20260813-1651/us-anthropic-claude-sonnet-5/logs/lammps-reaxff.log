@@ -1,0 +1,77 @@
+[auto-approved] finalize-setup: {"base_image": "buildpack-deps:bookworm-scm", "focus": "reaxff", "keep": true, "mode": "container", "ref": null, "repos": ["https://github.com/lammps/lammps"]}
+
+▸ https://github.com/lammps/lammps  [1/1]
+[auto-approved] clone: {"effect": "network + write", "repo": "https://github.com/lammps/lammps"}
+  · cloning https://github.com/lammps/lammps into container
+  · warning: could not resolve commit; rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+  ⚠ unpinned: rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+  → find . *reaxff* file
+  → find . CMakeLists.txt file
+  → find . * dir
+  → find / * dir
+  → search reaxff 2 20
+  → find . * file
+  → find src *REAXFF* file
+  → find src * dir
+  → find src/REAXFF * file
+  → find src/KOKKOS * file
+  → read src/REAXFF/README 1 120
+  → search MPI_(Allreduce|Reduce|Bcast|Allgather|Alltoall|Sendrecv|Isend|Irecv) 3 40
+  → search MPI_Allreduce 3 40
+  → search reaxff 2 10
+  → search test 2 5
+  → read src/REAXFF/pair_reaxff.cpp 1 150
+  → find src/OPENMP *reaxff* file
+  → read src/REAXFF/pair_reaxff.cpp 150 150
+  → find src/GPU *reaxff* file
+  → read src/REAXFF/pair_reaxff.cpp 400 120
+  → read src/REAXFF/fix_qeq_reaxff.cpp 1 100
+  → read src/REAXFF/fix_qeq_reaxff.cpp 600 200
+  → read src/REAXFF/fix_qeq_reaxff.cpp 900 60
+  → read src/REAXFF/fix_qeq_reaxff.cpp 960 40
+  → read src/REAXFF/fix_qeq_reaxff.cpp 840 40
+  → find src/QEQ fix_qeq.cpp file
+  → read src/QEQ/fix_qeq.cpp 1 50
+  → read src/REAXFF/fix_qeq_reaxff.cpp 799 40
+  → read src/QEQ/fix_qeq.cpp 700 40
+Confirmed: MPI_Allreduce per CG iteration (small global scalar reduction) plus forward/reverse halo comm each iteration — classic {neighbor, reduction} pattern, latency-sensitive. This is enough evidence. Let me quickly check the KOKKOS reaxff variant for GPU-specific details.
+  → read src/KOKKOS/fix_qeq_reaxff_kokkos.cpp 1 80
+  → find src/MAKE Makefile.kokkos_cuda* file
+  → read src/KOKKOS/pair_reaxff_kokkos.cpp 1 60
+I have enough evidence now. Let me check package docs / build for OpenMP threading count mention and MPI launch pattern in doc examples.
+  → find doc pair_reaxff.rst file
+  → read doc/src/pair_reaxff.rst 1 100
+  → read src/KOKKOS/comm_kokkos.cpp 1 60
+  → find src/REAXFF *restart* file
+  → read src/KOKKOS/kokkos.cpp 1 60
+  → read src/KOKKOS/kokkos.cpp 60 60
+  → read src/KOKKOS/kokkos.cpp 120 80
+  → read src/KOKKOS/kokkos.cpp 199 80
+  → read src/KOKKOS/kokkos.cpp 279 80
+Confirmed: `gpu_aware_flag = 1` by default on GPU builds — direct GPU-to-GPU MPI communication (`src/KOKKOS/kokkos.cpp:328`). This solidly supports `accelerator.gpu_comm = gpu_aware_mpi`. Now I have sufficient evidence for both traces.
+  → record_shape lmp reaxff-cpu-mpi LAMMPS pair_style reaxff (REAXFF package, CPU MPI build) mpirun -np N lmp -in ...
+  → record_shape lmp reaxff-cpu-mpi LAMMPS pair_style reaxff (REAXFF package, CPU MPI build) mpirun -np N lmp -in ...
+Now the Kokkos/CUDA GPU variant of ReaxFF:
+  → record_shape lmp reaxff-kokkos-cuda LAMMPS pair_style reaxff/kk (REAXFF package, Kokkos CUDA GPU build) mpirun...
+Both traces recorded. Summary:
+
+**Subject:** `lmp` (LAMMPS single executable, built from `src/` with the REAXFF package enabled)
+
+**Trace 1: `reaxff-cpu-mpi`** (default REAXFF package build)
+- Pure MPI, spatial-decomposition domain code with ghost-atom halo exchange (`ghostneigh=1`, `comm->forward_comm`)
+- Charge-equilibration (QEq/ACKS2/QTPIE) solved via CG each timestep: every iteration does forward_comm + reverse_comm (halo) *and* a scalar `MPI_Allreduce` (dot product) — a tight {neighbor, reduction} loop, highly latency-sensitive but not bandwidth-heavy (small per-atom messages)
+- No GPU, no shared-memory windows, no parallel I/O library
+- Compute-heavy many-body bond-order/valence/torsion kernels dominate FLOPs; the QEq sparse matvec is a classic low-arithmetic-intensity sparse kernel
+- Can run single-node or multi-node; wants neighbor-preferring/co-located placement since CG iterations couple ranks tightly every step
+
+**Trace 2: `reaxff-kokkos-cuda`** (Kokkos-accelerated `reaxff/kk` style)
+- MPI + GPU (Kokkos CUDA/HIP/SYCL backend), typically one rank per GPU chosen via local-rank env vars (SLURM_LOCALID, OMPI_COMM_WORLD_LOCAL_RANK, etc.)
+- Device-resident communication buffers; `gpu_aware_flag=1` by default → direct GPU-to-GPU MPI path when the MPI library supports it (mpi-ext.h CUDA-aware probe included)
+- Forces full neighbor lists on GPU (avoids newton's-third-law reverse force communication)
+- Same {neighbor, reduction} QEq/CG communication pattern as CPU variant, but kept on-device
+
+Both traces were recorded with evidence citations; the CPU-MPI trace is high confidence (direct code reads of comm/MPI calls), the Kokkos-CUDA trace is medium confidence (strong structural evidence but some behavior — e.g. exact intensity — inferred from flags/comments rather than runtime profiling).
+  ✓ recorded 23 assertion(s) across 2 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-1651/us-anthropic-claude-sonnet-5/
+  shapes-20260813-1651/us-anthropic-claude-sonnet-5/github.com/lammps/lammps/unpinned/reaxff/shapes.json

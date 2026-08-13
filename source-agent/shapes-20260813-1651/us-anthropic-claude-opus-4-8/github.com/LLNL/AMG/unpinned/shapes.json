@@ -1,0 +1,343 @@
+{
+  "entry": {
+    "commit": "",
+    "notes": "unpinned: could not resolve commit (rev-parse: rc=128 out='HEAD' err=\"fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr\"; log: rc=128 out='' err=\"fatal: your current branch 'master' does not have any commits yet\"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out='')",
+    "reads": {
+      "budget": {
+        "exhausted": false,
+        "limit": 60000,
+        "remaining": 53353,
+        "spent": 6647
+      },
+      "files": {
+        "Makefile.include": {
+          "lines_read": 53,
+          "span": "1-53",
+          "total_lines": 53
+        },
+        "README": {
+          "lines_read": 78,
+          "span": "1-78",
+          "total_lines": 78
+        },
+        "docs/amg.README": {
+          "lines_read": 388,
+          "span": "1-388",
+          "total_lines": 474
+        },
+        "parcsr_mv/par_csr_communication.c": {
+          "lines_read": 51,
+          "span": "89-563",
+          "total_lines": 861
+        },
+        "parcsr_mv/par_csr_matop.c": {
+          "lines_read": 12,
+          "span": "2132-2665",
+          "total_lines": 3772
+        },
+        "parcsr_mv/par_csr_matop_marked.c": {
+          "lines_read": 3,
+          "span": "1314-1316",
+          "total_lines": 1324
+        },
+        "parcsr_mv/par_csr_matrix.c": {
+          "lines_read": 16,
+          "span": "246-2149",
+          "total_lines": 2160
+        },
+        "parcsr_mv/par_csr_matvec.c": {
+          "lines_read": 1,
+          "span": "151-151",
+          "total_lines": 632
+        },
+        "parcsr_mv/par_vector.c": {
+          "lines_read": 7,
+          "span": "431-480",
+          "total_lines": 1083
+        },
+        "test/amg.c": {
+          "lines_read": 8,
+          "span": "143-2310",
+          "total_lines": 2347
+        },
+        "utilities/mpistubs.c": {
+          "lines_read": 3,
+          "span": "43-45",
+          "total_lines": 1298
+        },
+        "utilities/mpistubs.h": {
+          "lines_read": 6,
+          "span": "81-244",
+          "total_lines": 302
+        }
+      }
+    },
+    "repo": "https://github.com/LLNL/AMG",
+    "resolved_from": "",
+    "run": {
+      "backend": "aws",
+      "base_image": "buildpack-deps:bookworm-scm",
+      "duration_s": 107.10226564697223,
+      "focus": "",
+      "max_source_tokens": 60000,
+      "mode": "container",
+      "model": "us.anthropic.claude-opus-4-8",
+      "model_max_tokens": 16384,
+      "started": "2026-08-13T17:39:52+00:00",
+      "tool_version": "0.0.12"
+    },
+    "schema_version": "schedule-shape/v2",
+    "skipped": "",
+    "traces": [
+      {
+        "confidence": "high",
+        "notes": "Matvec halo exchange is symmetric neighbor communication, not a directional sweep.",
+        "shapes": [
+          {
+            "assertions": [
+              {
+                "confidence": "high",
+                "evidence": [
+                  "README:28-29 (SPMD, MPI + OpenMP threading within MPI tasks)",
+                  "test/amg.c:144 (hypre_MPI_Init)",
+                  "test/amg.c:760 (#pragma omp parallel)",
+                  "parcsr_mv/par_csr_matvec.c:151 (#pragma omp parallel for)"
+                ],
+                "field": "parallelism",
+                "value": [
+                  "mpi",
+                  "threaded"
+                ]
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "parcsr_mv/par_csr_communication.c:319-372 (Isend/Irecv neighbor exchange)",
+                  "parcsr_mv/par_vector.c:432 (MPI_Allreduce reduction)",
+                  "parcsr_mv/par_csr_matrix.c:1155 (MPI_Bcast)"
+                ],
+                "field": "communication.model",
+                "value": "mixed"
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "parcsr_mv/par_csr_communication.c:319-372 (point-to-point halo exchange for matvec)",
+                  "parcsr_mv/par_vector.c:432 (Allreduce dot products in PCG/GMRES)",
+                  "parcsr_mv/par_csr_matrix.c:1155 (Bcast); parcsr_mv/par_csr_communication.c:528 (Allgather setup)"
+                ],
+                "field": "communication.pattern",
+                "value": [
+                  "neighbor",
+                  "reduction",
+                  "broadcast"
+                ]
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "docs/amg.README:79-82 (highly synchronous code, surface-to-volume communication pattern, parallel efficiency largely determined by speed of communications)"
+                ],
+                "field": "communication.intensity",
+                "value": "high"
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "docs/amg.README:79-82 (highly synchronous, surface-to-volume)",
+                  "parcsr_mv/par_csr_communication.c:232 (persistent small neighbor messages, Startall)"
+                ],
+                "field": "communication.latency_sensitive",
+                "value": true
+              }
+            ],
+            "label": "AMG (BoomerAMG) parallel algebraic multigrid solver benchmark",
+            "launch_command": "OMP_NUM_THREADS=3 mpirun -np 4 amg -P 2 2 1 -n 50 50 50"
+          },
+          {
+            "assertions": [
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "docs/amg.README:79-85 (surface-to-volume; parallel efficiency determined by data chunk size and communication speed -> pack for locality)"
+                ],
+                "field": "communication.bandwidth_sensitive",
+                "value": true
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "absent: shm_open|MPI_Win|/dev/shm in src (no shared-memory windows found)"
+                ],
+                "field": "memory.shared_memory",
+                "value": false
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "README:28-29 (OpenMP threading within MPI tasks); docs/amg.README:191 (4 OpenMP threads per MPI task) - thread placement across NUMA matters for a memory-bound code"
+                ],
+                "field": "memory.numa_sensitive",
+                "value": true
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "absent: cuda|hip|__global__|omp target in src (no accelerator code)"
+                ],
+                "field": "accelerator.kind",
+                "value": "none"
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "absent: MPI_File|hdf5|adios|netcdf in src (driver generates its own linear system, docs/amg.README:266-269)"
+                ],
+                "field": "io.parallel_io",
+                "value": "none"
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "absent: checkpoint|restart write in src; docs/amg.README:274-278 only prints timings/FOM"
+                ],
+                "field": "io.checkpoint",
+                "value": false
+              }
+            ],
+            "label": "AMG memory/accelerator/io",
+            "launch_command": "OMP_NUM_THREADS=3 mpirun -np 4 amg -P 2 2 1 -n 50 50 50"
+          },
+          {
+            "assertions": [
+              {
+                "confidence": "high",
+                "evidence": [
+                  "docs/amg.README:203 (mpirun -np 1 amg -help)",
+                  "docs/amg.README:280 (mpirun -np 4 amg ...)"
+                ],
+                "field": "launch.launcher",
+                "value": "mpirun"
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "docs/amg.README:280 (mpirun -np 4 amg -P 2 2 1 -n 50 50 50)"
+                ],
+                "field": "launch.tasks",
+                "value": 4
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "docs/amg.README:278 (setting OMP_NUM_THREADS to 3); docs/amg.README:315 (Num OpenMP threads = 3)"
+                ],
+                "field": "launch.threads_per_task",
+                "value": 3
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "docs/amg.README:83-85 (AMG is also memory-access bound, doing only about 1-2 computations per memory access)"
+                ],
+                "field": "memory.bound_by",
+                "value": "memory_bandwidth"
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "docs/amg.README:83-85 (only about 1-2 computations per memory access)"
+                ],
+                "field": "memory.arithmetic_intensity",
+                "value": "very_low"
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "docs/amg.README:158-159 (would be very difficult to obtain good cache reuse)"
+                ],
+                "field": "memory.cache_reuse",
+                "value": "poor"
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "docs/amg.README:83-85 (memory-access bound with poor cache reuse) - wants exclusive cache/cores"
+                ],
+                "field": "memory.cpu_exclusive",
+                "value": true
+              }
+            ],
+            "label": "AMG launch + memory bound",
+            "launch_command": "OMP_NUM_THREADS=3 mpirun -np 4 amg -P 2 2 1 -n 50 50 50"
+          },
+          {
+            "assertions": [
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "docs/amg.README:166-170 (run on up to 1,000,000 MPI processes); docs/amg.README:172 (increase problem size and processors in tandem) - but small runs fit one node"
+                ],
+                "field": "topology.span",
+                "value": "either"
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "docs/amg.README:74-75 (logical P x Q x R grid decomposition -> neighbor placement); docs/amg.README:79-82 (surface-to-volume)"
+                ],
+                "field": "topology.placement",
+                "value": "neighbor"
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "docs/amg.README:79-82 (highly synchronous, communication speed dominates -> ranks should land close)"
+                ],
+                "field": "topology.co_location",
+                "value": "preferred"
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "absent: MPI_Win|shm_open in src",
+                  "parcsr_mv/par_csr_communication.c uses only point-to-point + collectives"
+                ],
+                "field": "accelerator.gpu_comm",
+                "value": "none"
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "absent: cudaSetDevice|hipSetDevice|multi-device in src"
+                ],
+                "field": "accelerator.multi_gpu",
+                "value": false
+              }
+            ],
+            "label": "AMG topology",
+            "launch_command": "OMP_NUM_THREADS=3 mpirun -np 4 amg -P 2 2 1 -n 50 50 50"
+          },
+          {
+            "assertions": [
+              {
+                "confidence": "high",
+                "evidence": [
+                  "absent: wavefront|sweep|upwind|ordered dependency in parcsr_mv/par_csr_communication.c (comm is symmetric Isend/Irecv halo exchange, not an ordered sweep)"
+                ],
+                "field": "communication.ordered_dependency",
+                "value": false
+              }
+            ],
+            "label": "AMG ordered dependency",
+            "launch_command": "OMP_NUM_THREADS=3 mpirun -np 4 amg -P 2 2 1 -n 50 50 50"
+          }
+        ],
+        "subject": "amg",
+        "unmatched": [],
+        "variant": "cpu-mpi-openmp"
+      }
+    ]
+  },
+  "version": "schedule-shape/report/v1"
+}

@@ -1,0 +1,45 @@
+[auto-approved] finalize-setup: {"base_image": "buildpack-deps:bookworm-scm", "focus": "osu_allreduce MPI_Allreduce collective benchmark", "keep": true, "mode": "container", "ref": null, "repos": ["https://github.com/jwu274/osu-micro-benchmarks"]}
+
+▸ https://github.com/jwu274/osu-micro-benchmarks  [1/1]
+[auto-approved] clone: {"effect": "network + write", "repo": "https://github.com/jwu274/osu-micro-benchmarks"}
+  · cloning https://github.com/jwu274/osu-micro-benchmarks into container
+  · warning: could not resolve commit; rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+  ⚠ unpinned: rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+I'll start by orienting myself in the repository structure.
+  → find . *allreduce* file
+  → find . README* file
+The user asked specifically about `osu_allreduce` MPI_Allreduce collective benchmark. Let me read the main one.
+  → read c/mpi/collective/blocking/osu_allreduce.c 1 200
+This is the OSU Micro-Benchmarks osu_allreduce. Clear picture: MPI collective benchmark centered on `MPI_Allreduce` (reduction), sweeping message sizes. Let me check the accelerator/GPU support paths and build system, plus documentation of what it measures.
+  → search CUDA|cudaMalloc|ROCM|hipMalloc|--enable-cuda|--enable-rocm 2 20
+  → search init_accel|allocate_memory_coll|options.accel 3 15
+I have enough. The osu_allreduce is a CPU MPI collective benchmark by default (accel is optional CUDA/ROCm buffers, but the benchmark itself uses `MPI_Allreduce`). Let me check the README for how it's run and any launch geometry.
+  → search mpirun.*osu_allreduce|mpiexec.*osu_|np [0-9] 2 6
+I have enough evidence. The benchmark is launched via `mpirun -np N`, requires >= 2 processes, runs `MPI_Allreduce` (a reduction collective) repeatedly across all ranks over a message-size sweep. Let me record the traces.
+  → record_shape osu_allreduce mpi OSU MPI_Allreduce collective latency benchmark (CPU/host buffers) mpirun -np <N...
+  → record_shape osu_allreduce mpi OSU MPI_Allreduce collective latency benchmark (CPU/host buffers) mpirun -np <N...
+  → record_shape osu_allreduce mpi OSU MPI_Allreduce collective latency benchmark (CPU/host buffers) mpirun -np <N...
+  → record_shape osu_allreduce mpi OSU MPI_Allreduce collective latency benchmark (CPU/host buffers) mpirun -np <N...
+I've completed the analysis. Here's the summary.
+
+## Subject: `osu_allreduce`
+
+**What it builds:** The OSU Micro-Benchmarks suite (autotools: `configure.ac` + automake). `c/mpi/collective/blocking/osu_allreduce.c` compiles to the `osu_allreduce` executable — a standalone MPI microbenchmark, not a solver. Launched via MPI: `mpirun_rsh -np N -hostfile hostfile osu_allreduce` (README.md:938).
+
+**How it wants to run (variant `mpi`, CPU/host buffers — the default build):**
+
+- **Parallelism:** Pure MPI (`omb_mpi_init`, `MPI_Comm_rank/size`). Requires ≥ 2 processes (osu_allreduce.c:78).
+- **Communication:** *Collective*, pattern *reduction* — the timed hot loop is repeated `MPI_Allreduce(..., MPI_SUM, comm)` (lines 146–166) over a message-size sweep from `min` to `max_message_size`. This IS the workload, so intensity is **high**.
+- **Latency- and bandwidth-sensitive:** small-message end of the sweep is latency-dominated; large messages (past `LARGE_MESSAGE_SIZE`) exercise interconnect bandwidth. `bound_by = network`.
+- **No shared memory, no NUMA pinning, no huge pages** in the benchmark itself.
+- **Accelerator: none** by default — GPU (CUDA/ROCm/SYCL) buffers only appear when configured with `--enable-cuda`/`--enable-rocm` and requested at runtime via `options.accel`; those would be distinct variants (and there's a separate `c/xccl/` NCCL/RCCL family, and `osu_iallreduce`/`osu_allreduce_persistent` variants) not covered here since the user asked about the blocking `osu_allreduce`.
+- **No parallel I/O, no checkpoint.**
+- **Topology:** a collective-latency benchmark is meant to measure the real interconnect, so runs span multiple nodes (multi_node, spread); symmetric all-reduce with no ordered/wavefront dependency.
+
+**Note on separation:** I recorded only the host/CPU MPI variant, matching the user's request. The CUDA/ROCm-enabled builds and the xccl (NCCL/RCCL) allreduce would each be separate traces with different accelerator/gpu_comm shapes — I did not pool them in.
+
+No launch geometry beyond `-np 2` (a doc example) is asserted; I did not record a fixed task count since real runs sweep across many process counts.
+  ✓ recorded 16 assertion(s) across 1 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-2155/us-anthropic-claude-opus-4-8/
+  shapes-20260813-2155/us-anthropic-claude-opus-4-8/github.com/jwu274/osu-micro-benchmarks/unpinned/osu_allreduce_MPI_Allreduce_collective_benchmark/shapes.json

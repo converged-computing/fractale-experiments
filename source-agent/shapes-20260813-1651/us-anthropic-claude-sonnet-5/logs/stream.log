@@ -1,0 +1,37 @@
+[auto-approved] finalize-setup: {"base_image": "buildpack-deps:bookworm-scm", "focus": null, "keep": true, "mode": "container", "ref": null, "repos": ["https://github.com/jeffhammond/STREAM"]}
+
+▸ https://github.com/jeffhammond/STREAM  [1/1]
+[auto-approved] clone: {"effect": "network + write", "repo": "https://github.com/jeffhammond/STREAM"}
+  · cloning https://github.com/jeffhammond/STREAM into container
+  · warning: could not resolve commit; rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+  ⚠ unpinned: rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+  → find . * file
+  → read Makefile 1 80
+  → read stream.c 1 120
+  → search omp |pragma|MPI|numa|affinity|thread 2 40
+  → read README 1 150
+  → find . *mpi* file
+  → find . Versions dir
+  → read stream.c 120 40
+Now I have enough evidence to record the shape.
+  → record_shape stream cpu-openmp STREAM memory bandwidth benchmark (stream_c.exe / stream_f.exe) OMP_NUM_THREADS...
+  → record_shape stream cpu-openmp STREAM memory bandwidth benchmark (stream_c.exe / stream_f.exe) OMP_NUM_THREADS...
+  → record_shape stream cpu-openmp STREAM memory bandwidth benchmark (stream_c.exe / stream_f.exe) OMP_NUM_THREADS...
+I've characterized the STREAM benchmark repository. Summary:
+
+**Subject built:** `stream_c.exe` and `stream_f.exe` (C and Fortran versions of the STREAM memory-bandwidth benchmark), built via the top-level `Makefile` with `gcc/gfortran -fopenmp`.
+
+**Variant recorded:** `stream:cpu-openmp` (single trace covering both language variants since they share identical scheduling shape — a shared-memory, OpenMP-threaded, single-process bandwidth benchmark).
+
+Key findings:
+- **Parallelism**: OpenMP threading only (`#pragma omp parallel for` in stream.c, `!$OMP PARALLEL` in stream.f) — no MPI, no GPU code in this checkout.
+- **Communication**: none — it's a single process with threads sharing memory; no network communication at all.
+- **Memory**: explicitly memory-bandwidth bound by design — the source comments instruct users to size arrays at ≥4× cache size specifically to defeat cache reuse (stream.c:58-61), and the header states the program "measures memory transfer rates in MB/s." Kernels (Copy, Scale, Add, Triad) do 1-2 flops per 2-3 memory accesses → very low arithmetic intensity, poor cache reuse.
+- **Topology**: single-node, no MPI launcher; run directly as `OMP_NUM_THREADS=<n> ./stream_c.exe`.
+- **I/O/accelerator**: none present.
+
+Note: the README references an MPI variant (`stream_mpi.c` in a `Versions/` subdirectory) that "distributes arrays across ranks" using MPI only for barrier-synchronized timing/error-gathering — but that file/directory is **not present** in this shallow clone, so I did not fabricate a separate MPI trace without source evidence.
+  ✓ recorded 21 assertion(s) across 1 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-1651/us-anthropic-claude-sonnet-5/
+  shapes-20260813-1651/us-anthropic-claude-sonnet-5/github.com/jeffhammond/STREAM/unpinned/shapes.json

@@ -1,0 +1,279 @@
+{
+  "entry": {
+    "commit": "",
+    "notes": "unpinned: could not resolve commit (rev-parse: rc=128 out='HEAD' err=\"fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr\"; log: rc=128 out='' err=\"fatal: your current branch 'master' does not have any commits yet\"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out='')",
+    "reads": {
+      "budget": {
+        "exhausted": false,
+        "limit": 60000,
+        "remaining": 52880,
+        "spent": 7120
+      },
+      "files": {
+        "Makefile.include": {
+          "lines_read": 53,
+          "span": "1-53",
+          "total_lines": 53
+        },
+        "README": {
+          "lines_read": 78,
+          "span": "1-78",
+          "total_lines": 78
+        },
+        "docs/amg.README": {
+          "lines_read": 349,
+          "span": "1-349",
+          "total_lines": 474
+        },
+        "krylov/HYPRE_krylov.h": {
+          "lines_read": 8,
+          "span": "366-373",
+          "total_lines": 485
+        },
+        "krylov/gmres.c": {
+          "lines_read": 23,
+          "span": "569-805",
+          "total_lines": 1246
+        },
+        "krylov/pcg.c": {
+          "lines_read": 5,
+          "span": "487-491",
+          "total_lines": 1194
+        },
+        "parcsr_mv/par_csr_communication.c": {
+          "lines_read": 65,
+          "span": "244-639",
+          "total_lines": 861
+        },
+        "parcsr_mv/par_csr_matop_marked.c": {
+          "lines_read": 5,
+          "span": "1313-1317",
+          "total_lines": 1324
+        },
+        "parcsr_mv/par_csr_matrix.c": {
+          "lines_read": 71,
+          "span": "245-1854",
+          "total_lines": 2160
+        },
+        "parcsr_mv/par_csr_matvec.c": {
+          "lines_read": 6,
+          "span": "148-153",
+          "total_lines": 632
+        },
+        "test/amg.c": {
+          "lines_read": 22,
+          "span": "757-2312",
+          "total_lines": 2347
+        }
+      }
+    },
+    "repo": "https://github.com/LLNL/AMG",
+    "resolved_from": "",
+    "run": {
+      "backend": "aws",
+      "base_image": "buildpack-deps:bookworm-scm",
+      "duration_s": 75.02794382395223,
+      "focus": "",
+      "max_source_tokens": 60000,
+      "mode": "container",
+      "model": "us.anthropic.claude-sonnet-5",
+      "model_max_tokens": 16384,
+      "started": "2026-08-13T17:14:30+00:00",
+      "tool_version": "0.0.12"
+    },
+    "schema_version": "schedule-shape/v2",
+    "skipped": "",
+    "traces": [
+      {
+        "confidence": "medium",
+        "notes": "No evidence of NUMA pinning, hugepages, or MPI shared-memory windows in source; ranks communicate purely via MPI point-to-point/collectives.",
+        "shapes": [
+          {
+            "assertions": [
+              {
+                "confidence": "high",
+                "evidence": [
+                  "README:28-32 (SPMD, MPI and OpenMP threading within MPI tasks)",
+                  "Makefile.include:26,46 (CC=mpicc, -fopenmp -DHYPRE_USING_OPENMP)"
+                ],
+                "field": "parallelism",
+                "value": [
+                  "mpi",
+                  "threaded"
+                ]
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "parcsr_mv/par_csr_communication.c:319-393 (point-to-point Isend/Irecv halo exchange)",
+                  "parcsr_mv/par_csr_matrix.c:247 (MPI_Allreduce)"
+                ],
+                "field": "communication.model",
+                "value": "mixed"
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "parcsr_mv/par_csr_communication.c:319-393 (Isend/Irecv exchange with neighbor procs via comm_pkg)",
+                  "parcsr_mv/par_csr_matrix.c:247,281 (MPI_Allreduce for global nnz/norms)"
+                ],
+                "field": "communication.pattern",
+                "value": [
+                  "neighbor",
+                  "reduction"
+                ]
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "docs/amg.README:79-85 (highly synchronous code, surface-to-volume communication/computation ratio dominates parallel efficiency)"
+                ],
+                "field": "communication.intensity",
+                "value": "high"
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "docs/amg.README:79-85 (highly synchronous, surface-to-volume communication pattern typical of halo exchange codes)"
+                ],
+                "field": "communication.latency_sensitive",
+                "value": true
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "docs/amg.README:179-193 (scaling table shows communication-dominated setup/solve times growing with process count on BG/Q up to 65536 procs)"
+                ],
+                "field": "communication.bandwidth_sensitive",
+                "value": true
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "docs/amg.README:83-85 (\"AMG is also memory-access bound, doing only about 1-2 computations per memory access\")",
+                  "docs/amg.README:158-159 (\"This code is memory-access bound. We believe it would be very difficult to obtain good cache reuse\")"
+                ],
+                "field": "memory.bound_by",
+                "value": "memory_bandwidth"
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "docs/amg.README:83-85 (1-2 computations per memory access, explicit statement)"
+                ],
+                "field": "memory.arithmetic_intensity",
+                "value": "very_low"
+              }
+            ],
+            "label": "LLNL AMG (hypre-derived parallel algebraic multigrid benchmark), MPI+OpenMP build",
+            "launch_command": "mpirun -np 4 amg -P 2 2 1 -n 50 50 50 -printstats (OMP_NUM_THREADS=3)"
+          },
+          {
+            "assertions": [
+              {
+                "confidence": "high",
+                "evidence": [
+                  "docs/amg.README:198-236 (test problem set up via -P Px Py Pz processor topology and -n nx ny nz per-processor size; driver builds its own linear system)"
+                ],
+                "field": "topology.placement",
+                "value": "neighbor"
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "docs/amg.README:79-85 (surface-to-volume comm/comp ratio depends on data chunk size and speed of communication/computation on the machine, implying pack for best comm performance but code has run at extreme scale on BG/Q, so either span works)"
+                ],
+                "field": "topology.span",
+                "value": "either"
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "docs/amg.README:79 (highly synchronous code; nearest-neighbor halo exchange over logical P x Q x R decomposition)"
+                ],
+                "field": "topology.co_location",
+                "value": "preferred"
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "absent: MPI_File|hdf5|adios|netcdf in repository (search performed across src tree)"
+                ],
+                "field": "io.parallel_io",
+                "value": "none"
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "absent: checkpoint|restart-to-disk in test/amg.c and solver sources; only krylov 'restart cycle' (algorithmic GMRES restart, not I/O) found via search for checkpoint|restart"
+                ],
+                "field": "io.checkpoint",
+                "value": false
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "absent: cuda|CUDA|__global__|hip_runtime in repository (search performed)"
+                ],
+                "field": "accelerator.kind",
+                "value": "none"
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "docs/amg.README:158-159 (memory-access bound, poor cache reuse expected even with optimization)"
+                ],
+                "field": "memory.cache_reuse",
+                "value": "poor"
+              }
+            ],
+            "label": "LLNL AMG additional topology/io/accelerator assertions",
+            "launch_command": "mpirun -np 4 amg -P 2 2 1 -n 50 50 50 -printstats (OMP_NUM_THREADS=3)"
+          },
+          {
+            "assertions": [
+              {
+                "confidence": "low",
+                "evidence": [
+                  "absent: sched_setaffinity|pthread_setaffinity|numa_|hwloc in repository"
+                ],
+                "field": "memory.cpu_exclusive",
+                "value": false
+              },
+              {
+                "confidence": "low",
+                "evidence": [
+                  "absent: numa_alloc|numa_set|libnuma in repository"
+                ],
+                "field": "memory.numa_sensitive",
+                "value": false
+              },
+              {
+                "confidence": "low",
+                "evidence": [
+                  "absent: hugepage|MAP_HUGETLB in repository"
+                ],
+                "field": "memory.hugepages",
+                "value": false
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "absent: shm_open|MPI_Win_allocate_shared|/dev/shm in repository"
+                ],
+                "field": "memory.shared_memory",
+                "value": false
+              }
+            ],
+            "label": "LLNL AMG negative memory-affinity assertions",
+            "launch_command": "mpirun -np 4 amg -P 2 2 1 -n 50 50 50 -printstats (OMP_NUM_THREADS=3)"
+          }
+        ],
+        "subject": "amg",
+        "unmatched": [],
+        "variant": "cpu-mpi-openmp"
+      }
+    ]
+  },
+  "version": "schedule-shape/report/v1"
+}

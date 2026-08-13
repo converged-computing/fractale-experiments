@@ -1,0 +1,467 @@
+{
+  "entry": {
+    "commit": "",
+    "notes": "unpinned: could not resolve commit (rev-parse: rc=128 out='HEAD' err=\"fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr\"; log: rc=128 out='' err=\"fatal: your current branch 'master' does not have any commits yet\"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out='')",
+    "reads": {
+      "budget": {
+        "exhausted": false,
+        "limit": 60000,
+        "remaining": 52327,
+        "spent": 7673
+      },
+      "files": {
+        "doc/src/Speed_kokkos.rst": {
+          "lines_read": 150,
+          "span": "1-389",
+          "total_lines": 559
+        },
+        "doc/src/pair_reaxff.rst": {
+          "lines_read": 80,
+          "span": "1-80",
+          "total_lines": 437
+        },
+        "src/KOKKOS/fix_qeq_reaxff_kokkos.h": {
+          "lines_read": 40,
+          "span": "14-53",
+          "total_lines": 448
+        },
+        "src/KOKKOS/pair_reaxff_kokkos.h": {
+          "lines_read": 50,
+          "span": "1-50",
+          "total_lines": 637
+        },
+        "src/OPENMP/pair_reaxff_omp.h": {
+          "lines_read": 40,
+          "span": "14-53",
+          "total_lines": 113
+        },
+        "src/REAXFF/fix_qeq_reaxff.cpp": {
+          "lines_read": 440,
+          "span": "1-1129",
+          "total_lines": 1180
+        },
+        "src/REAXFF/pair_reaxff.cpp": {
+          "lines_read": 70,
+          "span": "1-70",
+          "total_lines": 794
+        },
+        "src/REAXFF/pair_reaxff.h": {
+          "lines_read": 60,
+          "span": "1-60",
+          "total_lines": 92
+        }
+      }
+    },
+    "repo": "https://github.com/lammps/lammps",
+    "resolved_from": "",
+    "run": {
+      "backend": "aws",
+      "base_image": "buildpack-deps:bookworm-scm",
+      "duration_s": 198.62297384499107,
+      "focus": "reaxff",
+      "max_source_tokens": 60000,
+      "mode": "container",
+      "model": "us.anthropic.claude-opus-4-8",
+      "model_max_tokens": 16384,
+      "started": "2026-08-13T17:22:30+00:00",
+      "tool_version": "0.0.12"
+    },
+    "schema_version": "schedule-shape/v2",
+    "skipped": "",
+    "traces": [
+      {
+        "confidence": "medium",
+        "notes": "ReaxFF is a reactive many-body potential (bond order, valence/torsion angles, hydrogen bonds) so per-atom compute is high relative to LJ; the QEq solver adds latency-bound reductions.",
+        "shapes": [
+          {
+            "assertions": [
+              {
+                "confidence": "high",
+                "evidence": [
+                  "src/REAXFF/fix_qeq_reaxff.cpp:1095 (MPI_Allreduce over world)",
+                  "src/REAXFF/pair_reaxff.cpp:29 (comm.h, spatial decomposition)"
+                ],
+                "field": "parallelism",
+                "value": [
+                  "mpi"
+                ]
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "src/REAXFF/fix_qeq_reaxff.cpp:788-790 (forward/reverse neighbor comm)",
+                  "src/REAXFF/fix_qeq_reaxff.cpp:1095 (MPI_Allreduce)"
+                ],
+                "field": "communication.model",
+                "value": "mixed"
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "src/REAXFF/fix_qeq_reaxff.cpp:788-790 (comm->forward_comm/reverse_comm halo exchange in CG)",
+                  "src/REAXFF/fix_qeq_reaxff.cpp:785-806 (parallel_dot per CG iteration -> allreduce)"
+                ],
+                "field": "communication.pattern",
+                "value": [
+                  "neighbor",
+                  "reduction"
+                ]
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "src/REAXFF/fix_qeq_reaxff.cpp:787-810 (CG loop up to imax=200 iterations, each doing an allreduce of a single double via parallel_dot)"
+                ],
+                "field": "communication.latency_sensitive",
+                "value": true
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "doc/src/Speed_kokkos.rst:331 (mpirun -np ... lmp)"
+                ],
+                "field": "launch.launcher",
+                "value": "mpirun"
+              }
+            ],
+            "label": "LAMMPS ReaxFF pair style (base MPI build)",
+            "launch_command": "mpirun -np N lmp -in in.reaxff"
+          },
+          {
+            "assertions": [
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "src/REAXFF/fix_qeq_reaxff.cpp:787-810 (many small allreduces per timestep from the CG solver, on top of MD halo exchange)"
+                ],
+                "field": "communication.intensity",
+                "value": "moderate"
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "absent: cuda|hip|kokkos in src/REAXFF/ (base package is plain C++/MPI; GPU is a separate KOKKOS variant)"
+                ],
+                "field": "accelerator.kind",
+                "value": "none"
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "doc/src/write_restart.rst (LAMMPS restart files); src/REAXFF/pair_reaxff.cpp:69 (restartinfo=0 for pair, but MD restart handled by core)"
+                ],
+                "field": "io.checkpoint",
+                "value": true
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "doc/src/Speed_kokkos.rst:333 (16 nodes example); runs single or multi-node"
+                ],
+                "field": "topology.span",
+                "value": "either"
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "src/REAXFF/fix_qeq_reaxff.cpp:788-790 (stencil/halo exchange favors neighbor placement on a 3D grid)"
+                ],
+                "field": "topology.placement",
+                "value": "neighbor"
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "src/REAXFF/reaxff_bond_orders.cpp, reaxff_valence_angles.cpp, reaxff_torsion_angles.cpp (many-body bond-order/angle/torsion terms make ReaxFF compute-heavy per atom)"
+                ],
+                "field": "memory.bound_by",
+                "value": "compute"
+              }
+            ],
+            "label": "LAMMPS ReaxFF pair style (base MPI build)",
+            "launch_command": "mpirun -np N lmp -in in.reaxff"
+          }
+        ],
+        "subject": "lmp",
+        "unmatched": [],
+        "variant": "cpu-mpi-reaxff"
+      },
+      {
+        "confidence": "medium",
+        "notes": "reaxff/omp adds OpenMP threading within each MPI rank; same MPI comm pattern as base reaxff (halo + QEq allreduce). Thread/NUMA placement matters.",
+        "shapes": [
+          {
+            "assertions": [
+              {
+                "confidence": "high",
+                "evidence": [
+                  "src/OPENMP/pair_reaxff_omp.h:16 (PairStyle reaxff/omp)",
+                  "src/OPENMP/pair_reaxff_omp.h:28 (inherits ThrOMP)"
+                ],
+                "field": "parallelism",
+                "value": [
+                  "mpi",
+                  "threaded"
+                ]
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "src/REAXFF/fix_qeq_reaxff.cpp:788-790 (halo exchange)",
+                  "src/REAXFF/fix_qeq_reaxff.cpp:1095 (MPI_Allreduce)"
+                ],
+                "field": "communication.model",
+                "value": "mixed"
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "src/REAXFF/fix_qeq_reaxff.cpp:788-806 (neighbor halo + per-iteration reduction, shared with base reaxff)"
+                ],
+                "field": "communication.pattern",
+                "value": [
+                  "neighbor",
+                  "reduction"
+                ]
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "src/OPENMP/pair_reaxff_omp.h:24 (thr_omp.h); OpenMP threads share cores within a rank, thread placement across NUMA matters"
+                ],
+                "field": "memory.numa_sensitive",
+                "value": true
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "doc/src/Speed_omp.rst (OMP_NUM_THREADS per MPI task)"
+                ],
+                "field": "launch.launcher",
+                "value": "mpirun"
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "src/OPENMP/reaxff_valence_angles_omp.cpp, reaxff_torsion_angles_omp.cpp (threaded many-body compute kernels)"
+                ],
+                "field": "memory.bound_by",
+                "value": "compute"
+              }
+            ],
+            "label": "LAMMPS ReaxFF pair style (OPENMP package)",
+            "launch_command": "mpirun -np N lmp -sf omp -pk omp T -in in.reaxff  (OMP_NUM_THREADS=T)"
+          }
+        ],
+        "subject": "lmp",
+        "unmatched": [],
+        "variant": "cpu-mpi-openmp-reaxff"
+      },
+      {
+        "confidence": "medium",
+        "notes": "Launch counts taken from the doc example (2 GPUs/node, 1 rank per GPU). Task/GPU numbers are illustrative from docs, not a hard requirement.",
+        "shapes": [
+          {
+            "assertions": [
+              {
+                "confidence": "high",
+                "evidence": [
+                  "src/KOKKOS/pair_reaxff_kokkos.h:16 (PairStyle reaxff/kk)",
+                  "doc/src/Speed_kokkos.rst:36-41 (Kokkos backends: Serial/OpenMP/CUDA/HIP per MPI task)"
+                ],
+                "field": "parallelism",
+                "value": [
+                  "mpi",
+                  "gpu"
+                ]
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "doc/src/Speed_kokkos.rst:57-60 (NVIDIA CUDA support)",
+                  "doc/src/pair_reaxff.rst:68-69 (reaxff/kk runs on GPUs)"
+                ],
+                "field": "accelerator.kind",
+                "value": "cuda"
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "doc/src/Speed_kokkos.rst:307-309 (one MPI task per physical GPU)",
+                  "doc/src/Speed_kokkos.rst:331 (mpirun -np 2 ... -k on g 2)"
+                ],
+                "field": "accelerator.multi_gpu",
+                "value": true
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "doc/src/Speed_kokkos.rst:316-317 (GPU-aware MPI highly recommended; can disable with -pk kokkos gpu/aware off)"
+                ],
+                "field": "accelerator.gpu_comm",
+                "value": "gpu_aware_mpi"
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "src/KOKKOS/fix_qeq_reaxff_kokkos.h:41-53 (device SparseMatvec + QEq CG); src/REAXFF/fix_qeq_reaxff.cpp:788-806 (CG halo + reduction pattern)"
+                ],
+                "field": "communication.pattern",
+                "value": [
+                  "neighbor",
+                  "reduction"
+                ]
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "doc/src/Speed_kokkos.rst:331 (mpirun)"
+                ],
+                "field": "launch.launcher",
+                "value": "mpirun"
+              }
+            ],
+            "label": "LAMMPS ReaxFF pair style (KOKKOS CUDA)",
+            "launch_command": "mpirun -np 2 lmp -k on g 2 -sf kk -pk kokkos -in in.reaxff"
+          },
+          {
+            "assertions": [
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "doc/src/Speed_kokkos.rst:307-314 (MPI tasks = physical GPUs; multiple ranks per GPU only via CUDA MPS)"
+                ],
+                "field": "launch.tasks",
+                "value": 2
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "doc/src/Speed_kokkos.rst:323 (-k on g Ng), 331 (g 2 = 2 GPUs/node)"
+                ],
+                "field": "launch.gpus_per_task",
+                "value": 1
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "doc/src/Speed_kokkos.rst:307-314 (co-locate one rank per GPU; GPU-aware MPI wants fast device links)"
+                ],
+                "field": "topology.co_location",
+                "value": "preferred"
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "doc/src/Speed_kokkos.rst:333 (16 nodes, 32 GPUs example) and :330 (1 node example)"
+                ],
+                "field": "topology.span",
+                "value": "either"
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "src/KOKKOS/pair_reaxff_kokkos.h:16-18 (device/host variants); QEq CG allreduces are latency bound but bulk MD moved to GPU"
+                ],
+                "field": "communication.latency_sensitive",
+                "value": true
+              },
+              {
+                "confidence": "low",
+                "evidence": [
+                  "src/KOKKOS/pair_reaxff_kokkos.cpp (many-body force kernels run on GPU; ReaxFF is compute-heavy per atom)"
+                ],
+                "field": "memory.bound_by",
+                "value": "compute"
+              }
+            ],
+            "label": "LAMMPS ReaxFF pair style (KOKKOS CUDA)",
+            "launch_command": "mpirun -np 2 lmp -k on g 2 -sf kk -pk kokkos -in in.reaxff"
+          }
+        ],
+        "subject": "lmp",
+        "unmatched": [],
+        "variant": "mpi-cuda-kokkos-reaxff"
+      },
+      {
+        "confidence": "medium",
+        "notes": "Same reaxff/kk source, HIP (ROCm) backend for AMD GPUs. One rank per GPU, GPU-aware MPI (RCCL not used; LAMMPS uses gpu-aware MPI for halo/reductions). Documented as a supported Kokkos backend alongside CUDA.",
+        "shapes": [
+          {
+            "assertions": [
+              {
+                "confidence": "high",
+                "evidence": [
+                  "src/KOKKOS/pair_reaxff_kokkos.h:16 (PairStyle reaxff/kk)",
+                  "doc/src/Speed_kokkos.rst:38-40 (HIP for AMD GPUs)"
+                ],
+                "field": "parallelism",
+                "value": [
+                  "mpi",
+                  "gpu"
+                ]
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "doc/src/Speed_kokkos.rst:38-40 (HIP for AMD GPUs backend)"
+                ],
+                "field": "accelerator.kind",
+                "value": "rocm"
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "doc/src/Speed_kokkos.rst:307-309 (one MPI task per physical GPU), :323 (-k on g Ng)"
+                ],
+                "field": "accelerator.multi_gpu",
+                "value": true
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "doc/src/Speed_kokkos.rst:316-317 (GPU-aware MPI highly recommended for all Kokkos GPU backends)"
+                ],
+                "field": "accelerator.gpu_comm",
+                "value": "gpu_aware_mpi"
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "src/KOKKOS/fix_qeq_reaxff_kokkos.h:41-53 (device QEq CG); src/REAXFF/fix_qeq_reaxff.cpp:788-806 (halo + reduction)"
+                ],
+                "field": "communication.pattern",
+                "value": [
+                  "neighbor",
+                  "reduction"
+                ]
+              },
+              {
+                "confidence": "medium",
+                "evidence": [
+                  "doc/src/Speed_kokkos.rst:307-314 (one rank per GPU, co-locate)"
+                ],
+                "field": "topology.co_location",
+                "value": "preferred"
+              },
+              {
+                "confidence": "high",
+                "evidence": [
+                  "doc/src/Speed_kokkos.rst:331 (mpirun)"
+                ],
+                "field": "launch.launcher",
+                "value": "mpirun"
+              }
+            ],
+            "label": "LAMMPS ReaxFF pair style (KOKKOS HIP/ROCm)",
+            "launch_command": "mpirun -np Ng lmp -k on g Ng -sf kk -pk kokkos -in in.reaxff"
+          }
+        ],
+        "subject": "lmp",
+        "unmatched": [],
+        "variant": "mpi-rocm-kokkos-reaxff"
+      }
+    ]
+  },
+  "version": "schedule-shape/report/v1"
+}

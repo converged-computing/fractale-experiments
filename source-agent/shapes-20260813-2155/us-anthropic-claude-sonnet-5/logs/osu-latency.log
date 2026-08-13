@@ -1,0 +1,39 @@
+[auto-approved] finalize-setup: {"base_image": "buildpack-deps:bookworm-scm", "focus": "osu_latency point-to-point latency benchmark", "keep": true, "mode": "container", "ref": null, "repos": ["https://github.com/jwu274/osu-micro-benchmarks"]}
+
+▸ https://github.com/jwu274/osu-micro-benchmarks  [1/1]
+[auto-approved] clone: {"effect": "network + write", "repo": "https://github.com/jwu274/osu-micro-benchmarks"}
+  · cloning https://github.com/jwu274/osu-micro-benchmarks into container
+  → find . *osu_latency* file
+  → find . * dir
+  → read c/mpi/pt2pt/standard/osu_latency.c 1 200
+  → read c/mpi/pt2pt/standard/osu_latency.c 200 100
+  → search cuda|CUDA|rocm|ROCm|hip|HIP|opencl|openacc 2 40
+  → search osu_latency 3 20
+  → find . README* file
+Good, I have enough evidence: two-process ping-pong, blocking MPI_Send/Recv, optional CUDA/ROCm device buffers, `mpirun_rsh -np 2` invocation shown in docs. Let me check the memory-bandwidth/README statement about bound_by and check init_accel/allocate_memory for device buffer handling briefly.
+  → search cudaMalloc|hipMalloc|cudaMemcpy 2 10
+  → read README.md 995 40
+  → record_shape osu_latency mpi osu_latency pt2pt latency benchmark (host buffers, default build) mpirun_rsh -np ...
+  → search MPI_Alltoall|MPI_Allreduce|MPI_Bcast 2 10
+Good — confirms osu_latency.c itself contains no collectives (those are separate benchmark binaries). Now record the corrected assertion and add the cuda variant.
+  → record_shape osu_latency mpi osu_latency pt2pt latency benchmark (host buffers, default build) mpirun_rsh -np ...
+Now record the CUDA/GPU-buffer variant.
+  → record_shape osu_latency cuda osu_latency pt2pt latency benchmark (CUDA device buffers, --enable-cuda build) m...
+  → record_shape osu_latency cuda osu_latency pt2pt latency benchmark (CUDA device buffers, --enable-cuda build) m...
+I've characterized `osu_latency` in two variants based on solid source evidence:
+
+**osu_latency:mpi** (default host-buffer build)
+- Strict 2-rank MPI point-to-point ping-pong (`numprocs != 2` → exit), using blocking `MPI_Send`/`MPI_Recv` in a tight timed loop over increasing message sizes (`c/mpi/pt2pt/standard/osu_latency.c`).
+- No collectives, no shared-memory windows, no I/O/checkpointing in this benchmark.
+- Latency-sensitive, not network-bandwidth-sensitive (it's explicitly a round-trip latency test per README, single message in flight).
+- Very-low arithmetic intensity (pure byte copy/transfer, no compute), network-bound.
+
+**osu_latency:cuda** (`--enable-cuda` build, `-d cuda` / `D D` args)
+- Same 2-rank ping-pong core, but buffers can live in GPU device memory; requires CUDA-aware MPI (`MV2_USE_CUDA=1`) for direct GPU-to-GPU transfer path.
+- Single GPU per rank (`get_local_rank` pattern in docs), no multi-GPU coordination found.
+
+Both traces recorded with inline evidence (file:line citations and `absent:` search patterns for negative claims). The multi-threaded (`osu_latency_mt`) and multi-process (`osu_latency_mp`) variants are separate binaries not covered here, since the user asked specifically about the standard `osu_latency` pt2pt benchmark.
+  ✓ recorded 25 assertion(s) across 2 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-2155/us-anthropic-claude-sonnet-5/
+  shapes-20260813-2155/us-anthropic-claude-sonnet-5/github.com/jwu274/osu-micro-benchmarks/3e43a0ea6dc4/osu_latency_point-to-point_latency_benchmark/shapes.json

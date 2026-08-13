@@ -32,9 +32,7 @@ import os
 import re
 import sys
 
-VERSION = "2026-08-13.5"  # bumped when behaviour changes; shown in the footer
-
-# ---------------------------------------------------------------- loading
+VERSION = "2026-08-13.8"  # bumped when behaviour changes; shown in the footer
 
 
 def iter_reports(root: str):
@@ -185,6 +183,21 @@ def parse_evidence(ev: str) -> dict:
     }
 
 
+def _with_snippet(ev: dict, embedded: dict) -> dict:
+    """Attach the snippet the extractor stored, if it did. Embedded snippets are
+    authoritative: they are the code the model actually read, whereas a post-hoc
+    clone shows whatever the repo says now -- which for an unpinned run may differ."""
+    if not embedded or not ev.get("path"):
+        return ev
+    lo, hi = ev.get("start"), ev.get("end") or ev.get("start")
+    for key in (f"{ev['path']}:{lo}-{hi}", f"{ev['path']}:{lo}"):
+        hit = embedded.get(key)
+        if hit and hit.get("lines"):
+            ev["snippet"] = [(int(n), t) for n, t in hit["lines"]]
+            return ev
+    return ev
+
+
 def load(root: str) -> tuple[list[dict], list[dict]]:
     """(runs, assertions) as flat dict rows."""
     runs, assertions = [], []
@@ -196,6 +209,7 @@ def load(root: str) -> tuple[list[dict], list[dict]]:
             model = model or gm
             focus = focus or gf
         traces = entry.get("traces") or []
+        embedded = entry.get("snippets") or {}  # captured at extraction time (v2)
         budget = (entry.get("reads") or {}).get("budget") or {}
         n_assert = sum(
             len(s.get("assertions") or []) for t in traces for s in (t.get("shapes") or [])
@@ -241,7 +255,9 @@ def load(root: str) -> tuple[list[dict], list[dict]]:
                             "field": a.get("field", ""),
                             "value": a.get("value"),
                             "confidence": a.get("confidence", ""),
-                            "evidence": [parse_evidence(e) for e in ev],
+                            "evidence": [
+                                _with_snippet(parse_evidence(e), embedded) for e in ev
+                            ],
                             "evidence_count": len(ev),
                         }
                     )
@@ -519,6 +535,182 @@ def plots(runs, assertions, outdir, compare=None, quiet=False):
             ax.set_title("cross-sweep agreement per target", fontsize=10)
             ax.legend(fontsize=8)
             save(fig, "agreement.png")
+
+
+# ---------------------------------------------------------------- similarity
+
+
+# Shape fields are mixed-type, so a single distance formula will not do. This uses
+# a Gower-style average over the fields BOTH shapes assert, with a per-type
+# similarity:
+#
+#   set        -> Jaccard (parallelism, communication.pattern: partial overlap is
+#                 real information -- {mpi,threaded} vs {mpi} is closer than
+#                 {mpi,threaded} vs {gpu})
+#   ordered    -> 1 - |rank difference| / (levels - 1)  (moderate vs high is close;
+#                 none vs high is far -- exact match would throw that away)
+#   unordered  -> exact match (cuda vs rocm are simply different, not "half alike")
+#   bool       -> exact match
+#
+# `launch.*` counts are excluded by default: in the first sweep every value came
+# from a README example (`-np 4`), so they carry no information about the app and
+# would dominate a numeric distance.
+ORDERED_LEVELS = {
+    "communication.intensity": ["none", "low", "moderate", "high"],
+    "memory.arithmetic_intensity": ["very_low", "low", "moderate", "high"],
+    "memory.cache_reuse": ["poor", "moderate", "good"],
+    "topology.co_location": ["none", "preferred", "required"],
+    "topology.span": ["single_node", "either", "multi_node"],
+}
+SET_FIELDS = {"parallelism", "communication.pattern"}
+SKIP_FIELDS_PREFIX = ("launch.",)
+MISSING_VALUES = {"unknown", None, ""}
+
+
+def field_similarity(field, a, b):
+    """(similarity in [0,1], comparable?) for one field's two values."""
+    if field.startswith(SKIP_FIELDS_PREFIX):
+        return 0.0, False
+    if field in SET_FIELDS:
+        sa = set(a if isinstance(a, list) else [a])
+        sb = set(b if isinstance(b, list) else [b])
+        sa.discard("unknown")
+        sb.discard("unknown")
+        if not sa or not sb:
+            return 0.0, False
+        return len(sa & sb) / len(sa | sb), True
+    if isinstance(a, bool) or isinstance(b, bool):
+        return (1.0 if a == b else 0.0), True
+    sa, sb = str(a), str(b)
+    if sa in MISSING_VALUES or sb in MISSING_VALUES:
+        return 0.0, False  # "unknown" is an absence of judgement, not a value
+    if field in ORDERED_LEVELS:
+        lv = ORDERED_LEVELS[field]
+        if sa in lv and sb in lv:
+            return 1.0 - abs(lv.index(sa) - lv.index(sb)) / (len(lv) - 1), True
+    return (1.0 if sa == sb else 0.0), True
+
+
+def core_fields(assertions, threshold=0.6, key="app"):
+    """Fields asserted for at least `threshold` of the units being compared.
+
+    Restricting to a core set is what makes similarity comparable across pairs:
+    scored over whatever two shapes happen to share, two apps overlapping on four
+    fields can score 1.00 while a pair overlapping on twelve scores 0.85, and the
+    first number means much less than the second."""
+    units = {a[key] for a in assertions}
+    if not units:
+        return []
+    cov = collections.Counter()
+    for f in {a["field"] for a in assertions}:
+        cov[f] = len({a[key] for a in assertions if a["field"] == f})
+    return sorted(f for f, n in cov.items() if n / len(units) >= threshold)
+
+
+def shape_of(assertions, app, model=None, key="app"):
+    """{field: value} for one app (optionally one model). With both models and a
+    conflict, the field is dropped -- a disagreement is not a shape."""
+    out, seen = {}, collections.defaultdict(set)
+    for a in assertions:
+        if a[key] != app or (model and a["model"] != model):
+            continue
+        seen[a["field"]].add(json.dumps(a["value"], sort_keys=True))
+        out[a["field"]] = a["value"]
+    return {f: v for f, v in out.items() if len(seen[f]) == 1}
+
+
+def shape_similarity(sa, sb, min_fields=4, fields=None):
+    """(similarity, fields compared). None when the overlap is too thin to mean
+    anything -- two apps sharing three fields are not meaningfully 'identical'."""
+    tot = n = 0.0
+    common = set(sa) & set(sb)
+    if fields:
+        common &= set(fields)
+    for field in common:
+        s, ok = field_similarity(field, sa[field], sb[field])
+        if ok:
+            tot += s
+            n += 1
+    if n < min_fields:
+        return None, int(n)
+    return tot / n, int(n)
+
+
+def similarity_matrix(assertions, model=None, min_fields=5, key="app",
+                      restrict_to_core=True, threshold=0.6):
+    """(units, shapes, matrix) where matrix[(x,y)] = (similarity|None, n_compared).
+    `key` is "app" for per-variant or "target" for per-repo comparison."""
+    fields = core_fields(assertions, threshold, key) if restrict_to_core else None
+    units = sorted({a[key] for a in assertions if not model or a["model"] == model})
+    shapes = {u: shape_of(assertions, u, model, key) for u in units}
+    units = [u for u in units if shapes[u]]
+    M = {}
+    for i, x in enumerate(units):
+        for y in units[i:]:
+            if x == y:
+                M[(x, y)] = (1.0, len(shapes[x]))
+                continue
+            M[(x, y)] = M[(y, x)] = shape_similarity(
+                shapes[x], shapes[y], min_fields, fields)
+    return units, shapes, M, fields
+
+
+def average_linkage(apps, M):
+    """Agglomerative average-linkage clustering, stdlib only (no scipy), returning
+    merge steps as (left, right, height, members) for drawing a dendrogram."""
+    clusters = {i: [a] for i, a in enumerate(apps)}
+    pos = {i: float(i) for i in clusters}
+    nxt = len(apps)
+    steps = []
+
+    def dist(ci, cj):
+        vals = [1 - M[(x, y)][0] for x in clusters[ci] for y in clusters[cj]
+                if M[(x, y)][0] is not None]
+        return sum(vals) / len(vals) if vals else 1.0
+
+    while len(clusters) > 1:
+        best, pair = None, None
+        keys = sorted(clusters)
+        for i, ci in enumerate(keys):
+            for cj in keys[i + 1:]:
+                d = dist(ci, cj)
+                if best is None or d < best:
+                    best, pair = d, (ci, cj)
+        ci, cj = pair
+        steps.append((ci, cj, best, clusters[ci] + clusters[cj]))
+        clusters[nxt] = clusters[ci] + clusters[cj]
+        pos[nxt] = (pos[ci] + pos[cj]) / 2
+        del clusters[ci], clusters[cj]
+        nxt += 1
+    return steps, pos
+
+
+def cross_model_stability(assertions, min_fields=3, key="app"):
+    """Per app: how much does the shape change if you swap the model? This is the
+    'is the pipeline reproducible' number, separate from app-to-app similarity."""
+    models = sorted({a["model"] for a in assertions})
+    if len(models) < 2:
+        return []
+    rows = []
+    for app in sorted({a[key] for a in assertions}):
+        sa = shape_of(assertions, app, models[0], key)
+        sb = shape_of(assertions, app, models[1], key)
+        shared = set(sa) & set(sb)
+        agree = [f for f in shared
+                 if field_similarity(f, sa[f], sb[f])[1]
+                 and field_similarity(f, sa[f], sb[f])[0] == 1.0]
+        sim, n = shape_similarity(sa, sb, min_fields)
+        rows.append({
+            "app": app, "similarity": sim, "compared": n,
+            "identical": len(agree),
+            "only_a": len(set(sa) - shared), "only_b": len(set(sb) - shared),
+            "differing": sorted(
+                f for f in shared
+                if field_similarity(f, sa[f], sb[f])[1]
+                and field_similarity(f, sa[f], sb[f])[0] < 1.0
+            ),
+        })
+    return rows
 
 
 # ---------------------------------------------------------------- source snippets
@@ -892,6 +1084,7 @@ for how that field breaks down across every app.</div>
   <button data-tab="shapes" class="on">shapes</button>
   <button data-tab="family">family figures</button>
   <button data-tab="fields">field figures</button>
+  <button data-tab="similar">similarity</button>
   <button data-tab="effort">effort &amp; confidence</button>
   <button data-tab="runs">runs</button>
 </div>
@@ -905,12 +1098,17 @@ for how that field breaks down across every app.</div>
 <div class="panel on" id="p-shapes"><div id="grid"></div><div id="counts"></div></div>
 <div class="panel" id="p-family"><div id="figs" class="grid2"></div></div>
 <div class="panel" id="p-fields"><div id="ffigs" class="grid2"></div></div>
+<div class="panel" id="p-similar">
+  <div id="simfigs" class="grid2"></div>
+  <h2>nearest neighbours by shape</h2><div id="simnn"></div>
+  <h2>cross-model stability</h2><div id="simstab"></div>
+</div>
 <div class="panel" id="p-effort"><div id="overview" class="grid2"></div></div>
 <div class="panel" id="p-runs"><div id="runtable"></div></div>
 
 <script>
 const DATA = __DATA__, COLORS = __COLORS__, IMGS = __IMGS__, MODELS = __MODELS__;
-const RUNS = __RUNS__;
+const RUNS = __RUNS__, SIM = __SIM__;
 const famOf = f => f.includes(".") ? f.split(".")[0] : f;
 const fams = [...new Set(DATA.map(d => famOf(d.field)))].sort();
 const models = [...new Set(DATA.map(d => d.model))].sort();
@@ -1011,6 +1209,33 @@ function render(){
         + n.replace(/^field_|\.png$/g,"").replace(/_/g,".")+"</div><img src='img/"+n+"'></div>").join("")
     : "<div class='hint'>no field figures</div>";
 
+  document.getElementById("simfigs").innerHTML =
+    IMGS.filter(n => n.startsWith("similarity_"))
+        .map(n => "<div class='card'><div class='cap'>"+n+"</div><img src='img/"+n+"'></div>")
+        .join("") || "<div class='hint'>no similarity figures</div>";
+
+  let nn = "<table><thead><tr><th>app</th><th>most similar shapes</th></tr></thead><tbody>";
+  (SIM.neighbours||[]).forEach(r => {
+    nn += "<tr><td class='app'><a href='"+appHref(r.app)+"'>"+r.app+"</a></td><td>"
+       + r.near.map(x => "<span class='pill'>"+x.other+" &middot; "+x.sim.toFixed(2)
+           +" <span style='color:#888'>("+x.n+"f)</span></span>").join(" ")
+       + "</td></tr>";
+  });
+  document.getElementById("simnn").innerHTML = nn + "</tbody></table>"
+    + "<p class='hint'>Similarity is a Gower-style average over the core fields both "
+    + "shapes assert; (Nf) is how many fields were compared.</p>";
+
+  let st = "<table><thead><tr><th>unit</th><th>similarity</th><th>fields</th>"
+         + "<th>fields where the models differ</th></tr></thead><tbody>";
+  (SIM.stability||[]).forEach(r => {
+    const c = r.similarity < 0.8 ? "#c1584f" : "#2b6";
+    st += "<tr><td class='app'>"+r.app+"</td><td style='color:"+c+";font-weight:600'>"
+       + r.similarity.toFixed(2)+"</td><td>"+r.compared+"</td><td>"
+       + (r.differing.map(f => "<span class='pill'>"+f+"</span>").join(" ") || "&mdash;")
+       + "</td></tr>";
+  });
+  document.getElementById("simstab").innerHTML = st + "</tbody></table>";
+
   const over = IMGS.filter(n => n.startsWith("effort_") || n === "confidence.png"
                              || n === "agreement.png");
   document.getElementById("overview").innerHTML = over.length
@@ -1037,6 +1262,133 @@ render();
 __MODAL__
 <p class="hint" style="margin-top:26px">generated by plot_shapes __VERSION__</p>
 """
+
+
+def similarity_figures(assertions, imgdir):
+    """Heatmap + dendrogram at repo level and per-variant, plus cross-model
+    stability. Returns the list of filenames written."""
+    try:
+        import matplotlib
+
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+    except ImportError:
+        return []
+
+    written = []
+
+    def heat(units, M, name, title, labels=None):
+        if len(units) < 2:
+            return
+        order = units
+        steps, _pos = average_linkage(units, M)
+        if steps:  # order by the last (largest) merge so clusters sit together
+            order = steps[-1][3]
+        n = len(order)
+        grid = [[(M[(x, y)][0] if M[(x, y)][0] is not None else float("nan"))
+                 for y in order] for x in order]
+        fig, ax = plt.subplots(figsize=(max(6, 0.55 * n + 4), max(5, 0.5 * n + 3)))
+        im = ax.imshow(grid, cmap="RdYlBu_r", vmin=0, vmax=1)
+        ax.set_xticks(range(n))
+        ax.set_xticklabels([(labels or {}).get(o, o)[:26] for o in order],
+                           rotation=45, ha="right", fontsize=7)
+        ax.set_yticks(range(n))
+        ax.set_yticklabels([(labels or {}).get(o, o)[:26] for o in order], fontsize=7)
+        if n <= 14:
+            for i in range(n):
+                for j in range(n):
+                    v = grid[i][j]
+                    if v == v:
+                        ax.text(j, i, f"{v:.2f}", ha="center", va="center", fontsize=6.5,
+                                color="#222" if v > 0.45 else "#fff")
+        fig.colorbar(im, ax=ax, shrink=0.7, label="shape similarity")
+        ax.set_title(title, fontsize=10)
+        fig.tight_layout()
+        fig.savefig(os.path.join(imgdir, name), dpi=140)
+        plt.close(fig)
+        written.append(name)
+
+    def dendro(units, M, name, title):
+        if len(units) < 3:
+            return
+        steps, _ = average_linkage(units, M)
+        if not steps:
+            return
+        leaves = steps[-1][3]
+        fig, ax = plt.subplots(figsize=(max(6, 0.42 * len(leaves) + 3), 4.6))
+        # re-run the merges over member lists so each join can be drawn at its
+        # own height (average_linkage returns indices, not positions)
+        active = {i: [a] for i, a in enumerate(leaves)}
+        px = {i: float(i) for i in active}
+        py = {i: 0.0 for i in active}
+        nxt = len(leaves)
+        def d(ms, ns):
+            vals = [1 - M[(x, y)][0] for x in ms for y in ns if M[(x, y)][0] is not None]
+            return sum(vals) / len(vals) if vals else 1.0
+        while len(active) > 1:
+            best = pair = None
+            ks = sorted(active)
+            for i, a in enumerate(ks):
+                for b in ks[i + 1:]:
+                    dd = d(active[a], active[b])
+                    if best is None or dd < best:
+                        best, pair = dd, (a, b)
+            a, b = pair
+            x1, x2, h = px[a], px[b], best
+            ax.plot([x1, x1, x2, x2], [py[a], h, h, py[b]], c="#4a7fb5", lw=1.2)
+            active[nxt] = active[a] + active[b]
+            px[nxt] = (x1 + x2) / 2
+            py[nxt] = h
+            del active[a], active[b]
+            nxt += 1
+        ax.set_xticks(range(len(leaves)))
+        ax.set_xticklabels([l[:26] for l in leaves], rotation=45, ha="right", fontsize=7)
+        ax.set_ylabel("1 - similarity")
+        ax.set_title(title, fontsize=10)
+        fig.tight_layout()
+        fig.savefig(os.path.join(imgdir, name), dpi=140)
+        plt.close(fig)
+        written.append(name)
+
+    units, _sh, M, fields = similarity_matrix(assertions, key="target")
+    heat(units, M, "similarity_repo.png",
+         f"shape similarity by repository ({len(fields)} core fields)")
+    dendro(units, M, "similarity_repo_tree.png", "clustering by derived shape")
+
+    vunits, _s2, M2, f2 = similarity_matrix(assertions, key="app")
+    if len(vunits) <= 40:
+        heat(vunits, M2, "similarity_variant.png",
+             f"shape similarity by app variant ({len(f2)} core fields)")
+
+    # Prefer per-variant stability, but fall back to repo level when the two
+    # models named their variants differently -- in the first sweep only 5 of 54
+    # variants were even comparable, which says more about naming than stability.
+    rows = [r for r in cross_model_stability(assertions, key="app")
+            if r["similarity"] is not None]
+    level = "variant"
+    n_variants = len({a["app"] for a in assertions})
+    if len(rows) < 0.5 * n_variants:
+        rows = [r for r in cross_model_stability(assertions, key="target")
+                if r["similarity"] is not None]
+        level = "repository (variant names did not align across models)"
+    if rows:
+        rows.sort(key=lambda r: r["similarity"])
+        fig, ax = plt.subplots(figsize=(max(6, 0.4 * len(rows) + 3), 4.4))
+        ax.barh([r["app"][:30] for r in rows], [r["similarity"] for r in rows],
+                color=["#c1584f" if r["similarity"] < 0.8 else "#4c9f70" for r in rows],
+                edgecolor="#8895a6")
+        ax.set_xlim(0, 1)
+        ax.set_xlabel("shape similarity between the two models")
+        ax.set_title(f"cross-model stability by {level}\n(1.0 = the two models "
+                     f"derived the same shape)", fontsize=10)
+        for i, r in enumerate(rows):
+            ax.text(r["similarity"], i, f" {r['similarity']:.2f} ({r['compared']}f)",
+                    va="center", fontsize=7)
+        fig.tight_layout()
+        fig.savefig(os.path.join(imgdir, "similarity_models.png"), dpi=140)
+        plt.close(fig)
+        written.append("similarity_models.png")
+    return written
 
 
 def app_figure(app, rows, colors, imgdir):
@@ -1152,7 +1504,8 @@ def field_figure(field, rows, colors, imgdir):
     return name
 
 
-def app_page(app, rows, colors, checkouts, snippets=True, figure=None):
+def app_page(app, rows, colors, checkouts, snippets=True, figure=None,
+             force_upstream=False):
     """One page per app variant, covering every model: a visual shape summary, the
     model's own commentary, then each assertion with the code it stands on."""
     first = rows[0]
@@ -1242,23 +1595,30 @@ def app_page(app, rows, colors, checkouts, snippets=True, figure=None):
                     else ""
                 )
                 parts.append(f"<div class='path'>{_esc(shown)}{span}{orig}</div>")
-                if snippets and ev.get("path"):
+                # An embedded snippet is authoritative: it is the code the model
+                # actually read, captured while the clone existed. A post-hoc
+                # clone is the fallback and shows whatever the repo says now,
+                # which for an unpinned run need not be the same thing.
+                lines, note = [], ""
+                if ev.get("snippet") and not force_upstream:
+                    lines, note = ev["snippet"], ""
+                elif snippets and ev.get("path"):
                     lines, note = read_snippet(
                         checkouts.get(r.get("repo", "")), ev["path"], ev["start"], ev["end"]
                     )
-                    if lines:
-                        lo, hi = ev["start"], ev["end"] or ev["start"]
-                        body = "".join(
-                            (
-                                f"<span class='hit'><span class='ln'>{n:>5}</span>  {_esc(t)}</span>"
-                                if lo <= n <= hi
-                                else f"<span class='ln'>{n:>5}</span>  {_esc(t)}\n"
-                            )
-                            for n, t in lines
+                if lines:
+                    lo, hi = ev["start"], ev["end"] or ev["start"]
+                    body = "".join(
+                        (
+                            f"<span class='hit'><span class='ln'>{n:>5}</span>  {_esc(t)}</span>"
+                            if lo <= n <= hi
+                            else f"<span class='ln'>{n:>5}</span>  {_esc(t)}\n"
                         )
-                        parts.append(f"<pre>{body}</pre>")
-                    elif note:
-                        parts.append(f"<div class='hint'>{_esc(note)}</div>")
+                        for n, t in lines
+                    )
+                    parts.append(f"<pre>{body}</pre>")
+                elif note:
+                    parts.append(f"<div class='hint'>{_esc(note)}</div>")
         parts.append("</div>")
     parts.append(MODAL)
     return "\n".join(parts)
@@ -1336,7 +1696,26 @@ def field_page(field, rows, colors, figure=None):
     return "\n".join(parts)
 
 
-def write_web(runs, assertions, outdir, fetch=True, cache_dir=".source-cache",
+def snippet_coverage(assertions):
+    """(covered, missing) counts over evidence that names a file:line, plus the
+    set of repos with uncovered citations. v2 reports embed the cited code, so a
+    fully covered sweep needs no clone at all."""
+    covered = missing = 0
+    repos = set()
+    for a in assertions:
+        for ev in a.get("evidence") or []:
+            if not ev.get("path"):
+                continue  # prose or an absence record: no snippet by definition
+            if ev.get("snippet"):
+                covered += 1
+            else:
+                missing += 1
+                if a.get("repo"):
+                    repos.add(a["repo"])
+    return covered, missing, repos
+
+
+def write_web(runs, assertions, outdir, fetch="auto", cache_dir=".source-cache",
               compare=None, tsv=True):
     """Build the whole site under one directory: pages at the top level, every
     figure in img/, so the interface is self-contained and portable."""
@@ -1344,14 +1723,34 @@ def write_web(runs, assertions, outdir, fetch=True, cache_dir=".source-cache",
     os.makedirs(imgdir, exist_ok=True)
     colors = color_map(assertions)
 
+    # Prefer the code the extractor embedded; only clone for what is missing.
+    covered, missing, need_repos = snippet_coverage(assertions)
     checkouts = {}
-    if fetch:
-        print("  fetching sources (sparse) for snippets...")
-        checkouts = fetch_sources(assertions, cache_dir)
+    if covered and not missing and fetch != "always":
+        print(f"  {covered} snippets embedded in the reports; no clone needed")
+    elif fetch == "never":
+        if missing:
+            print(f"  {missing} citations have no embedded snippet and fetching is "
+                  f"off; those will show paths only")
+    elif missing or fetch == "always":
+        if fetch == "always":
+            print(f"  --fetch-source always: re-fetching every repo "
+                  f"({covered} embedded snippets will be overridden by upstream)")
+            subset = assertions
+        elif covered:
+            print(f"  {covered} snippets embedded; fetching {len(need_repos)} repo(s) "
+                  f"for the remaining {missing}")
+            subset = [a for a in assertions if a.get("repo") in need_repos]
+        else:
+            print(f"  no embedded snippets ({missing} citations); fetching "
+                  f"{len(need_repos)} repo(s)")
+            subset = [a for a in assertions if a.get("repo") in need_repos] or assertions
+        checkouts = fetch_sources(subset, cache_dir)
 
     # global figures (family matrices, value distributions, effort, confidence)
     print("  figures ->", imgdir)
     plots(runs, assertions, imgdir, compare=compare, quiet=True)
+    similarity_figures(assertions, imgdir)
     # field_* figures are written later (per field), so this list is refreshed
     # after those exist; app_* are per-page and never listed here.
     def _list_imgs():
@@ -1366,7 +1765,9 @@ def write_web(runs, assertions, outdir, fetch=True, cache_dir=".source-cache",
     for app, rows in sorted(by_app.items()):
         fig = app_figure(app, rows, colors, imgdir)
         with open(os.path.join(outdir, app_slug(app)), "w") as fh:
-            fh.write(app_page(app, rows, colors, checkouts, snippets=fetch, figure=fig))
+            fh.write(app_page(app, rows, colors, checkouts,
+                              snippets=fetch != "never", figure=fig,
+                              force_upstream=(fetch == "always")))
     print(f"  {len(by_app)} app page(s)")
 
     by_field = collections.defaultdict(list)
@@ -1391,6 +1792,30 @@ def write_web(runs, assertions, outdir, fetch=True, cache_dir=".source-cache",
             ["model", "app", "subject", "variant", "field", "value", "confidence",
              "evidence_count"],
         )
+
+    # similarity payload for the tab's tables
+    units, _sh, M, core = similarity_matrix(assertions, key="app")
+    neighbours = []
+    for x in units:
+        near = sorted(((M[(x, y)][0], y, M[(x, y)][1]) for y in units
+                       if y != x and M[(x, y)][0] is not None), reverse=True)[:5]
+        if near:
+            neighbours.append({"app": x, "near": [
+                {"other": y, "sim": round(sim, 3), "n": n} for sim, y, n in near]})
+    stab = [r for r in cross_model_stability(assertions, key="app")
+            if r["similarity"] is not None]
+    if len(stab) < 0.5 * max(1, len(units)):
+        stab = [r for r in cross_model_stability(assertions, key="target")
+                if r["similarity"] is not None]
+    stab.sort(key=lambda r: r["similarity"])
+    sim_payload = {
+        "neighbours": neighbours,
+        "stability": [{"app": r["app"], "similarity": round(r["similarity"], 3),
+                       "compared": r["compared"],
+                       "differing": [f.split(".")[-1] for f in r["differing"]]}
+                      for r in stab],
+        "core_fields": core,
+    }
 
     global_imgs = _list_imgs()  # now includes the per-field figures
     grid = [
@@ -1420,6 +1845,7 @@ def write_web(runs, assertions, outdir, fetch=True, cache_dir=".source-cache",
         .replace("__IMGS__", json.dumps(global_imgs))
         .replace("__MODELS__", json.dumps(models))
         .replace("__RUNS__", json.dumps(run_rows))
+        .replace("__SIM__", json.dumps(sim_payload))
         .replace("__NRUNS__", str(len(runs)))
         .replace("__NAPPS__", str(len(by_app)))
         .replace("__NASSERT__", str(len(assertions)))
@@ -1471,9 +1897,11 @@ def main():
     ap.add_argument("compare_to", nargs="?", help="second sweep to compare against")
     ap.add_argument("--web", default="web", help="output directory (pages + img/)")
     ap.add_argument(
-        "--no-fetch-source",
-        action="store_true",
-        help="skip cloning repos; pages then show evidence paths but no code",
+        "--fetch-source",
+        choices=["auto", "never", "always"],
+        default="auto",
+        help="auto (default) clones only for citations with no embedded snippet; "
+        "never shows paths only; always re-fetches even when snippets are embedded",
     )
     ap.add_argument(
         "--cache-dir", default=".source-cache", help="where fetched repos are kept"
@@ -1488,6 +1916,40 @@ def main():
         return 1
     print(f"loaded {len(runs)} run(s), {len(assertions)} assertion(s) from {args.root}")
     summarize(runs, assertions)
+
+    # similarity summary in the console: the pairs at the extremes are the ones
+    # worth eyeballing, and a same-app cross-model number is the stability check.
+    units, _sh, M, core = similarity_matrix(assertions, key="app")
+    pairs = sorted(
+        ((M[(x, y)][0], x, y, M[(x, y)][1])
+         for i, x in enumerate(units) for y in units[i + 1:]
+         if M[(x, y)][0] is not None),
+        reverse=True,
+    )
+    if pairs:
+        print(f"\n=== shape similarity ({len(core)} core fields, "
+              f"{len(units)} app variants) ===")
+        print("  most alike:")
+        for sim, x, y, n in pairs[:5]:
+            print(f"    {sim:.2f} ({n}f)  {x}  ~  {y}")
+        print("  least alike:")
+        for sim, x, y, n in pairs[-5:][::-1]:
+            print(f"    {sim:.2f} ({n}f)  {x}  ~  {y}")
+        stab = [r for r in cross_model_stability(assertions, key="app")
+                if r["similarity"] is not None]
+        lvl = "variant"
+        if len(stab) < 0.5 * max(1, len(units)):
+            stab = [r for r in cross_model_stability(assertions, key="target")
+                    if r["similarity"] is not None]
+            lvl = "repo (variant names did not align across models)"
+        if stab:
+            stab.sort(key=lambda r: r["similarity"])
+            mean = sum(r["similarity"] for r in stab) / len(stab)
+            print(f"  cross-model stability by {lvl}: mean {mean:.2f}")
+            for r in stab[:5]:
+                print(f"    {r['similarity']:.2f} ({r['compared']}f)  {r['app']:24} "
+                      f"differs on: "
+                      f"{', '.join(f.split('.')[-1] for f in r['differing']) or '-'}")
 
     cmp_data = None
     if args.compare_to:
@@ -1512,7 +1974,7 @@ def main():
     print("\n=== building site ===")
     write_web(
         runs, assertions, args.web,
-        fetch=not args.no_fetch_source,
+        fetch=args.fetch_source,
         cache_dir=args.cache_dir,
         compare=cmp_data,
     )

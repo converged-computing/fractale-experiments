@@ -1,0 +1,61 @@
+[auto-approved] finalize-setup: {"base_image": "buildpack-deps:bookworm-scm", "focus": null, "keep": true, "mode": "container", "ref": null, "repos": ["https://github.com/jeffhammond/STREAM"]}
+
+▸ https://github.com/jeffhammond/STREAM  [1/1]
+[auto-approved] clone: {"effect": "network + write", "repo": "https://github.com/jeffhammond/STREAM"}
+  · cloning https://github.com/jeffhammond/STREAM into container
+  · warning: could not resolve commit; rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+  ⚠ unpinned: rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+I'll analyze the STREAM benchmark repository. Let me start by orienting myself.
+  → find . * file
+This is the classic STREAM memory bandwidth benchmark. Let me read the key files.
+  → read Makefile 1 60
+  → read README 1 100
+The build produces `stream_c.exe` and `stream_f.exe`, both OpenMP-parallel. Let me examine the source for the kernels and parallelism.
+  → search pragma omp|MPI_|posix_memalign|_mm_|malloc 2 40
+  → search a\[j\]|b\[j\]|c\[j\]|Triad|Copy|Scale|Add 1 30
+Clear picture. The default build (`stream.c`/`stream.f`) is OpenMP-only, single-node, memory-bandwidth bound. The README mentions an MPI version but it's in a `Versions/` subdirectory which is NOT in this checkout (no MPI in stream.c). Let me confirm there's no MPI and check the docs for the memory-bound statement and array sizing guidance.
+  → search cache|memory bandwidth|4x the size|larger than|OMP_NUM_THREADS|numactl|affinity|GOMP_CPU 2 20
+I have all the evidence needed. This repo builds two executables (`stream_c.exe`, `stream_f.exe`), both OpenMP-only, no MPI (the MPI version referenced lives in `Versions/`, absent from this checkout). It's the canonical memory-bandwidth benchmark — deliberately designed so arrays exceed cache (poor cache reuse, very low arithmetic intensity, memory-bandwidth bound).
+
+Let me confirm no MPI in the actual source files with a targeted negative search.
+  → search MPI_Init|mpi\.h|cuda|cudaMalloc|__global__ 0 10
+Confirmed — no MPI, no CUDA. Both executables share the same shape (OpenMP, single-node, memory-bandwidth bound). Let me record them.
+  → record_shape stream_c.exe openmp STREAM sustained-memory-bandwidth benchmark (C, OpenMP) OMP_NUM_THREADS=N ./s...
+  → record_shape stream_c.exe openmp STREAM memory/placement profile OMP_NUM_THREADS=N ./stream_c.exe high cpu_exc...
+The launcher assertion was refused. Let me re-record it correctly, and add the Fortran variant which shares the same shape.
+  → record_shape stream_c.exe openmp STREAM launch OMP_NUM_THREADS=N ./stream_c.exe high Direct exec, no MPI launc...
+  → record_shape stream_f.exe openmp STREAM Fortran (OpenMP) variant OMP_NUM_THREADS=N ./stream_f.exe high Fortran...
+Analysis complete. Here's how STREAM wants to run.
+
+## What it builds
+The `Makefile` produces two standalone executables:
+- **`stream_c.exe`** — compiled from `stream.c` (Makefile:14-15)
+- **`stream_f.exe`** — compiled from `stream.f` + `mysecond.c` timer (Makefile:9-12)
+
+Both are compiled with `-fopenmp`. This is John McCalpin's canonical **STREAM sustained-memory-bandwidth benchmark**. The README references an MPI version (`stream_mpi.c`), but that lives in a `Versions/` subdirectory that is **not present** in this checkout — `stream.c`/`stream.f` contain no `MPI_` or CUDA calls whatsoever.
+
+## Shape (both variants are identical from a scheduler's view)
+
+**Parallelism:** Pure **OpenMP threading** in a single shared-memory process. The four kernels — Copy, Scale, Add, Triad — are each a `#pragma omp parallel for` over a flat array (stream.c:313-345). Thread count set at runtime via `OMP_NUM_THREADS`.
+
+**Communication:** None. No MPI, so no collectives, no halo exchange, no network sensitivity at all. `communication.bandwidth_sensitive = False` (that field is about the interconnect, which this code never touches).
+
+**Memory — the key story:** This *is* a memory-bandwidth benchmark by design.
+- `memory.bound_by = memory_bandwidth` — README: "de facto standard for measuring sustained memory bandwidth"; stream.f:41-43.
+- `arithmetic_intensity = very_low` — kernels do 0-2 flops per element moved (`c[j]=a[j]`, `a[j]=b[j]+scalar*c[j]`).
+- `cache_reuse = poor` — the code *requires* each array be ≥4× the last-level cache (stream.c:58-61), deliberately defeating cache.
+- Judgment calls: `numa_sensitive` and `cpu_exclusive` = **true** — first-touch initialization (stream.c:267-272) makes NUMA placement matter, and a co-tenant sharing cache/DRAM controllers corrupts the measurement.
+
+**Topology:** `single_node`, `co_location = required` (one process, threads share one address space), `placement = pack` (fill a socket/node to saturate its memory controllers). Launched directly, **no launcher** (`OMP_NUM_THREADS=N ./stream_c.exe`).
+
+**Accelerator / I/O / checkpoint:** none — no CUDA, no parallel I/O.
+
+I recorded three traces:
+- `stream_c.exe : openmp` (full profile)
+- `stream_f.exe : openmp` (identical shape, Fortran build)
+
+No launch counts were invented — the source only documents `OMP_NUM_THREADS` as the runtime knob, with no fixed thread/rank numbers.
+  ✓ recorded 23 assertion(s) across 2 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-1651/us-anthropic-claude-opus-4-8/
+  shapes-20260813-1651/us-anthropic-claude-opus-4-8/github.com/jeffhammond/STREAM/unpinned/shapes.json

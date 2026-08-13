@@ -1,0 +1,46 @@
+[auto-approved] finalize-setup: {"base_image": "buildpack-deps:bookworm-scm", "focus": null, "keep": true, "mode": "container", "ref": null, "repos": ["https://github.com/icl-utk-edu/hpl"]}
+
+▸ https://github.com/icl-utk-edu/hpl  [1/1]
+[auto-approved] clone: {"effect": "network + write", "repo": "https://github.com/icl-utk-edu/hpl"}
+  · cloning https://github.com/icl-utk-edu/hpl into container
+  · warning: could not resolve commit; rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+  ⚠ unpinned: rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+  → find . * dir
+  → find . README* file
+  → find . Make.* file
+  → read README 1 150
+  → find . TUNING file
+  → search MPI_Bcast|MPI_Allreduce|MPI_Reduce|MPI_Sendrecv|MPI_Send|MPI_Recv 2 40
+  → search MPI_Allreduce|MPI_Reduce|MPI_Comm_split|MPI_Cart 2 30
+  → search omp_set_num_threads|OPENMP|#pragma omp 2 20
+  → search HPL_all_reduce|HPL_reduce|HPL_broadcast|HPL_bcast 2 20
+  → read TUNING 1 120
+  → search cuda|CUDA|nvcc|hip|ROCM|gpu 2 20
+  → read TUNING 300 100
+  → find . INSTALL file
+  → search mpirun|mpiexec 3 10
+  → search OMP_NUM_THREADS|thread|affinity|pin 2 15
+  → read TUNING 399 60
+  → search MPI_Alltoall|MPI_Allgather 2 15
+  → search bin_exch|binary exchange|pdmxswp 3 10
+I have enough evidence now. Let me record the shape for HPL (xhpl), which is a single reference MPI+BLAS implementation (no GPU/OpenMP in this repo).
+  → record_shape xhpl mpi HPL reference Linpack benchmark (MPI+BLAS, process-grid dense LU) mpirun -np 4 xhpl high...
+  → record_shape xhpl mpi HPL reference Linpack benchmark - launch geometry, topology, memory profile mpirun -np 4...
+I've characterized the HPL benchmark (`xhpl`) as a single MPI+BLAS variant since the source tree contains no GPU/OpenMP code — it's the reference distributed-memory dense LU factorization benchmark. Summary of findings recorded:
+
+**Subject**: `xhpl` (built from `src/` + `testing/`, linked against user-supplied MPI and BLAS/VSIPL)
+**Variant**: `mpi` (only variant separable from source — no CUDA/HIP/OpenMP in this repo; any threading comes from an external BLAS library, not this code)
+
+Key evidence-backed traits:
+- **Parallelism**: pure MPI/process-based, PxQ process grid built via `MPI_Comm_split` (row/col communicators)
+- **Communication**: mixed point-to-point + collective — ring-pipelined panel broadcasts (`HPL_1ring`, `HPL_blong`, etc.), global reductions (`HPL_all_reduce` for pivot/norm checks), explicit broadcasts of run parameters, and an ordered ring dependency (each rank forwards only after receiving) — hence `ordered_dependency=true`
+- **No accelerator**: no CUDA/HIP/SYCL/OpenCL references found in src/include/testing
+- **No parallel I/O or checkpointing**: plain text `HPL.dat`/`HPL.out`, single-shot benchmark run with a freshly generated random matrix
+- **Memory**: TUNING doc explicitly discusses blocking factor NB for cache reuse at "the highest level of the memory hierarchy," pointing to a compute-bound, BLAS3/DGEMM-dominated, good-cache-reuse profile
+- **Launch**: doc examples (`INSTALL`, `www/software.html`) literally show `mpirun -np 4 xhpl`, and topology guidance favors square/flat process grids with neighbor-preferred placement of ranks (tight ring/column communicators), multi-node capable
+
+Both records stored under trace `xhpl:mpi`.
+  ✓ recorded 17 assertion(s) across 1 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-2155/us-anthropic-claude-sonnet-5/
+  shapes-20260813-2155/us-anthropic-claude-sonnet-5/github.com/icl-utk-edu/hpl/unpinned/shapes.json

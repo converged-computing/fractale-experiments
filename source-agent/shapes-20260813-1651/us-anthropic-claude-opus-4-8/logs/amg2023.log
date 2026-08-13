@@ -1,0 +1,58 @@
+[auto-approved] finalize-setup: {"base_image": "buildpack-deps:bookworm-scm", "focus": null, "keep": true, "mode": "container", "ref": null, "repos": ["https://github.com/LLNL/AMG2023"]}
+
+▸ https://github.com/LLNL/AMG2023  [1/1]
+[auto-approved] clone: {"effect": "network + write", "repo": "https://github.com/LLNL/AMG2023"}
+  · cloning https://github.com/LLNL/AMG2023 into container
+  · warning: could not resolve commit; rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+  ⚠ unpinned: rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+I'll start by orienting myself in the repository structure.
+  → find . * file
+  → find . README* file
+This is a single-file compute application (`amg.c`). Let me read the README and build files.
+  → read README.md 1 200
+  → read CMakeLists.txt 1 120
+The subject builds a single executable `amg`. It's a hypre-based algebraic multigrid solver. Let me examine the compute source for parallelism, communication, and launch patterns.
+  → search MPI_|mpirun|mpiexec|srun|MPI_Init|MPI_Comm 2 30
+  → search omp|OpenMP|OMP_NUM|cuda|hip|GPU|device 2 30
+This is a hypre-based AMG solver. Let me look at the GPU device setup in amg.c and the launch/usage documentation, plus solver type and problem setup.
+  → search SetExecutionPolicy|SetMemoryLocation|DEVICE|HYPRE_Init|SetSpGemm|SetUseGpu|cudaSetDevice|hipSetDe...
+  → search -P |mpirun|Usage|-n |print_usage|"-P" 2 15
+Let me check the README for run examples and look at the solver/communication patterns. Let me check README further and search for example run commands in docs.
+  → search srun|mpirun|mpiexec|-np|jsrun|flux|\./amg 2 15
+  → read amg.c 326 40
+I have enough to characterize this. AMG2023 is a hypre-based algebraic multigrid solver. The default build is MPI+OpenMP CPU; there are also CUDA/HIP GPU variants. `hypre_bind_device` binds one GPU per rank. AMG solvers involve neighbor (halo/matvec) communication plus reductions (dot products in PCG/GMRES), and coarser levels can trigger more collective communication.
+
+Let me verify the checkpoint/IO and confirm no parallel IO. Let me also quickly confirm memory-bound nature — AMG/sparse matvec is classically memory-bandwidth bound.
+  → search HYPRE_IJ|hdf5|adios|MPI_File|fopen|restart|checkpoint 2 10
+I have enough evidence. This is an in-memory benchmark (builds its own Laplacian system, no file I/O for the matrix, no checkpoint/restart). Let me record traces. I'll record two variants: the default CPU (mpi + openmp) and the GPU (cuda/hip) variant.
+  → record_shape amg cpu-mpi-openmp AMG2023 algebraic multigrid solver (CPU: MPI + OpenMP) mpirun -np <P*Q*R> ./am...
+  → record_shape amg cpu-mpi-openmp AMG2023 algebraic multigrid solver (CPU: MPI + OpenMP) mpirun -np <P*Q*R> ./am...
+Now the additional CPU judgment fields and the GPU variant.
+  → record_shape amg cpu-mpi-openmp AMG2023 algebraic multigrid solver (CPU: MPI + OpenMP) mpirun -np <P*Q*R> ./am...
+  → record_shape amg cuda-mpi AMG2023 algebraic multigrid solver (GPU: CUDA + MPI) srun -n <P*Q*R> --gpus-per-task...
+The multi_gpu assertion was rejected because a false claim needs absent-evidence. Let me re-record it properly.
+  → record_shape amg cuda-mpi AMG2023 algebraic multigrid solver (GPU: CUDA + MPI) srun -n <P*Q*R> --gpus-per-task...
+I've completed the analysis. Here's a summary of what AMG2023 builds and how it wants to run.
+
+## Subject
+The repo builds a **single executable, `amg`** (`CMakeLists.txt:105`, `Makefile:117`), from one source file `amg.c`. It's a driver around **hypre's algebraic multigrid solver** (`HYPRE_parcsr_ls`, Krylov `PCG`/`GMRES`), building 3D Laplacian systems (7pt/27pt) in memory and solving them. The README states it plainly: *"a SPMD code which uses MPI and OpenMP threading within MPI tasks"* and *"can also be used on NVIDIA, AMD, and Intel GPUs via CUDA, HIP, and SYCL."*
+
+I recorded **two variants**, since a GPU build has a fundamentally different scheduling shape than the CPU build:
+
+### `amg:cpu-mpi-openmp`
+- **Parallelism:** MPI (`hypre_MPI_Init`, `amg.c:181`) + OpenMP threads within ranks (`Makefile:79-86`).
+- **Communication:** mixed — neighbor halo exchange from the PxQxR grid decomposition (README:11-12), per-iteration reductions from PCG/GMRES dot products, and all-to-all-like redistribution during AMG coarse-grid setup. Latency-sensitive (frequent small reductions) and bandwidth-sensitive (halo blocks).
+- **Memory:** memory-bandwidth bound, very-low arithmetic intensity, poor cache reuse — classic sparse matvec. NUMA-sensitive (OpenMP). No shared-memory windows.
+- **I/O:** none — no parallel I/O, no checkpoint/restart; the system is generated in-memory.
+- **Placement:** neighbor / co-location preferred; span either single or multi node.
+
+### `amg:cuda-mpi`
+- **Parallelism:** MPI + GPU; default memory/exec policy is *device* (`amg.c:154-155`).
+- **Accelerator:** CUDA (cusparse/cublas/curand at `CMakeLists.txt:50-58`); **one GPU bound per rank** via `hypre_bind_device` (`amg.c:360`) — not multi-GPU-per-process. GPU-aware MPI used for halo exchange; co-location with the device preferred. (HIP is the analogous `rocm` build.)
+- Same memory-bandwidth-bound / no-I/O / no-checkpoint character.
+
+**Launch:** no launcher is hardcoded in source; it's a standard SPMD MPI program driven by `mpirun`/`srun` with total ranks = px·py·pz. No real invocation in the repo states concrete node/rank counts, so I recorded only the topology flags (`-n`, `-P`) rather than inventing counts.
+  ✓ recorded 25 assertion(s) across 2 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-1651/us-anthropic-claude-opus-4-8/
+  shapes-20260813-1651/us-anthropic-claude-opus-4-8/github.com/LLNL/AMG2023/unpinned/shapes.json

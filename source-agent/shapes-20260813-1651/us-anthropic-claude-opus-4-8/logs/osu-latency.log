@@ -1,0 +1,53 @@
+[auto-approved] finalize-setup: {"base_image": "buildpack-deps:bookworm-scm", "focus": "osu_latency point-to-point latency benchmark", "keep": true, "mode": "container", "ref": null, "repos": ["https://github.com/jwu274/osu-micro-benchmarks"]}
+
+▸ https://github.com/jwu274/osu-micro-benchmarks  [1/1]
+[auto-approved] clone: {"effect": "network + write", "repo": "https://github.com/jwu274/osu-micro-benchmarks"}
+  · cloning https://github.com/jwu274/osu-micro-benchmarks into container
+  · warning: could not resolve commit; rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+  ⚠ unpinned: rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+I'll analyze this OSU Micro-Benchmarks repository, focusing on the osu_latency benchmark.
+  → find . *osu_latency* file
+  → find . README* file
+  → read c/mpi/pt2pt/standard/osu_latency.c 1 200
+  → search osu_latency 1 10
+This is the OSU Micro-Benchmarks. The osu_latency test is a classic ping-pong point-to-point latency benchmark requiring exactly 2 processes. Let me read the README description and the send/recv loop, plus check accelerator support.
+  → read README.md 114 30
+  → read c/mpi/pt2pt/standard/osu_latency.c 200 40
+  → read README.md 1014 30
+I have a clear picture. osu_latency is a 2-process ping-pong latency benchmark using blocking MPI_Send/MPI_Recv, optionally with CUDA/ROCm accelerator buffers. Let me check the accelerator/GPU-aware MPI support and launch commands.
+  → search CUDA|ROCM|hip|cudaMalloc 1 6
+  → search mpirun.*-np 2|-np 2 1 4
+I have enough evidence. The osu_latency benchmark is a 2-process ping-pong latency test. There's a CPU/host variant and a CUDA/ROCm accelerator variant. Let me record both.
+
+The default/CPU variant first:
+  → record_shape osu_latency cpu-mpi OSU MPI point-to-point latency ping-pong (host buffers) mpirun_rsh -np 2 -hos...
+The pattern value "point_to_point" isn't in the schema set — let me correct that field and add the remaining ones.
+  → record_shape osu_latency cpu-mpi OSU MPI point-to-point latency ping-pong (host buffers) mpirun_rsh -np 2 -hos...
+Now the CUDA/ROCm accelerator variant (built with `--enable-cuda`, buffers on device):
+  → record_shape osu_latency cuda-mpi OSU MPI point-to-point latency ping-pong (GPU device buffers, GPU-aware MPI)...
+  → record_shape osu_latency cuda-mpi OSU MPI point-to-point latency ping-pong (GPU device buffers, GPU-aware MPI)...
+The multi_gpu=false was rejected — needs an absent-pattern form.
+  → record_shape osu_latency cuda-mpi OSU MPI point-to-point latency ping-pong (GPU device buffers, GPU-aware MPI)...
+I've characterized the osu_latency benchmark. Summary of what I found and recorded:
+
+## Subject: `osu_latency`
+
+**What it builds:** The OSU Micro-Benchmarks suite (v7.5, autotools/`configure.ac`) builds many small MPI benchmark executables. `osu_latency` (`c/mpi/pt2pt/standard/osu_latency.c`) is the point-to-point latency test. It is a **ping-pong** benchmark: rank 0 does `MPI_Send`→`MPI_Recv`, rank 1 does the reverse, timed over many iterations across a sweep of message sizes, and it **requires exactly 2 processes** (aborts otherwise, `:106-113`).
+
+I recorded **two variants** because they present different shapes to a scheduler:
+
+### `osu_latency:cpu-mpi` (host buffers, default build)
+- **Parallelism:** MPI, 2 tasks, launched via `mpirun`/`mpirun_rsh -np 2`.
+- **Communication:** point-to-point, blocking `MPI_Send`/`MPI_Recv`, high intensity (the send/recv loop *is* the whole workload), **latency-sensitive** (its entire purpose), and bandwidth-sensitive at large message sizes.
+- **Bound by:** network. No parallel I/O, no checkpointing.
+- **Topology:** best spread **one rank per node** to measure inter-node latency (multi_node).
+
+### `osu_latency:cuda-mpi` (device buffers, `--enable-cuda`/ROCm)
+- Adds **GPU** parallelism (`init_accel`), `accelerator.kind=cuda`, and a **GPU-aware MPI** path (`gpu_comm=gpu_aware_mpi`) — buffers live on the device (`osu_latency D D`, `MV2_USE_CUDA=1`) and are passed straight into `MPI_Send`/`Recv`.
+- Single device per rank (not multi-GPU), 2 tasks, network-bound, co-location preferred so each rank pairs with its local GPU.
+
+A couple of assertions were auto-corrected along the way (a pattern value outside the schema set, and two negative claims that I re-recorded with proper `absent:` evidence). Both traces are now cleanly separated.
+  ✓ recorded 25 assertion(s) across 2 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-1651/us-anthropic-claude-opus-4-8/
+  shapes-20260813-1651/us-anthropic-claude-opus-4-8/github.com/jwu274/osu-micro-benchmarks/unpinned/osu_latency_point-to-point_latency_benchmark/shapes.json

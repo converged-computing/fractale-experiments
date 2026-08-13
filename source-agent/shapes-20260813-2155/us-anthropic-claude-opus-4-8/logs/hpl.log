@@ -1,0 +1,58 @@
+[auto-approved] finalize-setup: {"base_image": "buildpack-deps:bookworm-scm", "focus": null, "keep": true, "mode": "container", "ref": null, "repos": ["https://github.com/icl-utk-edu/hpl"]}
+
+▸ https://github.com/icl-utk-edu/hpl  [1/1]
+[auto-approved] clone: {"effect": "network + write", "repo": "https://github.com/icl-utk-edu/hpl"}
+  · cloning https://github.com/icl-utk-edu/hpl into container
+  · warning: could not resolve commit; rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+  ⚠ unpinned: rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+I'll analyze this HPL (High Performance Linpack) repository. Let me start by orienting myself.
+  → find . * dir
+  → find . Makefile* file
+  → find . *.txt file
+  → find . README* file
+  → read testing/Makefile.am 1 60
+The subject is `xhpl`. Let me read the README and check the build config for MPI/BLAS.
+  → read README 1 60
+  → search MPI_|openmp|OpenMP|OMP_ 1 20
+Classic HPL: MPI + BLAS, distributed dense LU. Let me examine the communication patterns in src/comm and grid, plus BLAS/GPU usage.
+  → find src/comm *.c file
+  → search MPI_Send|MPI_Recv|MPI_Isend|MPI_Irecv|MPI_Allreduce|MPI_Bcast|MPI_Reduce|MPI_Sendrecv|MPI_Allgath...
+HPL uses point-to-point (Send/Recv/Sendrecv/Isend/Irecv) for panel broadcast rings and row/column rolling, plus collective all_reduce/broadcast for setup. This is the classic 2D block-cyclic LU. Let me check for the reduce/allgather in the panel factorization (pivot search), and the BLAS/GPU config.
+  → search HPL_all_reduce|HPL_reduce|HPL_broadcast|MPI_Allreduce|MPI_Op 1 15
+  → search cublas|cuda|CUDA|hip|rocblas|GPU|dgemm|cblas_dgemm|HPL_dgemm 2 10
+This is standard netlib/ICL HPL 2.3 — CPU-only, links against a CPU BLAS (OpenBLAS, MKL, ATLAS, ACML, ESSL, etc.). No CUDA/HIP anywhere. It uses MPI with point-to-point ring broadcasts and Sendrecv rolls, plus reductions/broadcasts. Let me confirm the panel factorization pivot swap uses a reduction, and check the launch invocation in docs. Let me check the INSTALL/TUNING and pdmxswp.
+  → find . INSTALL* file
+  → search mpirun|mpiexec|-np|process grid|P x Q 2 6
+  → read src/pfact/HPL_pdmxswp.c 120 40
+I have a clear picture. The panel factorization pivot search is a hypercube-style column reduction (max-swap along column communicator), panel broadcast is a ring along the row, and update uses Sendrecv-based row/column rolls. This is a communication-heavy, compute-bound (dgemm-dominated) distributed dense LU. Let me confirm launch geometry example and OpenMP threading via the BLAS. I have enough to record.
+
+Let me record the shape for xhpl (mpi + cpu-blas variant).
+  → record_shape xhpl mpi-cpu HPL 2.3 distributed dense LU benchmark (MPI + CPU BLAS) mpirun -np P*Q ./xhpl   (P a...
+  → record_shape xhpl mpi-cpu HPL 2.3 comm intensity and memory character mpirun -np P*Q ./xhpl high HPL is the ca...
+Now the accelerator (none), memory placement, I/O, and topology fields. Let me verify no GPU/parallel-IO and check threading.
+  → search MPI_File|HDF5|hdf5|adios|netcdf|shm_open|mmap|MPI_Win|numa|sched_setaffinity 1 8
+No GPU, no parallel I/O, no shared memory, no affinity. Results are written via plain fprintf to stdout/HPL.out (no checkpointing). Let me record the remaining fields.
+  → record_shape xhpl mpi-cpu HPL 2.3 accelerator / IO / memory negatives mpirun -np P*Q ./xhpl high Pure CPU MPI ...
+  → record_shape xhpl mpi-cpu HPL 2.3 topology preferences mpirun -np P*Q ./xhpl medium HPL is designed to scale a...
+## Summary
+
+**Subject: `xhpl`** — the ICL/netlib High Performance Linpack 2.3 benchmark. The build (`testing/Makefile.am:6`) produces exactly one executable, `xhpl`, linking `libhpl.a` (`src/`) against an MPI implementation and a CPU BLAS. `configure.ac`/`acinclude.m4` detect `dgemm_` from OpenBLAS, Intel MKL, ATLAS, ACML, ESSL, or Apple Accelerate — **all CPU BLAS; there is no GPU code path in this repo.** So I recorded a single variant, **`mpi-cpu`**.
+
+### How it wants to run (trace `xhpl:mpi-cpu`)
+
+- **Parallelism:** MPI process parallelism only (`MPI_Init` in `HPL_pddriver.c`). Any threading comes from the linked BLAS, not from HPL source.
+- **Algorithm/communication:** 2D block-cyclic dense LU on a P×Q process grid. Communication is **mixed**:
+  - **pipeline/ring** panel broadcast along the row (`HPL_1ring.c`, `HPL_2rinM.c`) — I flagged `ordered_dependency=true` because each rank forwards to the next;
+  - **neighbor** U rolls via `MPI_Sendrecv` (`HPL_rollT.c`, `HPL_spreadT.c`);
+  - **reduction** for pivot max-swap over the column communicator (hypercube in `HPL_pdmxswp.c`) and check/broadcast collectives (`HPL_pdtest.c`).
+  - Both latency-sensitive (many small pivot/ring messages) and bandwidth-sensitive (large panel/U `MPI_DOUBLE` transfers).
+- **Memory/limits:** the canonical **compute-bound** code — dominated by O(n³) BLAS3 DGEMM Schur updates → high arithmetic intensity, good cache reuse. No shared-memory windows, no explicit NUMA/affinity pinning in source.
+- **Accelerator:** none (verified absent).
+- **I/O:** none parallel; results via `fprintf`; no checkpoint/restart.
+- **Topology:** built for distributed-memory clusters (multi_node); TUNING even notes an example grid needing ≥16 nodes. Prefer packing for interconnect bandwidth; ranks co-location preferred.
+
+**Launch geometry:** HPL takes P and Q from `HPL.dat`, so a real invocation is `mpirun -np (P*Q) ./xhpl`. The repo states no fixed node/rank counts, so I recorded no concrete `launch.*` integers — only the documented relationship and the "≥16 nodes for a 2×8 grid" example as evidence for multi-node span.
+  ✓ recorded 18 assertion(s) across 1 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-2155/us-anthropic-claude-opus-4-8/
+  shapes-20260813-2155/us-anthropic-claude-opus-4-8/github.com/icl-utk-edu/hpl/unpinned/shapes.json

@@ -1,0 +1,47 @@
+[auto-approved] finalize-setup: {"base_image": "buildpack-deps:bookworm-scm", "focus": null, "keep": true, "mode": "container", "ref": null, "repos": ["https://github.com/LLNL/AMG"]}
+
+▸ https://github.com/LLNL/AMG  [1/1]
+[auto-approved] clone: {"effect": "network + write", "repo": "https://github.com/LLNL/AMG"}
+  · cloning https://github.com/LLNL/AMG into container
+  · warning: could not resolve commit; rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+  ⚠ unpinned: rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+  → find . * dir
+  → find . * file
+  → find . README* file
+  → read README 1 200
+  → read docs/amg.README 1 250
+  → search MPI_Allreduce|MPI_Alltoall|MPI_Bcast|MPI_Reduce 2 30
+  → search omp parallel|HYPRE_USING_OPENMP|hypre_NumThreads 2 20
+Now let's look at communication.c for point-to-point patterns (halo exchange), and check persistent comm / IsendRecv.
+  → read parcsr_mv/par_csr_communication.c 1 120
+  → search MPI_Isend|MPI_Irecv|MPI_Send_init|MPI_Start 2 20
+This is neighbor exchange (halo-like) with point-to-point Isend/Irecv/persistent comm. Let's check for restart/checkpoint and I/O, and the launch invocation details more precisely.
+  → search checkpoint|restart|HDF5|hdf5|MPI_File 3 20
+  → read docs/amg.README 250 80
+  → read Makefile.include 1 53
+Now I have enough evidence. Recording the trace for subject `amg`, variant `mpi-openmp` (the default/recommended build with MPI+OpenMP+persistent comm).
+  → record_shape amg mpi-openmp LLNL AMG benchmark (BoomerAMG driver), MPI+OpenMP default build mpirun -np 4 amg -...
+  → search affinity|numa|pin|hugepage|shm_open|MPI_Win 2 15
+No affinity/NUMA pinning code found. Recording remaining assertions for this variant.
+  → record_shape amg mpi-openmp LLNL AMG benchmark, MPI+OpenMP default build (continued) mpirun -np 4 amg -P 2 2 1...
+  → record_shape amg mpi-openmp LLNL AMG benchmark, MPI+OpenMP default build (accelerator/io/misc) mpirun -np 4 am...
+  → search checkpoint|restart_file|WriteRestart 1 10
+  → read parcsr_ls/par_cycle.c 1 60
+The multigrid V-cycle is symmetric recursion, not a chain sweep. Let's fix rejected assertions with proper absent evidence.
+  → record_shape amg mpi-openmp LLNL AMG benchmark, MPI+OpenMP default build (fix negatives) mpirun -np 4 amg -P 2...
+This completes the characterization of the AMG benchmark's `mpi-openmp` variant. Summary:
+
+**Subject**: `amg` — LLNL's AMG benchmark, a standalone SPMD driver (`test/amg.c`) built from the BoomerAMG algebraic multigrid solver (derived from hypre), building a single executable `amg`.
+
+**Variant recorded**: `mpi-openmp` (the default/recommended `Makefile.include` config: MPI + OpenMP + persistent-comm + hopscotch hashing + 64-bit ints).
+
+Key findings:
+- **Parallelism**: MPI (SPMD, logical P×Q×R grid decomposition) + OpenMP threading within each MPI rank.
+- **Communication**: mixed point-to-point (neighbor halo-style exchange via `hypre_MPI_Isend/Irecv`, and persistent `MPI_Send_init/Recv_init` when `HYPRE_USING_PERSISTENT_COMM` is set) plus collective reductions (`MPI_Allreduce` for dot products/norms) and occasional broadcasts. Docs explicitly call it "a highly synchronous code" with a surface-to-volume communication/computation ratio.
+- **Memory**: explicitly documented as memory-access bound (~1-2 computations per memory access), poor expected cache reuse — this is the single most defining performance constraint.
+- **No accelerator usage** (no CUDA/ROCm/SYCL found), **no parallel I/O library**, **no checkpoint/restart**, **no shared-memory windows/NUMA pinning** found in source.
+- **Launch geometry**: only concretely stated in the docs' example run: `mpirun -np 4 amg -P 2 2 1 -n 50 50 50 -printstats` with `OMP_NUM_THREADS=3`; and scalability claims up to >1,000,000 MPI ranks on BG/Q, indicating it is designed to span many nodes with neighbor-preferred, tightly synchronous placement.
+  ✓ recorded 23 assertion(s) across 1 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-2155/us-anthropic-claude-sonnet-5/
+  shapes-20260813-2155/us-anthropic-claude-sonnet-5/github.com/LLNL/AMG/unpinned/shapes.json

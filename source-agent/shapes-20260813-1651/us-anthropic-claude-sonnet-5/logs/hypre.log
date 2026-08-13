@@ -1,0 +1,70 @@
+[auto-approved] finalize-setup: {"base_image": "buildpack-deps:bookworm-scm", "focus": "BoomerAMG algebraic multigrid solver", "keep": true, "mode": "container", "ref": null, "repos": ["https://github.com/hypre-space/hypre"]}
+
+▸ https://github.com/hypre-space/hypre  [1/1]
+[auto-approved] clone: {"effect": "network + write", "repo": "https://github.com/hypre-space/hypre"}
+  · cloning https://github.com/hypre-space/hypre into container
+  · warning: could not resolve commit; rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+  ⚠ unpinned: rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+  → find . CMakeLists.txt file
+  → find . *.md file
+  → read README.md 1 100
+  → search BoomerAMG 2 20
+  → find src/parcsr_ls *boomer* file
+  → search MPI_Allreduce|MPI_Isend|MPI_Irecv|hypre_MPI_ 3 20
+  → find src/parcsr_ls *mg*.c file
+  → search hypre_MPI_Allreduce 3 15
+  → search hypre_ParCSRCommHandleCreate|CommPkg.*Create|NumSends|NumRecvs 3 15
+  → search HYPRE_USING_OPENMP|omp parallel 3 10
+  → search HYPRE_USING_CUDA|HYPRE_USING_HIP|HYPRE_USING_SYCL|GPU_AWARE_MPI|HYPRE_WITH_GPU_AWARE_MPI 2 15
+  → search nccl|rccl|NCCL|RCCL 2 10
+  → search NCCL 2 10
+  → read src/CMakeLists.txt 140 80
+  → search nccl 2 5
+  → search memory.access|memory.bandwidth|memory-bound|bandwidth bound 3 10
+  → search memory bandwidth 3 10
+  → read INSTALL.md 1 80
+  → search mpirun -np 3 10
+  → find src/examples ex5.c file
+  → search Sample run 3 5
+  → read src/examples/ex5.c 1 40
+Good, `mpirun -np 4 ex5` confirmed. Now let's check the BoomerAMG setup for GPU port details, and checkpoint/restart (IJ matrix I/O), and the RAP triple matrix product communication (all_to_all patterns during setup / coarsening).
+  → search hypre_ParCSRMatrixMatvec\(|hypre_ParCSRCommHandleCreate 3 10
+  → search HYPRE_ParCSRMatrixRead|HYPRE_IJMatrixRead|Checkpoint|checkpoint 3 10
+  → search hdf5|adios|netcdf|MPI_File_ 2 5
+  → search cusparseSpMV|rocsparse_spmv|oneapi::mkl::sparse 3 10
+  → search cusparseSpMV 2 5
+  → search rocsparse_spmv 2 5
+  → search cusparse 2 5
+Good, confirms cuSPARSE integration exists as a build option. That's sufficient evidence for CUDA variant using vendor sparse libraries. Now let's check strength-of-connection / coarsening for all-to-all-like patterns, and check docs for AMG scalability/weak vs strong scaling statements.
+  → search MPI_Alltoall 3 10
+  → search scalab|weak scaling|strong scaling 4 10
+Good, found the BoomerAMG user manual doc. Let's read it more thoroughly for GPU/scheduling-relevant statements.
+  → read src/docs/usr-manual/solvers-boomeramg.rst 1 60
+  → search GPU 6 10
+  → search sparse matrix-vector|SpMV|memory access 3 10
+  → search sched_setaffinity 2 5
+  → search shm_open|MPI_Win_allocate_shared 2 5
+Both absent (no hits). Good—confirms no explicit CPU pinning or shared-memory windows in the code.
+
+Now I have sufficient evidence. Let me record two traces: cpu-mpi-openmp (default/general build) and cuda-mpi (GPU-accelerated build).
+  → record_shape boomeramg cpu-mpi-openmp HYPRE BoomerAMG (CPU, MPI + optional OpenMP build) mpirun -np 4 ex5   (o...
+  → record_shape boomeramg cuda-mpi HYPRE BoomerAMG (GPU build: CUDA/HIP/SYCL + MPI) mpirun -np N ij -solver 1 -ex...
+Both traces recorded. Summary of findings:
+
+**Subject**: HYPRE's BoomerAMG — a library solver/preconditioner (not a standalone binary), invoked via `HYPRE_BoomerAMG*` API and exercised through test drivers/examples (`src/examples/ex5.c`, `src/test/ij.c`) linked against `libHYPRE`.
+
+**Trace 1 — `boomeramg:cpu-mpi-openmp`** (general CPU build):
+- Parallelism: MPI (default ON) + optional OpenMP threading (off by default, `HYPRE_ENABLE_OPENMP`)
+- Communication: mixed point-to-point (neighbor/halo exchange via `CommPkg`) + collective (`Allreduce` for inner products, `Alltoall` for row/column ownership resolution)
+- Latency-sensitive (small neighbor exchanges), bandwidth-sensitive at scale (assumed-partition algorithm exists specifically because naive O(P) global partitioning doesn't scale)
+- No shared-memory windows, no explicit CPU pinning found
+
+**Trace 2 — `boomeramg:cuda-mpi`** (GPU build):
+- MPI + GPU (CUDA primary evidence; HIP/SYCL are parallel build options with equivalent vendor libraries)
+- Uses cuSPARSE/cuBLAS/cuSOLVER/cuRAND for sparse kernels (SpMV, SpGEMM/RAP triple product, interpolation)
+- Optional GPU-aware MPI (`-gpu_mpi` flag, `HYPRE_ENABLE_GPU_AWARE_MPI`) for device-buffer halo exchange; no NCCL/RCCL direct GPU-GPU path found — inter-GPU traffic goes through MPI
+- Sparse, irregular-access kernels → memory-bandwidth bound, very low arithmetic intensity, poor cache reuse (judgment, consistent with classic AMG/SpMV characteristics)
+  ✓ recorded 16 assertion(s) across 2 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-1651/us-anthropic-claude-sonnet-5/
+  shapes-20260813-1651/us-anthropic-claude-sonnet-5/github.com/hypre-space/hypre/unpinned/BoomerAMG_algebraic_multigrid_solver/shapes.json

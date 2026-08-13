@@ -1,0 +1,91 @@
+[auto-approved] finalize-setup: {"base_image": "buildpack-deps:bookworm-scm", "focus": "reaxff", "keep": true, "mode": "container", "ref": null, "repos": ["https://github.com/lammps/lammps"]}
+
+▸ https://github.com/lammps/lammps  [1/1]
+[auto-approved] clone: {"effect": "network + write", "repo": "https://github.com/lammps/lammps"}
+  · cloning https://github.com/lammps/lammps into container
+  · warning: could not resolve commit; rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+  ⚠ unpinned: rev-parse: rc=128 out='HEAD' err="fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tr"; log: rc=128 out='' err="fatal: your current branch 'master' does not have any commits yet"; rev-parse-verify: rc=128 out='' err='fatal: Needed a single revision'; show-ref-head: rc=1 out=''
+  → find . *reaxff* file
+  → find . CMakeLists.txt file
+  → find . * dir
+  → find .git * file
+  → search reaxff 2 5
+  → find / * dir
+Good, root should be "/" not ".". Let me redo the searches.
+  → find /src *reaxff* file
+  → find /src *REAX* dir
+There are REAXFF (base, MPI+OpenMP variant via OPENMP package) and KOKKOS (GPU) variants. Let's look at core pair_reaxff.cpp and docs.
+  → read /src/REAXFF/pair_reaxff.cpp 1 80
+  → search MPI_Allreduce|MPI_Send|MPI_Irecv|comm->forward_comm|comm->reverse_comm 2 30
+  → search MPI_Allreduce 2 20
+  → search MPI_Allreduce 2 20
+  → search reax 1 5
+  → read /src/REAXFF/reaxff_forces.cpp 1 120
+  → read /src/REAXFF/fix_qeq_reaxff.cpp 1 100
+  → search MPI_Allreduce 2 15
+  → read /src/REAXFF/fix_qeq_reaxff.cpp 400 150
+  → read /src/REAXFF/fix_qeq_reaxff.cpp 650 150
+This confirms the classic pattern: forward_comm/reverse_comm (halo/ghost) + MPI_Allreduce dot products (parallel_dot/parallel_norm) per CG iteration, per timestep. Let's check parallel_dot implementation for MPI_Allreduce and check OpenMP/Kokkos variants briefly.
+  → read /src/REAXFF/fix_qeq_reaxff.cpp 900 60
+  → read /src/KOKKOS/pair_reaxff_kokkos.h 1 60
+  → read /src/REAXFF/fix_qeq_reaxff.cpp 1000 40
+  → read /src/OPENMP/pair_reaxff_omp.h 1 40
+  → read /src/REAXFF/fix_qeq_reaxff.cpp 1039 30
+  → find /doc/src *.rst file
+Let's check pair_reaxff doc page for scheduling notes.
+  → find /doc/src pair_reaxff.rst file
+  → read /doc/src/pair_reaxff.rst 1 200
+  → find /examples *reax* dir
+  → read /doc/src/pair_reaxff.rst 200 80
+This confirms both base and kk (Kokkos GPU/OMP) variants. Let's check restart/checkpoint (write_restart) usage and ghostneigh comm cutoff, plus check bench directory for reaxff benchmark input with mpirun example.
+  → find /bench *reax* file
+  → read /src/REAXFF/pair_reaxff.cpp 80 40
+  → read /bench/POTENTIALS/in.reaxc 1 40
+  → read /bench/POTENTIALS/log.9Oct20.reaxc.4 1 40
+This confirms 4 MPI tasks in a 1x2x2 or 2x2x1 processor grid — 3D domain decomposition (neighbor pattern). Now I have enough evidence to record shapes for both "reaxff" (base MPI+OpenMP CPU) and "reaxff-kokkos" (GPU) variants.
+  → record_shape lmp reaxff LAMMPS pair_style reaxff (REAXFF package, CPU/MPI, optional OpenMP via reaxff/omp) mpi...
+  → record_shape lmp reaxff LAMMPS pair_style reaxff (REAXFF package, CPU/MPI, optional OpenMP) mpirun -np 4 lmp -...
+Now let's add remaining fields for the reaxff (CPU) variant: memory/topology/io/accelerator.
+  → read /src/REAXFF/fix_reaxff.cpp 1 40
+  → find /src/REAXFF *restart* file
+  → record_shape lmp reaxff LAMMPS pair_style reaxff (REAXFF package, CPU/MPI, optional OpenMP) mpirun -np 4 lmp -...
+  → record_shape lmp reaxff LAMMPS pair_style reaxff (REAXFF package, CPU/MPI, optional OpenMP) mpirun -np 4 lmp -...
+Now let's do the launch geometry fields from the benchmark log (tasks, etc.) for the reaxff CPU trace, and then move to the KOKKOS GPU variant.
+  → read /bench/POTENTIALS/log.9Oct20.reaxc.4 1 10
+  → record_shape lmp reaxff LAMMPS pair_style reaxff benchmark launch geometry mpirun -np 4 lmp -in in.reaxc mediu...
+Now let's examine the KOKKOS GPU variant for accelerator-specific behavior.
+  → read /src/KOKKOS/pair_reaxff_kokkos.cpp 1 100
+  → read /doc/src/Speed_kokkos.rst 1 40
+  → read /doc/src/Speed_kokkos.rst 40 80
+This gives excellent evidence: GPU-aware MPI assumption, one GPU per MPI rank typical. Let's check for example gpu launch commands further down (like `-k on g 2` etc).
+  → read /doc/src/Speed_kokkos.rst 119 100
+Let's find the GPU-specific launch example (with `-k on g N`).
+  → read /doc/src/Speed_kokkos.rst 218 80
+  → read /doc/src/Speed_kokkos.rst 297 80
+Excellent, this gives concrete GPU launch geometry: 1 MPI task per GPU, up to 2 GPUs/node example. Now record the KOKKOS GPU variant.
+  → record_shape lmp reaxff-kokkos-gpu LAMMPS pair_style reaxff/kk (KOKKOS package, GPU/CUDA or HIP, MPI+threads) ...
+  → record_shape lmp reaxff-kokkos-gpu LAMMPS pair_style reaxff/kk (KOKKOS package, GPU/CUDA or HIP) mpirun -np 2 ...
+Both traces (`lmp:reaxff` CPU/MPI+OpenMP and `lmp:gpu-kokkos-reaxff` GPU/Kokkos) are now recorded. Let me check `seen` to confirm budget usage and wrap up.
+  → seen {}
+I've gathered sufficient evidence and recorded two separate traces for the LAMMPS `lmp` executable's reaxff pair style:
+
+## Summary
+
+**Subject built:** `lmp` (LAMMPS executable). The `reaxff` pair style lives in `src/REAXFF/` (base MPI/C++ implementation derived from PuReMD), with accelerated variants in `src/OPENMP/` (`reaxff/omp`) and `src/KOKKOS/` (`reaxff/kk`, supporting CPU-threaded or GPU/CUDA/HIP execution).
+
+**Trace 1: `lmp:reaxff`** (CPU, MPI + optional OpenMP)
+- Domain-decomposed MPI (`comm->forward_comm`/`reverse_comm` ghost exchange) for the main ReaxFF force kernels.
+- An inner charge-equilibration CG solver (`fix qeq/reaxff`) does a halo exchange **and** two `MPI_Allreduce` dot-products **every CG iteration** (up to ~200 iterations), invoked every timestep by default — this is the dominant communication cost: `{neighbor, reduction}` pattern, latency-sensitive, small messages (not bandwidth-sensitive).
+- Benchmark evidence shows a 3D MPI processor grid (e.g. 1×2×2 for 4 ranks).
+- No shared-memory windows, no GPU in this variant.
+
+**Trace 2: `lmp:gpu-kokkos-reaxff`** (Kokkos, CUDA/HIP GPU + MPI)
+- Same underlying halo+reduction communication pattern, but force kernels run as Kokkos device kernels (GPU) or host-OpenMP.
+- Documentation explicitly recommends 1 MPI rank per GPU, GPU-aware MPI (`accelerator.gpu_comm=gpu_aware_mpi`), and shows concrete launch examples (`-k on g 2`, 2 MPI tasks/node ↔ 2 GPUs/node).
+- Co-location of ranks with their GPU is effectively required.
+
+Both traces were recorded with field-level evidence citations; negative claims used the required "absent: pattern in scope" phrasing based on manual code inspection (the search tool was non-functional throughout this session, so absence claims rely on directed reading of the relevant files rather than automated grep).
+  ✓ recorded 29 assertion(s) across 2 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-2155/us-anthropic-claude-sonnet-5/
+  shapes-20260813-2155/us-anthropic-claude-sonnet-5/github.com/lammps/lammps/unpinned/reaxff/shapes.json
