@@ -1,0 +1,54 @@
+
+[confirm] about to run action 'finalize-setup' with:
+{
+  "repos": [
+    "https://github.com/jwu274/osu-micro-benchmarks"
+  ],
+  "mode": "container",
+  "base_image": "buildpack-deps:bookworm-scm",
+  "ref": null,
+  "keep": true,
+  "focus": "osu_bw bandwidth benchmark"
+}
+proceed? [y/N] 
+▸ https://github.com/jwu274/osu-micro-benchmarks  [1/1]
+
+[confirm] about to run action 'clone' with:
+{
+  "repo": "https://github.com/jwu274/osu-micro-benchmarks",
+  "effect": "network + write"
+}
+proceed? [y/N]   · cloning https://github.com/jwu274/osu-micro-benchmarks into container
+  · warning: could not resolve commit (HEAD)
+  ⚠ unpinned: HEAD
+  → find . *osu_bw* file
+  → find . * dir
+  → read /tmp/artifact-secretary/repo/c/mpi/pt2pt/standard/osu_bw.c 1 200
+  → read /tmp/artifact-secretary/repo/c/mpi/pt2pt/standard/osu_bw.c 200 120
+Now let's check accel/CUDA options (init_accel, options.accel enum) and README/docs for launch commands.
+  → search init_accel|CUDA|choose_max_iterations|enable_accel_support|D H|MPI_CHECK\(MPI_Init 2 20
+  → search mpirun.*osu_bw|Usage:.*osu_bw|-np 2 3 20
+I have sufficient evidence. This is a classic 2-rank MPI point-to-point bandwidth benchmark, with optional CUDA/ROCm/OpenACC GPU buffer support. Let me check the CUDA init_accel briefly for GPU details.
+  → search int init_accel\( 3 10
+This confirms optional accelerator support (CUDA/ROCm/SYCL/OpenACC) is a compile-time variant. I'll record two traces: the standard CPU (host memory) osu_bw variant, and a GPU-enabled variant, both being 2-rank MPI point-to-point.
+  → record_shape osu_bw standard (host memory, CPU) OSU MPI Bandwidth Test (osu_bw), standard build mpirun -np 2 ....
+  → record_shape osu_bw cuda/rocm accelerator build OSU MPI Bandwidth Test (osu_bw), CUDA/ROCm accelerator build m...
+Both traces recorded. Summary:
+
+**osu_bw (standard, host-memory build)**
+- Pure MPI point-to-point microbenchmark, **fixed at exactly 2 ranks** (hard-coded check `numprocs != 2`).
+- Rank 0 pipelines a window (default 64) of `MPI_Isend` + `MPI_Waitall`, then a blocking 1-byte ack `MPI_Recv`; rank 1 mirrors with `MPI_Irecv`/`MPI_Waitall`. Message size sweeps a power-of-two range.
+- Communication-dominated (that's the point of the benchmark): bandwidth-sensitive, not latency-sensitive (windowed/pipelined transfer, not ping-pong).
+- Launch shown in docs as `mpirun_rsh -np 2 -hostfile hostfile osu_bw` / generically `mpirun -np 2`.
+- No shared memory, no threading, no checkpoint/IO — a single-shot micro-benchmark process pair, ideally co-located or at least on a low-latency/high-bandwidth link between the two nodes/ranks (topology "neighbor" pt2pt, preferred co-location for best link).
+
+**osu_bw (CUDA/ROCm/OpenACC accelerator build)**
+- Same 2-rank MPI pt2pt skeleton, but compiled with `--enable-cuda`/`--enable-rocm`/etc. (configure.ac), buffers allocated in GPU device memory or host-pinned memory selected by D/H/M CLI flags, using `init_accel()` (CUDA driver context) and CUDA-kernel touches for managed memory.
+- Relies on a GPU-aware/CUDA-aware MPI (e.g. MVAPICH2-GDR via `MV2_USE_CUDA=1`) to actually move data GPU-to-GPU/host; no NCCL/RCCL calls in this file — the "gpu_comm" is via GPU-aware MPI, not a dedicated GPU collective library.
+- Wants one GPU per rank, ranks placed so the GPU-to-GPU (or GPU-to-host) path has good bandwidth — co-location preferred.
+
+Both variants are recorded separately since the accelerator build changes `parallelism`, `accelerator.*` and placement preferences even though the MPI communication pattern (2-rank windowed Isend/Irecv) is identical.
+  ✓ recorded 15 assertion(s) across 2 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-0735/us-anthropic-claude-sonnet-5/
+  shapes-20260813-0735/us-anthropic-claude-sonnet-5/github.com/jwu274/osu-micro-benchmarks/unpinned/osu_bw_bandwidth_benchmark/shapes.json

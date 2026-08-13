@@ -1,0 +1,76 @@
+
+[confirm] about to run action 'finalize-setup' with:
+{
+  "repos": [
+    "https://github.com/jeffhammond/STREAM"
+  ],
+  "mode": "container",
+  "base_image": "buildpack-deps:bookworm-scm",
+  "ref": null,
+  "keep": true,
+  "focus": null
+}
+proceed? [y/N] 
+▸ https://github.com/jeffhammond/STREAM  [1/1]
+
+[confirm] about to run action 'clone' with:
+{
+  "repo": "https://github.com/jeffhammond/STREAM",
+  "effect": "network + write"
+}
+proceed? [y/N]   · cloning https://github.com/jeffhammond/STREAM into container
+  · warning: could not resolve commit (HEAD)
+  ⚠ unpinned: HEAD
+I'll start by exploring the repository structure to understand what this builds.
+  → find . * file
+The listing shows the system, not the repo. Let me find the repo files.
+  → find /root * file
+  → search STREAM|stream 1 10
+The repo is at `/tmp/artifact-secretary/repo`. Let me look at the full structure.
+  → find /tmp/artifact-secretary/repo * file
+A classic STREAM benchmark: `stream.c`, `stream.f`, `mysecond.c`, and a `Makefile`. Let me read the Makefile and the key parts of stream.c.
+  → read /tmp/artifact-secretary/repo/Makefile 1 60
+  → read /tmp/artifact-secretary/repo/README 1 60
+This builds two executables: `stream_c.exe` (from stream.c) and `stream_f.exe` (Fortran + mysecond.c), both with OpenMP. There's no MPI version in this repo (that's in a "Versions directory" not present here). Let me check the OpenMP usage and array allocation in stream.c.
+  → search #pragma omp|omp_get|OMP|_OPENMP|getenv 1 30
+  → search MPI|malloc|memalign|static|STREAM_ARRAY_SIZE 0 20
+Clear picture. This is the classic McCalpin STREAM benchmark: OpenMP-threaded, single-process, static array allocation. No MPI in this repo. The kernels are simple `omp parallel for` over static arrays. It's a memory bandwidth benchmark — no communication between processes. Let me verify there's no MPI anywhere and check the thread affinity / NUMA notes.
+  → search NUMA|numa|affinity|first.touch|OMP_NUM_THREADS|OMP_PLACES|GOMP 2 15
+No MPI, no NUMA/affinity pinning in code. The kernels initialize arrays with `#pragma omp parallel for` (line 267), which relies on first-touch NUMA placement — a well-known STREAM property. Let me quickly confirm the kernel structure and lack of I/O.
+  → read /tmp/artifact-secretary/repo/stream.c 300 30
+I have a complete understanding. STREAM is a shared-memory OpenMP memory bandwidth benchmark: single process, threaded, no MPI, no GPU, no communication, no I/O. The two build targets (C and Fortran) behave identically from a scheduler's view. NUMA placement matters heavily (first-touch parallel init on line 267), and it wants full cores/memory bandwidth. Let me record traces for both executables.
+  → record_shape stream_c.exe openmp STREAM C, OpenMP-threaded memory bandwidth benchmark OMP_NUM_THREADS=N ./stre...
+  → record_shape stream_c.exe openmp STREAM C memory/NUMA/launch behavior OMP_NUM_THREADS=N ./stream_c.exe high Ar...
+  → record_shape stream_c.exe openmp STREAM C topology OMP_NUM_THREADS=N ./stream_c.exe high Single shared-memory ...
+  → record_shape stream_f.exe openmp STREAM Fortran, OpenMP-threaded memory bandwidth benchmark OMP_NUM_THREADS=N ...
+I've completed the analysis. Here's the summary.
+
+## What the repo builds
+
+This is **jeffhammond's mirror of John McCalpin's STREAM benchmark** — the de facto standard for measuring sustained memory bandwidth. The `Makefile` builds two executables:
+
+- **`stream_c.exe`** — `gcc -O2 -fopenmp stream.c`
+- **`stream_f.exe`** — `gfortran -O2 -fopenmp stream.f` + `mysecond.c` timer
+
+There is no MPI version in this checkout (the README references a `stream_mpi.c` in a "Versions directory" that isn't present), no CMake, no launcher script.
+
+## How it wants to run (both variants share the same shape)
+
+**Parallelism:** Purely OpenMP-threaded within a **single process**. The Copy/Scale/Add/Triad kernels are `#pragma omp parallel for` loops over large static global arrays (stream.c:179, :313; stream.f:149). Thread count set at runtime via `OMP_NUM_THREADS`.
+
+**Communication:** None. It's explicitly a shared-memory benchmark; the README even notes MPI is "not a preferred implementation." No point-to-point, no collectives, not latency- or (network-)bandwidth-sensitive.
+
+**Memory — the crux for scheduling:**
+- Arrays `a/b/c` are shared across threads → shared memory, **co-location required**, single node.
+- **NUMA-sensitive**: arrays are first-touched by a parallel init loop (stream.c:267/286), so page placement follows the thread that touches them — placement across NUMA domains directly changes the reported bandwidth.
+- **Wants whole cores**: as a bandwidth benchmark it needs uncontended cores/memory channels; relies on runtime `OMP_PROC_BIND`/`OMP_PLACES` rather than in-code pinning.
+
+**Accelerator / I/O:** none — no CUDA/HIP, no MPI-IO/HDF5, no checkpointing.
+
+**Topology:** single-node, pack placement, co-location required.
+
+I recorded three record_shape batches for `stream_c.exe:openmp` and one for `stream_f.exe:openmp`, keeping them as separate traces since they are distinct executables (though behaviorally identical from the scheduler's view). No launch geometry was invented — the only literal invocation guidance is `OMP_NUM_THREADS` with a plain `./stream_*.exe` (no mpirun/srun).
+  ✓ recorded 25 assertion(s) across 2 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-0735/us-anthropic-claude-opus-4-8/
+  shapes-20260813-0735/us-anthropic-claude-opus-4-8/github.com/jeffhammond/STREAM/unpinned/shapes.json

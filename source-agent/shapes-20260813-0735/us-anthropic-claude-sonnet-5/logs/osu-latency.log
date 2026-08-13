@@ -1,0 +1,50 @@
+
+[confirm] about to run action 'finalize-setup' with:
+{
+  "repos": [
+    "https://github.com/jwu274/osu-micro-benchmarks"
+  ],
+  "mode": "container",
+  "base_image": "buildpack-deps:bookworm-scm",
+  "ref": null,
+  "keep": true,
+  "focus": "osu_latency point-to-point latency benchmark"
+}
+proceed? [y/N] 
+▸ https://github.com/jwu274/osu-micro-benchmarks  [1/1]
+
+[confirm] about to run action 'clone' with:
+{
+  "repo": "https://github.com/jwu274/osu-micro-benchmarks",
+  "effect": "network + write"
+}
+proceed? [y/N]   · cloning https://github.com/jwu274/osu-micro-benchmarks into container
+  · warning: could not resolve commit (HEAD)
+  ⚠ unpinned: HEAD
+  → find . *latency* file
+  → find . CMakeLists.txt file
+  → read /tmp/artifact-secretary/repo/c/mpi/pt2pt/standard/osu_latency.c 1 150
+  → read /tmp/artifact-secretary/repo/c/mpi/pt2pt/standard/osu_latency.c 150 100
+  → search mpirun.*osu_latency|mpirun_rsh.*osu_latency 3 20
+  → search CUDA_ENABLED|ROCM_ENABLED|_ENABLE_CUDA_|_ENABLE_ROCM_ 2 15
+  → read /tmp/artifact-secretary/repo/README.md 1000 40
+Now I have enough evidence for a solid trace. Let me check for CPU-only default build and threads/affinity mentions briefly.
+  → search mpirun -np 2 2 10
+I have sufficient evidence. Recording the trace for the C MPI standard osu_latency benchmark (the canonical variant).
+  → record_shape osu_latency c/mpi/pt2pt/standard (CPU host buffers, default build) OSU MPI point-to-point latency...
+  → record_shape osu_latency c/mpi/pt2pt/standard (CUDA/ROCm device buffers) OSU MPI point-to-point latency benchm...
+I've characterized `osu_latency` in two variants based on real evidence from the source:
+
+**1. CPU/host-buffer variant (default build)** — `c/mpi/pt2pt/standard/osu_latency.c`:
+- Pure MPI point-to-point ping-pong, hard-coded to exactly 2 ranks (`numprocs != 2` → exit).
+- Rank 0 does `MPI_Send`→`MPI_Recv`, rank 1 does `MPI_Recv`→`MPI_Send`, timed with `MPI_Wtime` across increasing message sizes, synchronized by `MPI_Barrier`.
+- Latency-sensitive, not bandwidth-sensitive (that's `osu_bandwidth`'s job); high communication intensity since the ping-pong loop *is* the whole workload.
+- Launched via `mpirun -np 2 ./osu_latency`.
+
+**2. CUDA/ROCm device-buffer variant** — same core loop, but built with `--enable-cuda`/`--enable-rocm` (configure.ac), letting either rank's buffer live on GPU memory (`D`/`H` flags), exercised through GPU-aware MPI (`MV2_USE_CUDA=1`). Still exactly 2 ranks; benefits from fast GPU-GPU interconnect since it's still a latency-bound exchange.
+
+Both traces recorded with file:line evidence.
+  ✓ recorded 14 assertion(s) across 2 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-0735/us-anthropic-claude-sonnet-5/
+  shapes-20260813-0735/us-anthropic-claude-sonnet-5/github.com/jwu274/osu-micro-benchmarks/unpinned/osu_latency_point-to-point_latency_benchmark/shapes.json

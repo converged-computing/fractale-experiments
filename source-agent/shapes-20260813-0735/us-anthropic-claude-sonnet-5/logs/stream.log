@@ -1,0 +1,59 @@
+
+[confirm] about to run action 'finalize-setup' with:
+{
+  "repos": [
+    "https://github.com/jeffhammond/STREAM"
+  ],
+  "mode": "container",
+  "base_image": "buildpack-deps:bookworm-scm",
+  "ref": null,
+  "keep": true,
+  "focus": null
+}
+proceed? [y/N] 
+▸ https://github.com/jeffhammond/STREAM  [1/1]
+
+[confirm] about to run action 'clone' with:
+{
+  "repo": "https://github.com/jeffhammond/STREAM",
+  "effect": "network + write"
+}
+proceed? [y/N]   · cloning https://github.com/jeffhammond/STREAM into container
+  · warning: could not resolve commit (HEAD)
+  ⚠ unpinned: HEAD
+  → find . * file
+  → find / *STREAM* dir
+  → find / stream.c file
+  → find /tmp/artifact-secretary/repo * file
+This is the classic STREAM memory bandwidth benchmark. Let's read the key files.
+  → read /tmp/artifact-secretary/repo/Makefile 1 120
+  → read /tmp/artifact-secretary/repo/README 1 150
+  → search omp parallel|OMP_NUM_THREADS|pragma omp 3 30
+  → find /tmp/artifact-secretary/repo stream_mpi* file
+  → read /tmp/artifact-secretary/repo/stream.c 1 100
+  → read /tmp/artifact-secretary/repo/stream.c 190 70
+  → read /tmp/artifact-secretary/repo/stream.c 160 30
+Now I have enough evidence. This is a single-node, shared-memory, OpenMP-threaded memory bandwidth microbenchmark. No MPI in this checkout (stream_mpi.c mentioned in README but not present in this shallow clone's file tree). Let's confirm no MPI files exist and check mysecond.c briefly.
+  → search MPI_|mpicc 2 10
+No MPI source present in this repo checkout — only referenced in README as a separate historical version not included here. This confirms this repo builds `stream_c.exe` (and `stream_f.exe`) as an OpenMP-threaded, single-process, single-node memory bandwidth benchmark.
+  → record_shape stream_c.exe openmp STREAM benchmark (C, OpenMP) - single-node memory bandwidth microbenchmark OM...
+  → record_shape stream_c.exe openmp STREAM benchmark (C, OpenMP) - single-node memory bandwidth microbenchmark (p...
+  → record_shape stream_c.exe openmp STREAM benchmark (C, OpenMP) - single-node memory bandwidth microbenchmark (p...
+I've characterized the STREAM benchmark repository as follows:
+
+**Subject identified:** This repo builds `stream_c.exe` and `stream_f.exe` via the Makefile — the classic McCalpin STREAM memory-bandwidth microbenchmark (C and Fortran variants sharing a `mysecond.c` timer). Only one meaningful variant is present in this checkout: the OpenMP-threaded shared-memory version (`stream.c`/`stream.f` compiled with `-fopenmp`). The README references a historical `stream_mpi.c` "in the Versions directory," but that file is not present in this shallow clone, so no MPI variant could be traced from evidence.
+
+**Key findings recorded (subject=`stream_c.exe`, variant=`openmp`):**
+- **Parallelism:** OpenMP threads (`#pragma omp parallel for` guarding Copy/Scale/Add/Triad kernels), degrading to serial if built without `-fopenmp`. Single process, no MPI/task framework.
+- **Communication:** None — it's a pure in-process, shared-array benchmark; no IPC calls exist in the source.
+- **Memory:** Uses large static shared arrays (`a`,`b`,`c`, sized by `STREAM_ARRAY_SIZE`) accessed concurrently by threads — shared-memory by construction, NUMA-sensitive by the code's own sizing guidance (comments discuss sizing relative to per-socket cache), and effectively wants exclusive cores for a valid bandwidth measurement.
+- **Accelerator:** None — no CUDA/HIP/SYCL/OpenCL code anywhere.
+- **Launch:** No launcher — it's a plain executable run directly, with thread count controlled via `OMP_NUM_THREADS`. No node/task counts stated in source (only guidance comments).
+- **I/O:** No checkpoint/restart, no parallel I/O — purely computational, in-RAM.
+- **Topology:** Single-node only; threads should be packed/co-located on one node's cores/sockets for the benchmark to be meaningful — this is inherent to what STREAM measures (single-node memory subsystem bandwidth).
+
+Both record_shape calls together capture the full set of relevant scheduling assertions with file:line evidence from `stream.c` and the `Makefile`.
+  ✓ recorded 18 assertion(s) across 1 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-0735/us-anthropic-claude-sonnet-5/
+  shapes-20260813-0735/us-anthropic-claude-sonnet-5/github.com/jeffhammond/STREAM/unpinned/shapes.json

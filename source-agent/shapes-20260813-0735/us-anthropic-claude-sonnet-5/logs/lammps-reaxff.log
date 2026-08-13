@@ -1,0 +1,88 @@
+
+[confirm] about to run action 'finalize-setup' with:
+{
+  "repos": [
+    "https://github.com/lammps/lammps"
+  ],
+  "mode": "container",
+  "base_image": "buildpack-deps:bookworm-scm",
+  "ref": null,
+  "keep": true,
+  "focus": "reaxff"
+}
+proceed? [y/N] 
+▸ https://github.com/lammps/lammps  [1/1]
+
+[confirm] about to run action 'clone' with:
+{
+  "repo": "https://github.com/lammps/lammps",
+  "effect": "network + write"
+}
+proceed? [y/N]   · cloning https://github.com/lammps/lammps into container
+  · warning: could not resolve commit (HEAD)
+  ⚠ unpinned: HEAD
+  → find . *reaxff* file
+  → find . CMakeLists.txt file
+  → find . * dir
+  → find / lammps* dir
+  → search pair_reaxff|ReaxFF 2 20
+Found it at /tmp/artifact-secretary/repo. Let's explore.
+  → find /tmp/artifact-secretary/repo *reaxff* file
+  → find /tmp/artifact-secretary/repo CMakeLists.txt file
+  → read /tmp/artifact-secretary/repo/examples/reaxff/log.1Feb25.reaxff.rdx.g++.4 1 40
+  → search MPI_Allreduce|MPI_Bcast|MPI_Reduce|MPI_Sendrecv|MPI_Send|MPI_Recv|MPI_Allgather 2 30
+  → search MPI_Allreduce 2 20
+  → search comm-\>forward_comm 2 20
+  → search MPI Allreduce 2 20
+  → search reaxff 1 5
+  → search MPI 1 5
+  → read /tmp/artifact-secretary/repo/src/REAXFF/pair_reaxff.cpp 1 120
+  → search world 1 5
+  → read /tmp/artifact-secretary/repo/src/REAXFF/reaxff_tool_box.cpp 1 100
+  → read /tmp/artifact-secretary/repo/src/REAXFF/reaxff_types.h 1 80
+  → read /tmp/artifact-secretary/repo/src/REAXFF/fix_qeq_reaxff.h 1 60
+  → find /tmp/artifact-secretary/repo/src/REAXFF fix_qeq_reaxff.cpp file
+  → read /tmp/artifact-secretary/repo/src/REAXFF/fix_qeq_reaxff.cpp 1 50
+  → search test 1 3
+  → read /tmp/artifact-secretary/repo/src/REAXFF/fix_qeq_reaxff.cpp 700 150
+  → read /tmp/artifact-secretary/repo/src/REAXFF/fix_qeq_reaxff.cpp 849 60
+  → read /tmp/artifact-secretary/repo/src/REAXFF/fix_qeq_reaxff.cpp 1100 70
+  → find /tmp/artifact-secretary/repo/src fix_qeq.cpp file
+  → read /tmp/artifact-secretary/repo/src/QEQ/fix_qeq.cpp 1 80
+  → read /tmp/artifact-secretary/repo/src/QEQ/fix_qeq.cpp 780 60
+  → read /tmp/artifact-secretary/repo/src/QEQ/fix_qeq.cpp 819 40
+Good - found MPI_Bcast. Now let's find parallel_norm/parallel_dot in fix_qeq.h (likely inline) or check fix_qeq_reaxff.cpp near CG function definitions earlier (lines ~900-1000).
+  → read /tmp/artifact-secretary/repo/src/REAXFF/fix_qeq_reaxff.cpp 1000 80
+  → read /tmp/artifact-secretary/repo/src/OPENMP/pair_reaxff_omp.h 1 50
+  → read /tmp/artifact-secretary/repo/src/KOKKOS/pair_reaxff_kokkos.h 1 60
+  → read /tmp/artifact-secretary/repo/doc/src/pair_reaxff.rst 1 120
+  → read /tmp/artifact-secretary/repo/src/REAXFF/pair_reaxff.cpp 120 60
+I have enough evidence. Let me check the KOKKOS reaxff cpp briefly for GPU-specific communication (gpu-aware MPI?), and check build docs for OpenMP thread count defaults.
+  → read /tmp/artifact-secretary/repo/examples/reaxff/log.1Feb25.reaxff.rdx.g++.1 1 40
+  → read /tmp/artifact-secretary/repo/examples/reaxff/HNS/log.30Nov23.reaxff.hns.g++.4 1 40
+  → read /tmp/artifact-secretary/repo/src/KOKKOS/pair_reaxff_kokkos.cpp 1 50
+  → read /tmp/artifact-secretary/repo/src/OPENMP/pair_reaxff_omp.cpp 1 60
+Good, confirms genuine OpenMP threading (hybrid MPI+OpenMP). Now I have enough evidence to record shapes for two variants: base/OpenMP CPU (reaxff, reaxff/omp) and Kokkos GPU-capable (reaxff/kk). Let's check checkpoint/restart support quickly.
+  → read /tmp/artifact-secretary/repo/src/REAXFF/pair_reaxff.h 1 30
+  → record_shape lmp reaxff-cpu LAMMPS pair_style reaxff / reaxff-omp (CPU, MPI+OpenMP) mpirun -np N lmp -in in.re...
+  → record_shape lmp reaxff-kokkos-gpu LAMMPS pair_style reaxff/kk (Kokkos, GPU-capable) mpirun -np N lmp -k on g ...
+Both traces recorded. Summary:
+
+**Subject:** `lmp` (LAMMPS executable), built from `src/REAXFF` (+ `src/OPENMP`, `src/KOKKOS` accelerator packages), providing `pair_style reaxff` / `reaxff/omp` / `reaxff/kk`.
+
+**Trace 1 — `reaxff-cpu`** (pair_style `reaxff`, `reaxff/omp`):
+- Domain-decomposed MPI MD code; ghost-atom halo exchange every timestep via `comm->forward_comm`/`reverse_comm`.
+- The near-universal companion `fix qeq/reaxff` runs a CG solver that calls `MPI_Allreduce` (parallel_dot/parallel_norm) **every CG iteration**, plus a forward_comm/reverse_comm halo exchange per iteration — many small, frequent messages ⇒ latency-sensitive, moderate/high communication intensity per timestep.
+- `reaxff/omp` adds OpenMP threads per MPI rank (hybrid), so NUMA/thread-affinity placement matters.
+- No GPU code path in this variant.
+
+**Trace 2 — `reaxff-kokkos-gpu`** (pair_style `reaxff/kk`, `reaxff/kk/device`, `reaxff/kk/host`):
+- Same MPI halo-exchange/CG-reduction communication pattern as above, but operating on Kokkos device views; ported QEq/ACKS2 fixes exist for Kokkos.
+- GPU-capable via Kokkos (device backend), contributor list spans NVIDIA and AMD, so backend could be CUDA or HIP depending on build config — recorded as CUDA with medium confidence and a caveat.
+- Communication remains latency-sensitive (small global reductions each CG iteration), now potentially crossing host/device boundaries unless GPU-aware MPI is used.
+
+Note: the search tool was non-functional throughout this session (persistent JSON parse errors), so all evidence was gathered via targeted `read` calls on files located through `find`.
+  ✓ recorded 16 assertion(s) across 2 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-0735/us-anthropic-claude-sonnet-5/
+  shapes-20260813-0735/us-anthropic-claude-sonnet-5/github.com/lammps/lammps/unpinned/reaxff/shapes.json

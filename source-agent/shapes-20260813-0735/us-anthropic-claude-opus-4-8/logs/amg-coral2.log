@@ -1,0 +1,77 @@
+
+[confirm] about to run action 'finalize-setup' with:
+{
+  "repos": [
+    "https://github.com/LLNL/AMG"
+  ],
+  "mode": "container",
+  "base_image": "buildpack-deps:bookworm-scm",
+  "ref": null,
+  "keep": true,
+  "focus": null
+}
+proceed? [y/N] 
+▸ https://github.com/LLNL/AMG  [1/1]
+
+[confirm] about to run action 'clone' with:
+{
+  "repo": "https://github.com/LLNL/AMG",
+  "effect": "network + write"
+}
+proceed? [y/N]   · cloning https://github.com/LLNL/AMG into container
+  · warning: could not resolve commit (HEAD)
+  ⚠ unpinned: HEAD
+I'll start by exploring the repository structure to understand what it builds.
+  → find . * file
+The listing shows system files. Let me search for the actual repo location.
+  → find / *akefile* file
+  → find / README* file
+The repo is at `/tmp/artifact-secretary/repo`. Let me read the README and top-level Makefile.
+  → read /tmp/artifact-secretary/repo/README 1 150
+  → read /tmp/artifact-secretary/repo/Makefile 1 80
+This is AMG (from HYPRE), an SPMD MPI + OpenMP algebraic multigrid solver. The executable is built in `test/`. Let me look at the test Makefile and the docs, and the driver source.
+  → read /tmp/artifact-secretary/repo/test/Makefile 1 80
+  → find /tmp/artifact-secretary/repo/test *.c file
+  → find /tmp/artifact-secretary/repo *.readme file
+The subject is `amg`, built from `test/amg.c`. Let me examine the driver's parallelism, launch geometry, and communication. Let me search the docs directory and read amg.c.
+  → find /tmp/artifact-secretary/repo/docs * file
+  → search MPI_Init|MPI_Comm_rank|MPI_Comm_size|omp_|OMP 2 15
+Confirmed: MPI + OpenMP, persistent communication in parcsr_mv. Let me read the docs README for launch info and the communication patterns. Let me look at the amg.README run section and the P/Q/R decomposition, and search for collectives and communication patterns.
+  → read /tmp/artifact-secretary/repo/docs/amg.README 270 70
+  → search MPI_Allreduce|MPI_Allgather|MPI_Alltoall|MPI_Bcast|MPI_Reduce|MPI_Isend|MPI_Irecv|MPI_Start 1 20
+Clear picture: neighbor point-to-point (Isend/Irecv, persistent Startall) for the AMG matvec/halo exchange, plus Allreduce/Allgather/Bcast reductions (PCG dot products, matrix stats). This is mixed communication. Let me check the driver options and MPI_Allreduce in krylov (PCG dot products) which is latency-sensitive.
+  → search MPI_Allreduce|InnerProd 1 10
+  → read /tmp/artifact-secretary/repo/docs/amg.README 1 45
+I have enough evidence. Let me check the driver decomposition and whether there's any GPU/accelerator code (there shouldn't be in this MPI+OpenMP HYPRE-derived benchmark) and checkpoint/IO.
+  → search cuda|CUDA|hip|__global__|checkpoint|restart|hdf5|MPI_File 1 8
+  → read /tmp/artifact-secretary/repo/docs/amg.README 150 30
+No GPU, no parallel I/O, no checkpointing. The code is memory-access bound, MPI+OpenMP, runs at massive scale on multi-node machines. I have enough to record the shape.
+  → record_shape amg mpi+openmp AMG parallel algebraic multigrid solver (HYPRE BoomerAMG benchmark) mpirun -np 4 a...
+  → record_shape amg mpi+openmp AMG communication pattern mpirun -np 4 amg -P 2 2 1 -n 50 50 50 -printstats (OMP_N...
+  → record_shape amg mpi+openmp AMG memory/IO/topology mpirun -np 4 amg -P 2 2 1 -n 50 50 50 -printstats (OMP_NUM_...
+I've completed the analysis. Here's a summary of what I found:
+
+## Subject: `amg`
+
+**What it builds:** LLNL's AMG is a parallel algebraic multigrid (BoomerAMG/HYPRE-derived) benchmark. The top-level Makefile builds a set of static libraries (`utilities`, `krylov`, `IJ_mv`, `parcsr_ls`, `parcsr_mv`, `seq_mv`) and links a single executable **`amg`** from `test/amg.c`. There is no GPU/CUDA build variant in this tree, so I recorded one trace: **`amg:mpi+openmp`**.
+
+## How it wants to run
+
+**Parallelism (mpi + threaded + process):** It's an SPMD code — `hypre_MPI_Init` in the driver, MPI ranks decompose the 3D grid via `-P Px Py Pz`, and OpenMP threads run within each MPI task (`HYPRE_USING_OPENMP`, `OMP_NUM_THREADS`).
+
+**Communication (mixed / neighbor):**
+- The dominant SpMV/halo exchange uses **persistent point-to-point** `MPI_Isend/Irecv` + `Startall` to the ranks in the comm package's send/recv lists — a neighbor pattern on the unstructured-grid decomposition.
+- Krylov solvers (PCG/GMRES `InnerProd`) and matrix statistics use **reductions/broadcasts** (`MPI_Allreduce`, `Allgather(v)`, `Bcast`).
+- This makes it **latency-sensitive** (small frequent neighbor messages + per-iteration allreduces) and moderately **bandwidth-sensitive** (docs call it "memory-access bound").
+
+**Memory:** NUMA-sensitive (OpenMP threads inside MPI tasks, memory-access bound); no shared-memory windows, no huge pages evidence.
+
+**Accelerator / I/O:** none — no CUDA/HIP, no parallel I/O library, no checkpoint/restart.
+
+**Launch geometry:** The only literal invocation in the docs is `mpirun -np 4 amg -P 2 2 1 -n 50 50 50 -printstats` with `OMP_NUM_THREADS=3` (tasks=4, threads/task=3). Docs note it has scaled to >1,000,000 MPI ranks on BG/Q.
+
+**Topology (judgment):** span=either (single node up to full-machine), placement=neighbor, co-location=preferred — the frequent halo exchange + per-iteration allreduces reward packing communicating ranks close together.
+  ✓ recorded 18 assertion(s) across 1 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-0735/us-anthropic-claude-opus-4-8/
+  shapes-20260813-0735/us-anthropic-claude-opus-4-8/github.com/LLNL/AMG/unpinned/shapes.json

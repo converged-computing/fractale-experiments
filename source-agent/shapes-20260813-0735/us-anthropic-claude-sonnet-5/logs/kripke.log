@@ -1,0 +1,70 @@
+
+[confirm] about to run action 'finalize-setup' with:
+{
+  "repos": [
+    "https://github.com/LLNL/Kripke"
+  ],
+  "mode": "container",
+  "base_image": "buildpack-deps:bookworm-scm",
+  "ref": null,
+  "keep": true,
+  "focus": null
+}
+proceed? [y/N] 
+▸ https://github.com/LLNL/Kripke  [1/1]
+
+[confirm] about to run action 'clone' with:
+{
+  "repo": "https://github.com/LLNL/Kripke",
+  "effect": "network + write"
+}
+proceed? [y/N]   · cloning https://github.com/LLNL/Kripke into container
+  · warning: could not resolve commit (HEAD)
+  ⚠ unpinned: HEAD
+  → find . * dir
+This looks like a generic filesystem root, not the repo checkout. Let me search specifically for Kripke files.
+  → find / *Kripke* dir
+  → find / *kripke* file
+  → find /tmp/artifact-secretary/repo * file
+Now let's read the README, CMakeLists, and key source files.
+  → read /tmp/artifact-secretary/repo/README.md 1 200
+  → read /tmp/artifact-secretary/repo/CMakeLists.txt 1 200
+  → read /tmp/artifact-secretary/repo/README.md 200 130
+  → read /tmp/artifact-secretary/repo/cmake/kripke/CMakeLists.txt 1 150
+Good, I have a strong understanding of build options: Sequential/OpenMP/CUDA/HIP arches, MPI parallel decomposition, GPU-aware MPI option. Let's check ParallelComm.cpp and SweepComm.cpp for communication patterns, and Arch files for GPU kernels.
+  → read /tmp/artifact-secretary/repo/src/Kripke/ParallelComm.cpp 1 120
+  → read /tmp/artifact-secretary/repo/src/Kripke/ParallelComm/SweepComm.cpp 1 150
+  → search MPI_(Isend|Irecv|Allreduce|Reduce|Bcast|Barrier|Comm_size|Comm_rank|Cart_) 2 40
+Now let's check OpenMP usage and CUDA/HIP arch details in Arch files.
+  → search omp parallel|OPENMP|RAJA::omp|cuda_exec|hip_exec 2 20
+  → read /tmp/artifact-secretary/repo/src/Kripke/ArchLayout.h 1 80
+  → search checkpoint|restart|HDF5|hdf5|MPI_File 2 10
+No I/O beyond timing output. Let's check kripke.cpp main for CLI defaults and MPI init.
+  → search MPI_Init|MPI_Finalize 3 10
+I have enough evidence. Let me record three variants: CPU (MPI+OpenMP), CUDA (MPI+GPU), HIP (MPI+GPU). Let's check GPU-aware MPI define more and multi_gpu usage.
+  → search KRIPKE_USE_GPU_AWARE_MPI|ENABLE_GPU_AWARE_MPI 3 10
+Now I have enough evidence to record three variants for `lmp`-equivalent `kripke.exe`: cpu-mpi-openmp, cuda-gpu, hip-gpu. Let's also check --procs and --arch defaults confirmed already in README. Now record shapes.
+  → record_shape kripke.exe cpu-mpi-openmp Kripke Sn transport mini-app, CPU build (Sequential or OpenMP on-node k...
+  → record_shape kripke.exe cuda-gpu-mpi Kripke Sn transport mini-app, CUDA GPU build with MPI domain decompositio...
+  → record_shape kripke.exe hip-gpu-mpi Kripke Sn transport mini-app, HIP/ROCm GPU build with MPI domain decomposi...
+Now let me add a few more general assertions common to all variants (topology, memory shared, io) to each trace.
+  → record_shape kripke.exe cpu-mpi-openmp Kripke CPU/OpenMP variant - topology and IO mpirun -np <N> ./kripke.exe...
+  → record_shape kripke.exe cuda-gpu-mpi Kripke CUDA variant - topology mpirun -np <N> ./kripke.exe --procs px,py,...
+  → record_shape kripke.exe hip-gpu-mpi Kripke HIP variant - topology mpirun -np <N> ./kripke.exe --procs px,py,pz...
+I've characterized Kripke's three main build/execution variants based on solid source evidence:
+
+**Subject**: `kripke.exe` — a single executable built via CMake+BLT superbuild (Kripke is a 3D Sn deterministic particle-transport mini-app / proxy for LLNL's ARDRA code).
+
+**Variants recorded:**
+
+1. **`cpu-mpi-openmp`** — Sequential or OpenMP on-node kernels, MPI Cartesian domain decomposition (`--procs px,py,pz`), asynchronous `MPI_Isend`/`MPI_Irecv` neighbor-exchange sweep (I/J/K boundary planes) plus `MPI_Allreduce` for global sums. Latency-sensitive neighbor communication, no checkpoint/parallel I/O.
+
+2. **`cuda-gpu-mpi`** — Same MPI sweep algorithm, but on-node kernels use RAJA `cuda_exec`; optional `ENABLE_GPU_AWARE_MPI` (requires CHAI) passes device pointers directly into MPI buffers instead of staging through host memory — wants GPU-direct-capable MPI and rank/GPU co-location.
+
+3. **`hip-gpu-mpi`** — Same architecture as CUDA variant but on AMD ROCm/HIP GPUs (MI100/MI250X/MI300A host-configs); one host-config even disables MPI, suggesting single-GPU/single-node runs are also supported.
+
+All three share: neighbor-pattern point-to-point sweep communication (the dominant, latency-sensitive traffic), periodic allreduce for solver residual/particle-balance checks, no checkpoint/restart, no parallel I/O library usage, and a Cartesian process-grid launch geometry chosen via `--procs`/`--zset` at runtime rather than hardcoded counts.
+  ✓ recorded 35 assertion(s) across 3 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-0735/us-anthropic-claude-sonnet-5/
+  shapes-20260813-0735/us-anthropic-claude-sonnet-5/github.com/LLNL/Kripke/unpinned/shapes.json

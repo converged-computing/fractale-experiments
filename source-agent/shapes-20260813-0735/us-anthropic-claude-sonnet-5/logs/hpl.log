@@ -1,0 +1,67 @@
+
+[confirm] about to run action 'finalize-setup' with:
+{
+  "repos": [
+    "https://github.com/icl-utk-edu/hpl"
+  ],
+  "mode": "container",
+  "base_image": "buildpack-deps:bookworm-scm",
+  "ref": null,
+  "keep": true,
+  "focus": null
+}
+proceed? [y/N] 
+▸ https://github.com/icl-utk-edu/hpl  [1/1]
+
+[confirm] about to run action 'clone' with:
+{
+  "repo": "https://github.com/icl-utk-edu/hpl",
+  "effect": "network + write"
+}
+proceed? [y/N]   · cloning https://github.com/icl-utk-edu/hpl into container
+  · warning: could not resolve commit (HEAD)
+  ⚠ unpinned: HEAD
+  → find . * dir
+  → find / *hpl* dir
+  → find / *HPL* dir
+  → find / *.c file
+  → find /root * dir
+  → find /opt * dir
+  → find /srv * dir
+  → find /home * dir
+  → find /tmp * dir
+Found the repo at /tmp/artifact-secretary/repo. Let's explore top-level files, README, Makefile.
+  → find /tmp/artifact-secretary/repo * file
+  → read /tmp/artifact-secretary/repo/README 1 80
+This confirms HPL is an MPI-based distributed dense linear algebra benchmark producing `xhpl`. Let's check the driver, grid setup, and HPL.dat for launch geometry details.
+  → read /tmp/artifact-secretary/repo/testing/ptest/HPL.dat 1 40
+  → read /tmp/artifact-secretary/repo/testing/ptest/HPL_pddriver.c 1 120
+  → search mpirun|MPI_COMM_WORLD|nprow|npcol 2 20
+  → read /tmp/artifact-secretary/repo/INSTALL 1 60
+Now let's check grid_init for the process grid pattern, communication (ring/broadcast topologies), and checkpoint/restart (none expected), plus threading (OpenMP - unlikely in classic HPL besides BLAS threading).
+  → read /tmp/artifact-secretary/repo/src/grid/HPL_grid_init.c 60 80
+  → search omp_|OPENMP|pthread 2 10
+  → search MPI_Bcast|MPI_Allreduce|MPI_Sendrecv|MPI_Send\(|MPI_Recv\(|MPI_Isend|MPI_Irecv 2 15
+  → read /tmp/artifact-secretary/repo/src/comm/HPL_1ring.c 1 40
+  → search MPI_Win|shm_open|/dev/shm|cudaMalloc|hipMalloc|cublas|cuda_runtime 2 10
+  → read /tmp/artifact-secretary/repo/src/grid/HPL_grid_info.c 55 50
+  → search checkpoint|restart|MPI_File|HDF5|netcdf 2 10
+No checkpoint/restart or parallel I/O libraries — confirmed. I now have sufficient evidence to record the shape.
+  → record_shape xhpl general HPL (High Performance Linpack) distributed dense LU benchmark mpirun -np <N> xhpl (r...
+  → record_shape xhpl general HPL launch geometry and topology preferences mpirun -np <P*Q> xhpl high Continuation...
+I've characterized HPL (icl-utk-edu/hpl) as a single-variant application:
+
+**Subject:** `xhpl` — the High Performance Linpack benchmark, built from `testing/ptest/HPL_pddriver.c` as the single executable target (no GPU forks, no CMake — classic autotools/`Make.<arch>` build producing `bin/<arch>/xhpl`).
+
+**Key findings:**
+- **Parallelism:** Pure MPI (`MPI_Init` in the driver, `MPI_Comm_rank/size`), no OpenMP/CUDA in the HPL source itself — though linked BLAS libraries (e.g., threaded MKL) can add per-rank threading as a build-time choice.
+- **Communication:** Mixed model — custom point-to-point ring/spread/roll implementations (`HPL_1ring.c`, `HPL_2ring.c`, `HPL_rollN.c`, `HPL_spreadT.c`) for panel broadcasts down the 2D process grid (`HPL_grid_init` splits into row/col communicators), plus classic reductions (`HPL_all_reduce`, max/sum) for machine-epsilon and residual checks. Both latency-sensitive (pivot/row-swap exchanges) and bandwidth-sensitive (panel broadcasts).
+- **No accelerator, no shared-memory windows, no parallel I/O, no checkpoint/restart** — confirmed by absence of CUDA/HIP/MPI_Win/shm_open/HDF5/MPI_File in source.
+- **Launch geometry:** Only concrete invocation found is `mpirun -np 4 xhpl` in INSTALL; actual rank count is determined by user's HPL.dat `P x Q` grid parameters — genuinely variable, so recorded with only that documented example and marked medium confidence.
+- **Topology:** judged "either" span (runs single-node for small grids but is the canonical multi-node Top500 cluster benchmark), with neighbor-style placement preference due to the row/column communicator structure.
+
+Both `record_shape` calls were recorded under `(xhpl, general)` since this repository builds only one real variant of the application.
+  ✓ recorded 15 assertion(s) across 1 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-0735/us-anthropic-claude-sonnet-5/
+  shapes-20260813-0735/us-anthropic-claude-sonnet-5/github.com/icl-utk-edu/hpl/unpinned/shapes.json

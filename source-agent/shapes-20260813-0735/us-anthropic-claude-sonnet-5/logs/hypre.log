@@ -1,0 +1,60 @@
+
+[confirm] about to run action 'finalize-setup' with:
+{
+  "repos": [
+    "https://github.com/hypre-space/hypre"
+  ],
+  "mode": "container",
+  "base_image": "buildpack-deps:bookworm-scm",
+  "ref": null,
+  "keep": true,
+  "focus": "BoomerAMG algebraic multigrid solver"
+}
+proceed? [y/N] 
+▸ https://github.com/hypre-space/hypre  [1/1]
+
+[confirm] about to run action 'clone' with:
+{
+  "repo": "https://github.com/hypre-space/hypre",
+  "effect": "network + write"
+}
+proceed? [y/N]   · cloning https://github.com/hypre-space/hypre into container
+  · warning: could not resolve commit (HEAD)
+  ⚠ unpinned: HEAD
+  → find . CMakeLists.txt file
+  → find . * dir
+  → read /tmp/artifact-secretary/repo/src/CMakeLists.txt 1 100
+  → find /tmp/artifact-secretary/repo *boomer* file
+  → search HYPRE_BoomerAMGCreate 3 15
+  → find /tmp/artifact-secretary/repo/src/examples ex*.c file
+  → find /tmp/artifact-secretary/repo/src/parcsr_ls par_amg*.c file
+  → search MPI_Allreduce|MPI_Alltoall|MPI_Isend|MPI_Irecv 2 20
+  → search HYPRE_USING_GPU|HYPRE_USING_CUDA|HYPRE_USING_HIP 2 10
+  → search omp parallel|HYPRE_USING_OPENMP 2 10
+Confirmed OpenMP threading support. Now check GPU support specifically in parcsr_ls (BoomerAMG) and gpu-aware MPI / cuda-aware communication.
+  → search HYPRE_USING_CUDA|HYPRE_USING_HIP|hypre_GPU|GPU_AWARE 2 15
+  → read /tmp/artifact-secretary/repo/src/CMakeLists.txt 400 120
+  → search mpirun -np 3 10
+  → read /tmp/artifact-secretary/repo/src/examples/ex5.c 1 80
+  → search MPI_File|HYPRE_MPI_IO|hdf5|HDF5 2 10
+  → search hypre_ParCSRCommHandleCreate 3 6
+  → search cudaSetDevice|hipSetDevice|SetDevice 3 10
+  → search HYPRE_CheckPoint|Restart|checkpoint 3 6
+Good — found doc confirming one-GPU-per-rank binding pattern. Let's check the boomeramg doc GPU section more closely.
+  → read /tmp/artifact-secretary/repo/src/docs/usr-manual/solvers-boomeramg.rst 190 60
+Now I have sufficient evidence. Let's record two variants: CPU-MPI (default) and GPU (CUDA/HIP-enabled).
+  → record_shape hypre (BoomerAMG / HYPRE_parcsr_ls) cpu-mpi BoomerAMG algebraic multigrid solver, CPU MPI(+OpenMP...
+  → record_shape hypre (BoomerAMG / HYPRE_parcsr_ls) gpu-cuda BoomerAMG algebraic multigrid solver, GPU (CUDA/HIP)...
+Both traces recorded. Summary:
+
+**Subject**: hypre library, specifically the `HYPRE_parcsr_ls` module implementing BoomerAMG. It builds `libHYPRE` (static by default via CMake, `src/CMakeLists.txt`), invoked through user code or hypre's own test drivers (`src/test/new_ij.c`, `src/test/test_ij.c`) and tutorial examples (`src/examples/ex5.c`, `ex11.c`, etc.) that all follow `MPI_Init` → `HYPRE_Initialize()` → build IJ matrix → `HYPRE_BoomerAMGCreate/Setup/Solve`.
+
+**Two variants recorded** (distinguished by GPU enablement, since it changes accelerator/co-location behavior materially):
+
+1. **`cpu-mpi`** (default build): MPI ranks partition rows of the ParCSR matrix; each AMG V-cycle level does nearest-neighbor point-to-point exchange (`hypre_MPI_Isend/Irecv` via `ParCSRCommPkg`, e.g. `par_csr_pmvcomm.c`) for matvec/relaxation halo data, plus `MPI_Allreduce` for norms/dot products in Krylov solvers and setup. OpenMP threading optional (`HYPRE_ENABLE_OPENMP`, `#pragma omp parallel for` box loops). Launched via `mpirun -np N`.
+
+2. **`gpu-cuda`**: same MPI communication skeleton, but built with `HYPRE_ENABLE_CUDA/HIP/SYCL`; matrices/vectors live in device memory by default, AMG setup/solve run on-device, one GPU is explicitly bound per rank (`cudaSetDevice(device_id)` before `HYPRE_Initialize()`), and `HYPRE_ENABLE_GPU_AWARE_MPI` allows direct GPU-to-GPU transfer for the same neighbor-exchange pattern. GPU BoomerAMG restricts to a subset of coarsening/interpolation/smoother options.
+  ✓ recorded 15 assertion(s) across 2 trace(s)
+
+wrote 1 shape report(s) under shapes-20260813-0735/us-anthropic-claude-sonnet-5/
+  shapes-20260813-0735/us-anthropic-claude-sonnet-5/github.com/hypre-space/hypre/unpinned/BoomerAMG_algebraic_multigrid_solver/shapes.json
